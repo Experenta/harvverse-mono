@@ -13,6 +13,7 @@
   "dependencies": {
     "@harvverse-monorepo/db": "workspace:*",
     "@harvverse-monorepo/env": "workspace:*",
+    "drizzle-orm": "^0.45.1",
     "@trpc/client": "catalog:",
     "@trpc/server": "catalog:",
     "dotenv": "catalog:",

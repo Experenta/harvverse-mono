@@ -1,10 +1,18 @@
 import type { NextRequest } from "next/server";
 
-export async function createContext(req: NextRequest) {
+import { db } from "@harvverse-monorepo/db";
+import type { Db } from "@harvverse-monorepo/db";
+
+export type Context = {
+  auth: null;
+  db: Db;
+  session: null;
+};
+
+export async function createContext(_req: NextRequest): Promise<Context> {
   return {
     auth: null,
+    db,
     session: null,
   };
 }
-
-export type Context = Awaited<ReturnType<typeof createContext>>;

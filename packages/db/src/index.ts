@@ -7,4 +7,6 @@ export function createDb() {
   return drizzle(env.DATABASE_URL, { schema });
 }
 
+export type Db = ReturnType<typeof createDb>;
+
 export const db = createDb();
