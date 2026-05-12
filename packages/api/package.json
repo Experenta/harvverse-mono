@@ -1,0 +1,26 @@
+{
+  "name": "@harvverse-monorepo/api",
+  "type": "module",
+  "exports": {
+    ".": {
+      "default": "./src/index.ts"
+    },
+    "./*": {
+      "default": "./src/*.ts"
+    }
+  },
+  "scripts": {},
+  "dependencies": {
+    "@harvverse-monorepo/db": "workspace:*",
+    "@harvverse-monorepo/env": "workspace:*",
+    "@trpc/client": "catalog:",
+    "@trpc/server": "catalog:",
+    "dotenv": "catalog:",
+    "next": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@harvverse-monorepo/config": "workspace:*",
+    "typescript": "catalog:"
+  }
+}

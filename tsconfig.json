@@ -1,0 +1,3 @@
+{
+  "extends": "@harvverse-monorepo/config/tsconfig.base.json"
+}

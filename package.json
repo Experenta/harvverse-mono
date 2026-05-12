@@ -1,0 +1,35 @@
+{
+  "name": "harvverse-monorepo",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "type": "module",
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "check-types": "turbo check-types",
+    "dev:web": "turbo -F web dev",
+    "db:push": "turbo -F @harvverse-monorepo/db db:push",
+    "db:studio": "turbo -F @harvverse-monorepo/db db:studio",
+    "db:generate": "turbo -F @harvverse-monorepo/db db:generate",
+    "db:migrate": "turbo -F @harvverse-monorepo/db db:migrate",
+    "db:start": "turbo -F @harvverse-monorepo/db db:start",
+    "db:watch": "turbo -F @harvverse-monorepo/db db:watch",
+    "db:stop": "turbo -F @harvverse-monorepo/db db:stop",
+    "db:down": "turbo -F @harvverse-monorepo/db db:down"
+  },
+  "dependencies": {
+    "@harvverse-monorepo/env": "workspace:*",
+    "dotenv": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@harvverse-monorepo/config": "workspace:*",
+    "@types/node": "^22.13.14",
+    "turbo": "^2.8.12",
+    "typescript": "catalog:"
+  },
+  "packageManager": "pnpm@10.17.1"
+}
