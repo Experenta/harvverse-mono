@@ -13,11 +13,14 @@ import {
   Sprout,
   Loader2,
   HandCoins,
+  RefreshCw,
+  AlertCircle,
 } from "lucide-react";
 
 import { Badge } from "@harvverse-monorepo/ui/components/badge";
 import { Button } from "@harvverse-monorepo/ui/components/button";
 import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
+import { Progress } from "@harvverse-monorepo/ui/components/progress";
 import { Skeleton } from "@harvverse-monorepo/ui/components/skeleton";
 import {
   Dialog,
@@ -93,6 +96,9 @@ export default function LotDetailPage() {
   );
   const updateLotStatus = useMutation(
     trpc.lots.updateStatus.mutationOptions(),
+  );
+  const computeScore = useMutation(
+    trpc.lots.computeRiskScore.mutationOptions(),
   );
 
   const activePlan = lot?.plans.find((p) => p.status !== "revoked") ?? null;
@@ -306,21 +312,159 @@ export default function LotDetailPage() {
               )}
             </GlassCard>
 
-            {lot.riskScore != null && (
-              <GlassCard className="p-6 border-primary/20">
-                <h2 className="text-xl font-bold mb-4">Risk Score</h2>
-                <div className="text-5xl font-bold text-primary mb-1">
-                  {lot.riskScore}
-                </div>
-                <p className="text-xs text-gray-400 mb-2">out of 100</p>
-                <p className="text-xs text-gray-400">
-                  {lot.eudrCompliant
-                    ? "EUDR-compliant verified."
-                    : "EUDR verification pending."}
+            <GlassCard className="p-6 border-primary/20">
+              <h2 className="text-xl font-bold mb-4">Risk Score</h2>
+              {(() => {
+                const displayScore =
+                  computeScore.data?.score ?? lot.riskScore;
+                return displayScore != null ? (
+                  <>
+                    <div className="text-5xl font-bold text-primary mb-1">
+                      {displayScore}
+                    </div>
+                    <p className="text-xs text-gray-400 mb-4">out of 100</p>
+                    <Progress value={displayScore} className="mb-4" />
+                    <p className="text-xs text-gray-400">
+                      {lot.eudrCompliant
+                        ? "EUDR-compliant verified."
+                        : "EUDR verification pending."}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm text-gray-400 mb-4">
+                    No risk score recorded yet.
+                  </p>
+                );
+              })()}
+              {(() => {
+                const hasFarmPolygon = lot.farm?.polygon != null;
+                const hasGps = lot.gpsLat != null && lot.gpsLng != null;
+                const canScore = hasFarmPolygon || hasGps;
+                return (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full mt-2 border-white/20 text-white/70 hover:text-white hover:bg-white/10"
+                      disabled={computeScore.isPending || !canScore}
+                      onClick={() => {
+                        computeScore.mutate(
+                          { id: lotId },
+                          {
+                            onSuccess: () =>
+                              queryClient.invalidateQueries({
+                                queryKey: trpc.lots.byId.queryKey({ id: lotId }),
+                              }),
+                          },
+                        );
+                      }}
+                    >
+                      {computeScore.isPending ? (
+                        <Loader2 className="w-3 h-3 mr-2 animate-spin" />
+                      ) : (
+                        <RefreshCw className="w-3 h-3 mr-2" />
+                      )}
+                      {computeScore.isPending ? "Calculating…" : "Calculate Risk Score"}
+                    </Button>
+                    {!canScore ? (
+                      <p className="text-xs text-yellow-500/80 mt-2 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3 shrink-0" />
+                        Farm polygon or GPS coordinates required
+                      </p>
+                    ) : null}
+                  </>
+                );
+              })()}
+              {computeScore.error ? (
+                <p className="text-xs text-red-400 mt-2">
+                  {computeScore.error.message}
                 </p>
-              </GlassCard>
-            )}
+              ) : null}
+            </GlassCard>
           </div>
+
+          {computeScore.data && (
+            <GlassCard className="p-6 border-primary/20 mb-8">
+              <h2 className="text-lg font-bold mb-1">Score Breakdown</h2>
+              <p className="text-xs text-gray-400 mb-4">
+                {computeScore.data.hasSentinel
+                  ? "Sentinel-2 NDVI + ERA5 climate (Open-Meteo) · last 24 months"
+                  : "ERA5 climate (Open-Meteo) · last 24 months · add Sentinel Hub credentials to include NDVI"}
+              </p>
+              <div className="space-y-3">
+                {[
+                  {
+                    label: "NDVI Average",
+                    value: computeScore.data.breakdown.ndviAvg,
+                    weight: computeScore.data.hasSentinel ? "20%" : null,
+                    note: !computeScore.data.hasSentinel
+                      ? "No Sentinel Hub credentials"
+                      : undefined,
+                  },
+                  {
+                    label: "NDVI Stability",
+                    value: computeScore.data.breakdown.ndviStability,
+                    weight: computeScore.data.hasSentinel ? "10%" : null,
+                    note: !computeScore.data.hasSentinel
+                      ? "No Sentinel Hub credentials"
+                      : undefined,
+                  },
+                  {
+                    label: "Annual Precipitation",
+                    value: computeScore.data.breakdown.annualPrecip,
+                    weight: computeScore.data.hasSentinel ? "15%" : "25%",
+                  },
+                  {
+                    label: "Rain Distribution",
+                    value: computeScore.data.breakdown.rainDistrib,
+                    weight: computeScore.data.hasSentinel ? "15%" : "25%",
+                  },
+                  {
+                    label: "Temperature",
+                    value: computeScore.data.breakdown.temperature,
+                    weight: computeScore.data.hasSentinel ? "10%" : "17%",
+                  },
+                  {
+                    label: "EUDR Compliance",
+                    value: computeScore.data.breakdown.eudr,
+                    weight: computeScore.data.hasSentinel ? "20%" : "33%",
+                  },
+                ].map(({ label, value, weight, note }) => (
+                  <div key={label} className="grid grid-cols-[1fr_auto_auto] items-center gap-3">
+                    <div>
+                      <p className="text-sm text-white/80">{label}</p>
+                      {note ? (
+                        <p className="text-xs text-yellow-500/70">{note}</p>
+                      ) : null}
+                    </div>
+                    <span className="text-xs text-gray-500 w-10 text-right">
+                      {weight ?? "—"}
+                    </span>
+                    {value != null ? (
+                      <div className="flex items-center gap-2 w-32">
+                        <Progress value={value} className="flex-1 h-1.5" />
+                        <span className="text-xs font-mono text-white/70 w-8 text-right">
+                          {Math.round(value)}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-500 w-32 text-right">N/A</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="border-t border-white/10 mt-4 pt-3 flex justify-between items-center">
+                <span className="text-sm text-gray-400">Total</span>
+                <span className="text-2xl font-bold text-primary">
+                  {computeScore.data.score}
+                  <span className="text-sm text-gray-400 font-normal ml-1">/ 100</span>
+                </span>
+              </div>
+              <p className="text-xs text-gray-600 mt-3">
+                Hash: {computeScore.data.hash.slice(0, 16)}…
+              </p>
+            </GlassCard>
+          )}
 
           <Button
             className="bg-primary hover:bg-primary/90 text-[#0a0e27] font-bold py-6 px-8"

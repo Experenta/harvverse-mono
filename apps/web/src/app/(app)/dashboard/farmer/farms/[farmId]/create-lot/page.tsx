@@ -9,7 +9,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { AlertTriangle, ArrowLeft, CheckCircle, Loader2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle, Loader2, Satellite } from "lucide-react";
 
 import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
 import { Button } from "@harvverse-monorepo/ui/components/button";
@@ -97,6 +97,7 @@ export default function CreateLotPage() {
 
   const [lotPolygon, setLotPolygon] = useState<Polygon | null>(null);
   const [outsideFarm, setOutsideFarm] = useState(false);
+  const [altitudeMessage, setAltitudeMessage] = useState<string | null>(null);
 
   const farmPolygon =
     farm?.polygon != null ? (farm.polygon as Polygon) : undefined;
@@ -157,6 +158,35 @@ export default function CreateLotPage() {
       setOutsideFarm(!polygonContainedIn(lotPolygon, farmPolygon));
     }
   }, [lotPolygon]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const detectAltitude = useMutation(
+    trpc.lots.detectAltitude.mutationOptions({
+      onSuccess: (data) => {
+        if (data.altitudeMeters != null) {
+          form.setValue("altitudeMasl", data.altitudeMeters);
+          setAltitudeMessage(
+            `Detected: ${data.altitudeMeters} m above sea level (Copernicus DEM)`,
+          );
+        } else {
+          setAltitudeMessage("Could not detect automatically, enter manually");
+        }
+      },
+      onError: () =>
+        setAltitudeMessage("Could not detect automatically, enter manually"),
+    }),
+  );
+
+  const rawLat = form.watch("gpsLat");
+  const rawLng = form.watch("gpsLng");
+  const gpsLat =
+    Number.isFinite(Number(rawLat)) && rawLat !== undefined
+      ? Number(rawLat)
+      : null;
+  const gpsLng =
+    Number.isFinite(Number(rawLng)) && rawLng !== undefined
+      ? Number(rawLng)
+      : null;
+  const canDetect = gpsLat !== null && gpsLng !== null;
 
   const areaManzanas = form.watch("areaManzanas");
   const showPreview =
@@ -466,6 +496,39 @@ export default function CreateLotPage() {
                 )}
               />
             </div>
+
+            {canDetect && (
+              <div className="space-y-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-white/10 text-white/80 hover:border-white/30 hover:text-white"
+                  disabled={detectAltitude.isPending}
+                  onClick={() => {
+                    setAltitudeMessage(null);
+                    detectAltitude.mutate({ lat: gpsLat!, lng: gpsLng! });
+                  }}
+                >
+                  {detectAltitude.isPending ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Satellite className="w-4 h-4 mr-2" />
+                  )}
+                  Detect Altitude from Satellite
+                </Button>
+                {altitudeMessage && (
+                  <p
+                    className={`text-xs ${
+                      altitudeMessage.startsWith("Detected")
+                        ? "text-green-400"
+                        : "text-yellow-400"
+                    }`}
+                  >
+                    {altitudeMessage}
+                  </p>
+                )}
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <FormField
