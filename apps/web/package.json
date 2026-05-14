@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@harvverse-monorepo/api": "workspace:*",
+    "@harvverse-monorepo/contracts": "workspace:*",
     "@harvverse-monorepo/env": "workspace:*",
     "@harvverse-monorepo/ui": "workspace:*",
     "@hookform/resolvers": "^5.2.2",

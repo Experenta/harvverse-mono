@@ -2,11 +2,16 @@
   "name": "@harvverse-monorepo/contracts",
   "version": "0.0.1",
   "private": true,
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
     "compile": "hardhat compile",
     "test": "hardhat test",
     "deploy:local": "hardhat run scripts/deploy.ts --network hardhat",
-    "deploy:celo": "hardhat run scripts/deploy.ts --network celoSepolia"
+    "deploy:celo": "hardhat run scripts/deploy.ts --network celoSepolia",
+    "setup:demo": "hardhat run scripts/setup-demo.ts --network hardhat"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",

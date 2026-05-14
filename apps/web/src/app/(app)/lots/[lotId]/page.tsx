@@ -4,17 +4,20 @@ import dynamic from "next/dynamic";
 import type { Route } from "next";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
+import { useEffect } from "react";
 import type { Polygon } from "geojson";
 import {
   ArrowLeft,
+  CheckCircle2,
+  Circle,
+  HandCoins,
+  Loader2,
   MapPin,
   Mountain,
-  ShieldCheck,
-  Sprout,
-  Loader2,
-  HandCoins,
   RefreshCw,
   AlertCircle,
+  ShieldCheck,
+  Sprout,
 } from "lucide-react";
 
 import { Badge } from "@harvverse-monorepo/ui/components/badge";
@@ -34,6 +37,7 @@ import {
 import { formatUsdFromCents } from "@/lib/format";
 import { useCurrentUser } from "@/hooks/use-auth";
 import { queryClient, trpc } from "@/utils/trpc";
+import { useReservePartnership, type ReserveStep } from "@/hooks/use-reserve-partnership";
 import { useState } from "react";
 
 const PolygonDisplayMap = dynamic(() => import("@/components/polygon-display-map"), {
@@ -42,14 +46,6 @@ const PolygonDisplayMap = dynamic(() => import("@/components/polygon-display-map
     <div className="h-[200px] rounded-lg bg-black/20 border border-white/10 animate-pulse" />
   ),
 });
-
-async function sha256Hex(data: string): Promise<string> {
-  const encoded = new TextEncoder().encode(data);
-  const buf = await crypto.subtle.digest("SHA-256", encoded);
-  return Array.from(new Uint8Array(buf))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
 
 function computeProjections(plan: {
   projectedYieldY1TenthsQq: number;
@@ -74,6 +70,46 @@ function computeProjections(plan: {
   return { revenueCents, profitCents, farmerCents, partnerCents };
 }
 
+const STEP_LABELS: Record<ReserveStep, string> = {
+  idle: "Confirm & Reserve",
+  approving: "Approving USDC…",
+  approved: "Approved",
+  opening: "Opening partnership…",
+  confirmed: "Confirmed",
+  saving: "Saving…",
+  done: "Done",
+  error: "Try again",
+};
+
+function StepRow({
+  label,
+  active,
+  done,
+}: {
+  label: string;
+  active: boolean;
+  done: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-2 text-sm">
+      {done ? (
+        <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" />
+      ) : active ? (
+        <Loader2 className="w-4 h-4 animate-spin text-primary shrink-0" />
+      ) : (
+        <Circle className="w-4 h-4 text-white/20 shrink-0" />
+      )}
+      <span className={done ? "text-green-400" : active ? "text-white" : "text-white/30"}>
+        {label}
+      </span>
+    </div>
+  );
+}
+
+function stepIndex(step: ReserveStep): number {
+  return ["idle", "approving", "approved", "opening", "confirmed", "saving", "done", "error"].indexOf(step);
+}
+
 export default function LotDetailPage() {
   const router = useRouter();
   const params = useParams<{ lotId: string }>();
@@ -81,7 +117,6 @@ export default function LotDetailPage() {
 
   const { data: user } = useCurrentUser();
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [reserving, setReserving] = useState(false);
 
   const { data: lot, isLoading } = useQuery(
     trpc.lots.byId.queryOptions(
@@ -90,13 +125,6 @@ export default function LotDetailPage() {
     ),
   );
 
-  const createProposal = useMutation(trpc.proposals.create.mutationOptions());
-  const createPartnership = useMutation(
-    trpc.partnerships.create.mutationOptions(),
-  );
-  const updateLotStatus = useMutation(
-    trpc.lots.updateStatus.mutationOptions(),
-  );
   const computeScore = useMutation(
     trpc.lots.computeRiskScore.mutationOptions(),
   );
@@ -104,78 +132,32 @@ export default function LotDetailPage() {
   const activePlan = lot?.plans.find((p) => p.status !== "revoked") ?? null;
   const projections = activePlan ? computeProjections(activePlan) : null;
 
+  const reserve = useReservePartnership({
+    lot: lot ?? null,
+    activePlan: activePlan ?? null,
+    projections,
+  });
+
+  // Navigate on successful reservation
+  useEffect(() => {
+    if (reserve.step === "done") {
+      setDialogOpen(false);
+      router.push("/my-investments" as Route);
+    }
+  }, [reserve.step, router]);
+
+  // Reset hook state when dialog closes
+  useEffect(() => {
+    if (!dialogOpen && reserve.step === "error") reserve.reset();
+  }, [dialogOpen, reserve]);
+
   const canReserve =
     !!activePlan &&
     lot?.status === "available" &&
     !!user &&
     user.role === "partner";
 
-  async function handleReserve() {
-    if (!lot || !activePlan || !user || !projections) return;
-    setReserving(true);
-    try {
-      const proposalHash = await sha256Hex(
-        JSON.stringify({
-          lotId: lot.id,
-          planId: activePlan.id,
-          userId: user.id,
-          ts: Date.now(),
-        }),
-      );
-
-      const proposal = await createProposal.mutateAsync({
-        lotId: lot.id,
-        planId: activePlan.id,
-        userId: user.id,
-        walletAddress: user.walletAddress,
-        partnershipType: "phygital",
-        status: "signed",
-        revenueCents: projections.revenueCents,
-        profitCents: projections.profitCents,
-        farmerCents: projections.farmerCents,
-        partnerCents: projections.partnerCents,
-        proposalHash,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      });
-
-      await createPartnership.mutateAsync({
-        proposalId: proposal.id,
-        lotId: lot.id,
-        planId: activePlan.id,
-        partnerUserId: user.id,
-        partnerWallet: user.walletAddress,
-        farmerWallet: lot.farmerWallet,
-        status: "active",
-        chainKey: "celoSepolia",
-      });
-
-      await updateLotStatus.mutateAsync({
-        id: lot.id,
-        status: "reserved",
-      });
-
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: trpc.lots.byId.queryKey({ id: lot.id }),
-        }),
-        queryClient.invalidateQueries({
-          queryKey: trpc.lots.list.queryKey(),
-        }),
-        queryClient.invalidateQueries({
-          queryKey: trpc.partnerships.myPartnerships.queryKey({
-            walletAddress: user.walletAddress,
-          }),
-        }),
-      ]);
-
-      setDialogOpen(false);
-      router.push("/my-investments" as Route);
-    } catch {
-      // Error toast handled by queryClient's QueryCache onError
-    } finally {
-      setReserving(false);
-    }
-  }
+  const si = stepIndex(reserve.step);
 
   return (
     <div className="min-h-screen bg-[#0a0e27] text-white p-8">
@@ -484,7 +466,7 @@ export default function LotDetailPage() {
           </Button>
 
           {activePlan && projections && (
-            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); }}>
               <DialogContent className="bg-[#1a1f3a] border border-white/10 text-white max-w-md">
                 <DialogHeader>
                   <DialogTitle className="text-xl font-bold text-white">
@@ -535,6 +517,40 @@ export default function LotDetailPage() {
                     </div>
                   </div>
 
+                  {/* Transaction step tracker */}
+                  {reserve.step !== "idle" && (
+                    <div className="bg-white/5 rounded-lg p-3 space-y-2">
+                      <StepRow
+                        label="Approve USDC"
+                        active={reserve.step === "approving"}
+                        done={si >= stepIndex("approved")}
+                      />
+                      <StepRow
+                        label="Open partnership on-chain"
+                        active={reserve.step === "opening"}
+                        done={si >= stepIndex("confirmed")}
+                      />
+                      <StepRow
+                        label="Save to database"
+                        active={reserve.step === "saving"}
+                        done={reserve.step === "done"}
+                      />
+                    </div>
+                  )}
+
+                  {reserve.error && (
+                    <p className="text-xs text-red-400 flex items-start gap-1">
+                      <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" />
+                      {reserve.error}
+                    </p>
+                  )}
+
+                  {reserve.txHash && reserve.step !== "done" && (
+                    <p className="text-xs text-gray-500 font-mono truncate">
+                      tx: {reserve.txHash}
+                    </p>
+                  )}
+
                   <p className="text-xs text-gray-500 leading-relaxed">
                     By confirming, you reserve a Phygital partnership for this
                     lot. Settlement happens after harvest based on actual yield.
@@ -545,13 +561,13 @@ export default function LotDetailPage() {
                 <DialogFooter showCloseButton>
                   <Button
                     className="bg-primary hover:bg-primary/90 text-[#0a0e27] font-bold"
-                    disabled={reserving}
-                    onClick={handleReserve}
+                    disabled={reserve.isLoading}
+                    onClick={reserve.step === "error" ? reserve.reset : reserve.start}
                   >
-                    {reserving && (
+                    {reserve.isLoading && (
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     )}
-                    {reserving ? "Reserving..." : "Confirm & Reserve"}
+                    {STEP_LABELS[reserve.step]}
                   </Button>
                 </DialogFooter>
               </DialogContent>

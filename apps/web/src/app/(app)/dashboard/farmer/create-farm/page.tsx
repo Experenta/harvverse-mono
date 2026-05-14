@@ -96,12 +96,6 @@ export default function CreateFarmPage() {
     }),
   );
 
-  const rawLat = form.watch("latitude");
-  const rawLng = form.watch("longitude");
-  const gpsLat = Number.isFinite(Number(rawLat)) && rawLat !== undefined ? Number(rawLat) : null;
-  const gpsLng = Number.isFinite(Number(rawLng)) && rawLng !== undefined ? Number(rawLng) : null;
-  const canDetect = gpsLat !== null && gpsLng !== null;
-
   const createFarm = useMutation(
     trpc.farms.create.mutationOptions({
       onSuccess: async (farm) => {
@@ -130,6 +124,11 @@ export default function CreateFarmPage() {
     },
   });
 
+  const rawLat = form.watch("latitude");
+  const rawLng = form.watch("longitude");
+  const gpsLat = Number.isFinite(Number(rawLat)) && rawLat !== undefined ? Number(rawLat) : null;
+  const gpsLng = Number.isFinite(Number(rawLng)) && rawLng !== undefined ? Number(rawLng) : null;
+  const canDetect = gpsLat !== null && gpsLng !== null;
 
   // Auto-fill lat/lng from polygon centroid when fields are untouched
   useEffect(() => {

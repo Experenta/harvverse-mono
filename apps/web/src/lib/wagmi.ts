@@ -1,8 +1,8 @@
 import { createConfig, http, injected } from "wagmi";
-import { celoSepolia } from "viem/chains";
+import { celoSepolia, hardhat } from "viem/chains";
 
 export const wagmiConfig = createConfig({
-  chains: [celoSepolia],
+  chains: [celoSepolia, hardhat],
   connectors: [
     // MiniPay: Opera's mobile wallet used by non-tech farmers on Celo.
     // Listed first so wagmi prefers it when isMiniPay is detected in the webview.
@@ -23,5 +23,6 @@ export const wagmiConfig = createConfig({
   ],
   transports: {
     [celoSepolia.id]: http(),
+    [hardhat.id]: http("http://127.0.0.1:8545"),
   },
 });
