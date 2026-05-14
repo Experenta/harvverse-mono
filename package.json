@@ -15,6 +15,7 @@
     "db:studio": "turbo run db:studio --filter=@harvverse-monorepo/db",
     "db:generate": "turbo run db:generate --filter=@harvverse-monorepo/db",
     "db:migrate": "turbo run db:migrate --filter=@harvverse-monorepo/db",
+    "db:seed": "turbo run db:seed --filter=@harvverse-monorepo/db",
     "db:start": "turbo run db:start --filter=@harvverse-monorepo/db",
     "db:watch": "turbo run db:watch --filter=@harvverse-monorepo/db",
     "db:stop": "turbo run db:stop --filter=@harvverse-monorepo/db",

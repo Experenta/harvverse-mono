@@ -1,23 +1,23 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-
+import { Inter, Space_Grotesk } from "next/font/google";
 import "../index.css";
-import Header from "@/components/header";
 import Providers from "@/components/providers";
 
-const geistSans = Geist({
-	variable: "--font-geist-sans",
+const inter = Inter({
+	variable: "--font-inter",
 	subsets: ["latin"],
+	weight: ["300", "400", "500", "600", "700", "800"],
 });
 
-const geistMono = Geist_Mono({
-	variable: "--font-geist-mono",
+const spaceGrotesk = Space_Grotesk({
+	variable: "--font-space-grotesk",
 	subsets: ["latin"],
+	weight: ["400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
-	title: "harvverse-monorepo",
-	description: "harvverse-monorepo",
+	title: "Harvverse — Where Investors Meet Farmers",
+	description: "The Phygital Agricultural Ecosystem bridging digital capital and real-world yield.",
 };
 
 export default function RootLayout({
@@ -28,14 +28,11 @@ export default function RootLayout({
 	return (
 		<html lang="en" suppressHydrationWarning>
 			<body
-				className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+				className={`${inter.variable} ${spaceGrotesk.variable} antialiased`}
+				style={{ background: "#080E04", minHeight: "100vh" }}
+				suppressHydrationWarning
 			>
-				<Providers>
-					<div className="grid grid-rows-[auto_1fr] h-svh">
-						<Header />
-						{children}
-					</div>
-				</Providers>
+				<Providers>{children}</Providers>
 			</body>
 		</html>
 	);

@@ -49,3 +49,7 @@ coverage
 .cache
 tmp
 temp
+
+# Dev artifacts
+.claude/
+test_copernicus.py
