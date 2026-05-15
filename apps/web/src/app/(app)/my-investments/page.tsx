@@ -44,7 +44,7 @@ export default function MyInvestmentsPage() {
   const isLoading = userLoading || partnershipLoading;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0a0e27] to-[#1a1f3a] text-white p-8">
+    <div>
       <div className="max-w-6xl mx-auto">
         <Button
           variant="ghost"

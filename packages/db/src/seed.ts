@@ -28,8 +28,8 @@ const DEMO_LOT = {
   partnerShareBps: 4000,
 } as const;
 
-const FARMER_WALLET = "0xFARMER_DEMO_ADDRESS";
-const PARTNER_WALLET = "0xPARTNER_DEMO_ADDRESS";
+const FARMER_WALLET = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
+const PARTNER_WALLET = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
 const PLAN_CODE = "HVPLAN-ZAF-L02-2026";
 
 function sha256Hex(value: unknown): string {

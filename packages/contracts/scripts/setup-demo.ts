@@ -123,8 +123,7 @@ async function main() {
         !l.startsWith("NEXT_PUBLIC_USE_LOCAL_CONTRACTS") &&
         !l.startsWith("NEXT_PUBLIC_HARDHAT_CHAIN_ID") &&
         !l.startsWith("NEXT_PUBLIC_USDC_ADDRESS") &&
-        !l.startsWith("NEXT_PUBLIC_PARTNERSHIP_ADDRESS") &&
-        !l.match(/^#?\s*NEXT_PUBLIC_DEMO_WALLET/),
+        !l.startsWith("NEXT_PUBLIC_PARTNERSHIP_ADDRESS"),
     );
 
   const newVars = [
@@ -134,7 +133,6 @@ async function main() {
     "NEXT_PUBLIC_HARDHAT_CHAIN_ID=31337",
     `NEXT_PUBLIC_USDC_ADDRESS=${usdcAddress}`,
     `NEXT_PUBLIC_PARTNERSHIP_ADDRESS=${partnershipAddress}`,
-    `NEXT_PUBLIC_DEMO_WALLET=${demoPartner.address}`,
   ];
 
   fs.writeFileSync(envPath, [...filteredLines, ...newVars].join("\n") + "\n");

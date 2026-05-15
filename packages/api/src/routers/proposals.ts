@@ -14,7 +14,7 @@ const proposalStatusSchema = z.enum(proposalStatusEnum.enumValues);
 export const proposalsRouter = router({
   // Partner-only (auth middleware TBD).
   create: publicProcedure
-    .input(insertProposalSchema)
+    .input(insertProposalSchema.extend({ expiresAt: z.coerce.date() }))
     .mutation(async ({ ctx, input }) => {
       const [proposal] = await ctx.db
         .insert(proposals)

@@ -29,7 +29,7 @@ export default function LotsPage() {
   );
 
   return (
-    <div className="min-h-screen bg-[#0a0e27] text-white p-8">
+    <div>
       <h1 className="text-4xl font-bold mb-8">Available Lots</h1>
 
       {isLoading ? (

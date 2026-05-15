@@ -15,7 +15,7 @@ export default function FarmsPage() {
   const { data: farms, isLoading } = useQuery(trpc.farms.list.queryOptions());
 
   return (
-    <div className="min-h-screen bg-[#0a0e27] text-white p-8">
+    <div>
       <h1 className="text-4xl font-bold mb-8">Farms</h1>
 
       {isLoading ? (
@@ -43,7 +43,7 @@ export default function FarmsPage() {
             >
               <div className="h-40 overflow-hidden">
                 <img
-                  src={farm.photoUrl ?? "/logo-square.png"}
+                  src={farm.photoUrls?.[0] ?? "/logo-square.png"}
                   alt={farm.name}
                   className="h-full w-full object-cover transition-transform hover:scale-105"
                 />

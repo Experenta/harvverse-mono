@@ -1,20 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import type { Route } from "next";
-import { useRouter } from "next/navigation";
-import { useMutation } from "@tanstack/react-query";
+import { useRouter, useParams } from "next/navigation";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import type { Polygon } from "geojson";
-import { ArrowLeft, CheckCircle, Loader2, Satellite } from "lucide-react";
+import { ArrowLeft, CheckCircle, Loader2 } from "lucide-react";
 
 import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
 import { Button } from "@harvverse-monorepo/ui/components/button";
 import { Input } from "@harvverse-monorepo/ui/components/input";
 import { Textarea } from "@harvverse-monorepo/ui/components/textarea";
+import { Skeleton } from "@harvverse-monorepo/ui/components/skeleton";
 import {
   Form,
   FormControl,
@@ -24,116 +24,71 @@ import {
   FormMessage,
 } from "@harvverse-monorepo/ui/components/form";
 
-import { useCurrentUser } from "@/hooks/use-auth";
 import { queryClient, trpc } from "@/utils/trpc";
-import PolygonInput from "@/components/polygon-input";
-import { polygonAreaManzanas } from "@/lib/geo";
 
-const createFarmSchema = z.object({
+const COFFEE_VARIETIES = [
+  "Geisha", "Bourbon", "Catuai", "Pacamara", "Typica", "Caturra", "Parainema", "Other",
+];
+
+const COUNTRIES = [
+  "Honduras", "Guatemala", "Costa Rica", "El Salvador", "Nicaragua", "Panama",
+];
+
+const CERTIFICATIONS = [
+  "Organic", "Fair Trade", "Rainforest Alliance", "UTZ", "Bird Friendly", "Cup of Excellence",
+];
+
+const editFarmSchema = z.object({
   name: z.string().min(2, "Farm name required"),
   country: z.string().min(1, "Country required"),
   region: z.string().min(2, "Region required"),
   altitudeMasl: z.coerce.number().int().min(0).optional(),
   totalArea: z.coerce.number().min(0.1).optional(),
-  latitude: z.coerce.number().min(-90).max(90).optional(),
-  longitude: z.coerce.number().min(-180).max(180).optional(),
   varieties: z.array(z.string()).min(1, "Select at least one variety"),
   certifications: z.array(z.string()).optional(),
   description: z.string().optional(),
   photoUrl: z.string().url().optional().or(z.literal("")),
 });
 
-type CreateFarmInput = z.input<typeof createFarmSchema>;
-type CreateFarmValues = z.output<typeof createFarmSchema>;
-
-const COFFEE_VARIETIES = [
-  "Geisha",
-  "Bourbon",
-  "Catuai",
-  "Pacamara",
-  "Typica",
-  "Caturra",
-  "Parainema",
-  "Other",
-];
-
-const COUNTRIES = [
-  "Honduras",
-  "Guatemala",
-  "Costa Rica",
-  "El Salvador",
-  "Nicaragua",
-  "Panama",
-];
-
-const CERTIFICATIONS = [
-  "Organic",
-  "Fair Trade",
-  "Rainforest Alliance",
-  "UTZ",
-  "Bird Friendly",
-  "Cup of Excellence",
-];
+type EditFarmInput = z.input<typeof editFarmSchema>;
+type EditFarmValues = z.output<typeof editFarmSchema>;
 
 const inputClasses =
   "bg-black/20 border-white/10 text-white placeholder:text-gray-600";
 
-export default function CreateFarmPage() {
+export default function EditFarmPage() {
   const router = useRouter();
-  const { data: user } = useCurrentUser();
-  const [polygon, setPolygon] = useState<Polygon | null>(null);
-  const [altitudeMessage, setAltitudeMessage] = useState<string | null>(null);
+  const params = useParams<{ farmId: string }>();
+  const farmId = Number(params.farmId);
+  const farmIdValid = Number.isFinite(farmId);
 
-  function handlePolygonChange(p: Polygon | null) {
-    setPolygon(p);
-    setAltitudeMessage(null);
-    form.setValue("altitudeMasl", undefined);
-  }
-
-  const detectAltitude = useMutation(
-    trpc.lots.detectAltitude.mutationOptions({
-      onSuccess: (data) => {
-        if (data.altitudeMeters != null) {
-          form.setValue("altitudeMasl", data.altitudeMeters);
-          setAltitudeMessage(
-            `Detected: ${data.altitudeMeters} meters above sea level (via Copernicus DEM)`,
-          );
-        } else {
-          setAltitudeMessage(
-            "Could not detect automatically, please enter manually",
-          );
-        }
-      },
-      onError: () => {
-        setAltitudeMessage(
-          "Could not detect automatically, please enter manually",
-        );
-      },
-    }),
+  const { data: farm, isLoading: farmLoading } = useQuery(
+    trpc.farms.byId.queryOptions({ id: farmId }, { enabled: farmIdValid }),
   );
 
-  const createFarm = useMutation(
-    trpc.farms.create.mutationOptions({
-      onSuccess: async (farm) => {
+  const updateFarm = useMutation(
+    trpc.farms.update.mutationOptions({
+      onSuccess: async () => {
         await queryClient.invalidateQueries({
           queryKey: trpc.farms.list.queryKey(),
         });
-        toast.success(`Farm "${farm.name}" registered`);
-        router.push("/dashboard/farmer/my-farms" as Route);
+        await queryClient.invalidateQueries({
+          queryKey: trpc.farms.byId.queryKey({ id: farmId }),
+        });
+        toast.success("Farm updated");
+        router.push(`/dashboard/farmer/farms/${farmId}` as Route);
       },
     }),
   );
 
-  const form = useForm<CreateFarmInput, unknown, CreateFarmValues>({
-    resolver: zodResolver(createFarmSchema),
+  const form = useForm<EditFarmInput, unknown, EditFarmValues>({
+    resolver: zodResolver(editFarmSchema),
     defaultValues: {
       name: "",
       country: "Honduras",
       region: "",
       altitudeMasl: undefined,
       totalArea: undefined,
-      latitude: undefined,
-      longitude: undefined,
       varieties: [],
       certifications: [],
       description: "",
@@ -141,82 +96,73 @@ export default function CreateFarmPage() {
     },
   });
 
-  const rawLat = form.watch("latitude");
-  const rawLng = form.watch("longitude");
-  const gpsLat = Number.isFinite(Number(rawLat)) && rawLat !== undefined ? Number(rawLat) : null;
-  const gpsLng = Number.isFinite(Number(rawLng)) && rawLng !== undefined ? Number(rawLng) : null;
-  const canDetect = gpsLat !== null && gpsLng !== null;
-
-  // Auto-fill lat/lng from polygon centroid when fields are untouched
   useEffect(() => {
-    if (!polygon) return;
-    if (
-      form.getValues("latitude") !== undefined ||
-      form.getValues("longitude") !== undefined
-    ) return;
-    const ring = (polygon.coordinates[0] ?? []).slice(0, -1);
-    if (ring.length === 0) return;
-    const latSum = ring.reduce((s: number, c: number[]) => s + (c[1] ?? 0), 0);
-    const lngSum = ring.reduce((s: number, c: number[]) => s + (c[0] ?? 0), 0);
-    form.setValue("latitude", parseFloat((latSum / ring.length).toFixed(6)));
-    form.setValue("longitude", parseFloat((lngSum / ring.length).toFixed(6)));
-  }, [polygon]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!farm) return;
+    form.reset({
+      name: farm.name,
+      country: farm.country,
+      region: farm.region,
+      altitudeMasl: farm.altitudeMasl ?? undefined,
+      totalArea: farm.totalArea ? Number(farm.totalArea) : undefined,
+      varieties: farm.varieties ?? [],
+      certifications: farm.certifications ?? [],
+      description: farm.description ?? "",
+      photoUrl: farm.photoUrls?.[0] ?? "",
+    });
+  }, [farm]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-fill total area from polygon when the field hasn't been manually edited
-  useEffect(() => {
-    if (!polygon) return;
-    if (form.formState.dirtyFields.totalArea) return;
-    const area = parseFloat(polygonAreaManzanas(polygon).toFixed(2));
-    if (area > 0) form.setValue("totalArea", area);
-  }, [polygon]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  function onSubmit(values: CreateFarmValues) {
-    if (!user) {
-      toast.error("Sign in as a farmer to register a farm");
-      return;
-    }
-    createFarm.mutate({
-      farmerId: user.id,
-      name: values.name,
-      country: values.country,
-      region: values.region,
-      altitudeMasl: values.altitudeMasl,
-      totalArea: values.totalArea != null ? String(values.totalArea) : undefined,
-      latitude: values.latitude != null ? String(values.latitude) : undefined,
-      longitude: values.longitude != null ? String(values.longitude) : undefined,
-      varieties: values.varieties,
-      certifications: values.certifications ?? [],
-      description: values.description || undefined,
-      photoUrls: values.photoUrl ? [values.photoUrl] : undefined,
-      polygon: polygon ?? undefined,
+  function onSubmit(values: EditFarmValues) {
+    updateFarm.mutate({
+      id: farmId,
+      data: {
+        name: values.name,
+        country: values.country,
+        region: values.region,
+        altitudeMasl: values.altitudeMasl,
+        totalArea: values.totalArea != null ? String(values.totalArea) : undefined,
+        varieties: values.varieties,
+        certifications: values.certifications ?? [],
+        description: values.description || undefined,
+        photoUrls: values.photoUrl ? [values.photoUrl] : [],
+      },
     });
   }
 
-  const isSubmitting = createFarm.isPending;
+  if (farmLoading) {
+    return (
+      <div className="max-w-2xl mx-auto space-y-6">
+        <Skeleton className="h-10 w-48" />
+        <Skeleton className="h-96 w-full" />
+      </div>
+    );
+  }
+
+  if (!farm) {
+    return (
+      <GlassCard className="p-12 text-center border-primary/20">
+        <p className="text-gray-400">Farm not found.</p>
+      </GlassCard>
+    );
+  }
 
   return (
     <div>
       <Button
         variant="ghost"
         className="mb-6 text-white/70"
-        onClick={() => router.push("/dashboard/farmer" as Route)}
+        onClick={() => router.push(`/dashboard/farmer/farms/${farmId}` as Route)}
       >
         <ArrowLeft className="w-4 h-4 mr-2" />
-        Back to Dashboard
+        Back
       </Button>
 
       <div className="max-w-2xl mx-auto">
         <GlassCard className="p-8 border-primary/20">
-          <h1 className="text-3xl font-bold mb-2">Register Your Farm</h1>
-          <p className="text-gray-400 mb-8">
-            Create a new farm to start offering investment opportunities
-          </p>
+          <h1 className="text-3xl font-bold mb-2">Edit Farm</h1>
+          <p className="text-gray-400 mb-8">{farm.name}</p>
 
           <Form {...form}>
-            <form
-              onSubmit={form.handleSubmit(onSubmit)}
-              className="space-y-5"
-            >
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
               <FormField
                 control={form.control}
                 name="name"
@@ -224,11 +170,7 @@ export default function CreateFarmPage() {
                   <FormItem>
                     <FormLabel className="text-white/80">Farm Name *</FormLabel>
                     <FormControl>
-                      <Input
-                        placeholder="e.g., Finca La Huerta"
-                        className={inputClasses}
-                        {...field}
-                      />
+                      <Input placeholder="e.g., Finca La Huerta" className={inputClasses} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -249,9 +191,7 @@ export default function CreateFarmPage() {
                           style={{ colorScheme: "dark" }}
                         >
                           {COUNTRIES.map((c) => (
-                            <option key={c} value={c}>
-                              {c}
-                            </option>
+                            <option key={c} value={c}>{c}</option>
                           ))}
                         </select>
                       </FormControl>
@@ -267,11 +207,7 @@ export default function CreateFarmPage() {
                     <FormItem>
                       <FormLabel className="text-white/80">Region *</FormLabel>
                       <FormControl>
-                        <Input
-                          placeholder="e.g., Cielito Mountain"
-                          className={inputClasses}
-                          {...field}
-                        />
+                        <Input placeholder="e.g., Cielito Mountain" className={inputClasses} {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -285,9 +221,7 @@ export default function CreateFarmPage() {
                   name="altitudeMasl"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-white/80">
-                        Altitude (MASL)
-                      </FormLabel>
+                      <FormLabel className="text-white/80">Altitude (MASL)</FormLabel>
                       <FormControl>
                         <Input
                           type="number"
@@ -306,9 +240,7 @@ export default function CreateFarmPage() {
                   name="totalArea"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-white/80">
-                        Total Area (Manzanas)
-                      </FormLabel>
+                      <FormLabel className="text-white/80">Total Area (Manzanas)</FormLabel>
                       <FormControl>
                         <Input
                           type="number"
@@ -323,89 +255,6 @@ export default function CreateFarmPage() {
                   )}
                 />
               </div>
-
-              <PolygonInput
-                value={polygon}
-                onChange={handlePolygonChange}
-                label="Farm Boundary (optional but recommended for risk scoring)"
-              />
-
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="latitude"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-white/80">GPS Latitude</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          step="0.000001"
-                          placeholder="e.g., 14.4529"
-                          className={inputClasses}
-                          {...field}
-                          value={typeof field.value === "number" ? field.value : ""}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="longitude"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-white/80">GPS Longitude</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          step="0.000001"
-                          placeholder="e.g., -87.6124"
-                          className={inputClasses}
-                          {...field}
-                          value={typeof field.value === "number" ? field.value : ""}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              {canDetect && (
-                <div className="space-y-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="border-white/10 text-white/80 hover:border-white/30 hover:text-white"
-                    disabled={detectAltitude.isPending}
-                    onClick={() => {
-                      setAltitudeMessage(null);
-                      detectAltitude.mutate({ lat: gpsLat!, lng: gpsLng! });
-                    }}
-                  >
-                    {detectAltitude.isPending ? (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    ) : (
-                      <Satellite className="w-4 h-4 mr-2" />
-                    )}
-                    Detect Altitude from Satellite
-                  </Button>
-                  {altitudeMessage && (
-                    <p
-                      className={`text-xs ${
-                        altitudeMessage.startsWith("Detected")
-                          ? "text-green-400"
-                          : "text-yellow-400"
-                      }`}
-                    >
-                      {altitudeMessage}
-                    </p>
-                  )}
-                </div>
-              )}
 
               <FormField
                 control={form.control}
@@ -506,15 +355,9 @@ export default function CreateFarmPage() {
                 name="photoUrl"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-white/80">
-                      Farm Photo URL
-                    </FormLabel>
+                    <FormLabel className="text-white/80">Farm Photo URL</FormLabel>
                     <FormControl>
-                      <Input
-                        placeholder="https://..."
-                        className={inputClasses}
-                        {...field}
-                      />
+                      <Input placeholder="https://..." className={inputClasses} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -523,15 +366,15 @@ export default function CreateFarmPage() {
 
               <Button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={updateFarm.isPending}
                 className="w-full bg-primary hover:bg-primary/90 text-[#0a0e27] font-bold h-11"
               >
-                {isSubmitting ? (
+                {updateFarm.isPending ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 ) : (
                   <CheckCircle className="w-4 h-4 mr-2" />
                 )}
-                {isSubmitting ? "Registering..." : "Register Farm"}
+                {updateFarm.isPending ? "Saving..." : "Save Changes"}
               </Button>
             </form>
           </Form>

@@ -1,8 +1,12 @@
+import { createHash } from "node:crypto";
+
 import {
   insertLotSchema,
   lotStatusEnum,
   lots,
+  plans,
 } from "@harvverse-monorepo/db/schema";
+import type { Db } from "@harvverse-monorepo/db";
 import { env } from "@harvverse-monorepo/env/server";
 import { TRPCError } from "@trpc/server";
 import { and, eq, type SQL } from "drizzle-orm";
@@ -19,6 +23,66 @@ import {
 
 const lotStatusSchema = z.enum(lotStatusEnum.enumValues);
 
+const planInputSchema = z.object({
+  ticketCents: z.number().int().positive(),
+  priceCentsPerLb: z.number().int().positive(),
+  priceFloorCentsPerLb: z.number().int().positive().optional(),
+  agronomicCostCents: z.number().int().positive(),
+  projectedYieldY1TenthsQq: z.number().int().positive(),
+  yieldCapY1TenthsQq: z.number().int().positive(),
+  splitFarmerBps: z.number().int().min(0).max(10000),
+  splitPartnerBps: z.number().int().min(0).max(10000).optional(),
+});
+
+async function computeRiskScoreForLot(lotId: number, db: Db): Promise<void> {
+  const lot = await db.query.lots.findFirst({
+    where: eq(lots.id, lotId),
+    with: { farm: true },
+  });
+  if (!lot) return;
+
+  const farmPolygon =
+    lot.farm?.polygon != null
+      ? (lot.farm.polygon as { coordinates: number[][][] })
+      : null;
+  const lat = lot.gpsLat != null ? Number(lot.gpsLat) : null;
+  const lng = lot.gpsLng != null ? Number(lot.gpsLng) : null;
+
+  let effectiveLat: number;
+  let effectiveLng: number;
+
+  if (farmPolygon) {
+    const centroid = computePolygonCentroid(farmPolygon);
+    effectiveLat = centroid.lat;
+    effectiveLng = centroid.lng;
+  } else if (lat !== null && lng !== null && !isNaN(lat) && !isNaN(lng)) {
+    effectiveLat = lat;
+    effectiveLng = lng;
+  } else {
+    return;
+  }
+
+  const result = await computeRiskScore({
+    lat: effectiveLat,
+    lng: effectiveLng,
+    eudrCompliant: lot.eudrCompliant ?? null,
+    sentinelClientId: env.SENTINEL_HUB_CLIENT_ID,
+    sentinelClientSecret: env.SENTINEL_HUB_CLIENT_SECRET,
+    polygon: farmPolygon,
+  });
+
+  await db
+    .update(lots)
+    .set({
+      riskScore: result.score,
+      eudrCompliant: result.eudrCompliant,
+      scoreHash: result.hash,
+      scoreUpdatedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(lots.id, lotId));
+}
+
 export const lotsRouter = router({
   list: publicProcedure
     .input(
@@ -32,12 +96,14 @@ export const lotsRouter = router({
     )
     .query(({ ctx, input }) => {
       const filters: SQL[] = [];
-      if (input?.status) filters.push(eq(lots.status, input.status));
+      // Default to "available" so the marketplace never shows reserved/settled lots
+      const statusFilter = input?.status ?? "available";
+      filters.push(eq(lots.status, statusFilter));
       if (input?.country) filters.push(eq(lots.country, input.country));
       if (input?.region) filters.push(eq(lots.region, input.region));
 
       return ctx.db.query.lots.findMany({
-        where: filters.length ? and(...filters) : undefined,
+        where: and(...filters),
         with: { plans: true },
       });
     }),
@@ -74,17 +140,41 @@ export const lotsRouter = router({
       return lot;
     }),
 
-  // Farmer-only (auth middleware TBD).
   create: publicProcedure
-    .input(insertLotSchema)
+    .input(insertLotSchema.extend({ plan: planInputSchema.optional() }))
     .mutation(async ({ ctx, input }) => {
-      const [lot] = await ctx.db.insert(lots).values(input).returning();
-      if (!lot) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to create lot",
-        });
+      const { plan: planInput, ...lotInput } = input;
+
+      const lot = await ctx.db.transaction(async (tx) => {
+        const [created] = await tx.insert(lots).values(lotInput).returning();
+        if (!created) throw new Error("Failed to insert lot");
+
+        if (planInput) {
+          const planCode = `${created.code ?? String(created.id)}-${new Date().getFullYear()}`;
+          const planHash = createHash("sha256")
+            .update(JSON.stringify({ ...planInput, planCode, lotId: created.id }))
+            .digest("hex");
+          await tx.insert(plans).values({
+            ...planInput,
+            lotId: created.id,
+            lotCode: created.code ?? null,
+            planCode,
+            status: "approved_for_demo",
+            validatedByName: "Pending validation",
+            planHash,
+          });
+        }
+
+        return created;
+      });
+
+      // Best-effort risk score — may not complete in serverless environments
+      if (lot.gpsLat != null || lot.gpsLng != null) {
+        computeRiskScoreForLot(lot.id, ctx.db).catch((err) =>
+          console.error("[lots.create] Risk score computation failed:", err),
+        );
       }
+
       return lot;
     }),
 
@@ -159,6 +249,7 @@ export const lotsRouter = router({
         .update(lots)
         .set({
           riskScore: result.score,
+          eudrCompliant: result.eudrCompliant,
           scoreHash: result.hash,
           scoreUpdatedAt: new Date(),
           updatedAt: new Date(),

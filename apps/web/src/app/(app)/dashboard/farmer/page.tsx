@@ -14,19 +14,11 @@ import { useRouter } from "next/navigation";
 
 import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
 import { Button } from "@harvverse-monorepo/ui/components/button";
-import { DEMO_WALLET, useCurrentUser } from "@/hooks/use-auth";
-
-const mockInvestmentsData = {
-  totalInvested: 3425,
-  activeInvestments: 1,
-  fundedLots: 1,
-  totalLots: 2,
-};
+import { useCurrentUser } from "@/hooks/use-auth";
 
 export default function FarmerDashboardPage() {
   const { data: user } = useCurrentUser();
   const router = useRouter();
-  const isDemo = Boolean(DEMO_WALLET);
 
   return (
     <div>
@@ -40,60 +32,6 @@ export default function FarmerDashboardPage() {
         </div>
         <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#a37241] to-[#5e3c1e] border border-white/10" />
       </header>
-
-      {isDemo && mockInvestmentsData.activeInvestments > 0 && (
-        <GlassCard
-          variant="darker"
-          className="p-6 border-[#a37241]/20 mb-8"
-        >
-          <div className="flex items-center gap-2 mb-4">
-            <DollarSign className="w-5 h-5 text-[#a37241]" />
-            <h2 className="text-xl font-bold">Investments in My Farms</h2>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div className="p-4 bg-black/40 rounded-lg border border-white/5 flex items-center gap-3">
-              <DollarSign className="w-5 h-5 text-green-400 shrink-0" />
-              <div>
-                <p className="text-xs text-gray-400">Total Invested</p>
-                <p className="text-lg font-bold text-white">
-                  ${mockInvestmentsData.totalInvested.toLocaleString()}
-                </p>
-              </div>
-            </div>
-
-            <div className="p-4 bg-black/40 rounded-lg border border-white/5 flex items-center gap-3">
-              <TrendingUp className="w-5 h-5 text-blue-400 shrink-0" />
-              <div>
-                <p className="text-xs text-gray-400">Active Investments</p>
-                <p className="text-lg font-bold text-white">
-                  {mockInvestmentsData.activeInvestments}
-                </p>
-              </div>
-            </div>
-
-            <div className="p-4 bg-black/40 rounded-lg border border-white/5 flex items-center gap-3">
-              <Sprout className="w-5 h-5 text-purple-400 shrink-0" />
-              <div>
-                <p className="text-xs text-gray-400">Funded Lots</p>
-                <p className="text-lg font-bold text-white">
-                  {mockInvestmentsData.fundedLots} of{" "}
-                  {mockInvestmentsData.totalLots}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <Button
-            variant="outline"
-            className="border-[#a37241]/50 text-[#a37241] hover:bg-[#a37241]/10"
-            onClick={() => router.push("/dashboard/farmer/investments")}
-          >
-            View All Investments
-            <ArrowRight className="w-4 h-4 ml-2" />
-          </Button>
-        </GlassCard>
-      )}
 
       <GlassCard
         variant="darker"

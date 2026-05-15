@@ -18,7 +18,7 @@ export default function PlayerDashboardPage() {
           <h1 className="text-3xl font-bold">Welcome, {user?.displayName}!</h1>
           <p className="text-gray-400">
             You are logged in as a{" "}
-            <span className="text-primary font-semibold">Phartmer</span>
+            <span className="text-primary font-semibold">Partner</span>
           </p>
         </div>
         <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-green-600 border border-white/10" />

@@ -10,7 +10,7 @@ import { Button } from "@harvverse-monorepo/ui/components/button";
 import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
 import { Skeleton } from "@harvverse-monorepo/ui/components/skeleton";
 
-import { useCurrentUser, DEMO_WALLET } from "@/hooks/use-auth";
+import { useCurrentUser } from "@/hooks/use-auth";
 import { formatUsdFromCents } from "@/lib/format";
 import { trpc } from "@/utils/trpc";
 
@@ -19,7 +19,7 @@ export default function DashboardPage() {
 
   if (userLoading) {
     return (
-      <div className="min-h-screen bg-[#0a0e27] text-white p-8">
+      <div>
         <Skeleton className="h-10 w-1/3 mb-6" />
         <Skeleton className="h-40 w-full" />
       </div>
@@ -28,13 +28,13 @@ export default function DashboardPage() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-[#0a0e27] text-white p-8">
+      <div>
         <GlassCard className="p-12 text-center border-primary/20 max-w-xl mx-auto">
           <h1 className="text-2xl font-bold mb-3">No user found</h1>
           <p className="text-gray-400">
-            The demo wallet <code className="text-primary">{DEMO_WALLET}</code>{" "}
-            has no user. Run <code className="text-primary">pnpm db:seed</code>{" "}
-            to load the demo data.
+            No account found for this wallet. Go to{" "}
+            <a href="/register" className="text-primary underline">register</a>{" "}
+            to create one.
           </p>
         </GlassCard>
       </div>
@@ -42,7 +42,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0e27] text-white p-8">
+    <div>
       <header className="mb-8">
         <h1 className="text-3xl font-bold">Welcome, {user.displayName}!</h1>
         <p className="text-gray-400">

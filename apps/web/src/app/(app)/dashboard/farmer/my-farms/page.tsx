@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { Sprout, Plus, ArrowLeft } from "lucide-react";
 
@@ -8,33 +9,22 @@ import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
 import { Button } from "@harvverse-monorepo/ui/components/button";
 import { Skeleton } from "@harvverse-monorepo/ui/components/skeleton";
 
-import { DEMO_WALLET, useCurrentUser } from "@/hooks/use-auth";
+import { useCurrentUser } from "@/hooks/use-auth";
 import { trpc } from "@/utils/trpc";
 
-const mockFarms = [
-  {
-    id: 1,
-    name: "Finca Zafiro",
-    country: "Honduras",
-    region: "Comayagua",
-    photoUrl: null,
-  },
-];
 
 export default function MyFarmsPage() {
   const router = useRouter();
   const { data: user, isLoading: userLoading } = useCurrentUser();
-  const isDemo = Boolean(DEMO_WALLET);
-
   const { data: farms, isLoading } = useQuery(
     trpc.farms.list.queryOptions(
       { farmerId: user?.id },
-      { enabled: !!user && !isDemo },
+      { enabled: !!user },
     ),
   );
 
-  const farmsToShow = isDemo ? mockFarms : farms ?? [];
-  const isLoadingFarms = !isDemo && (userLoading || isLoading);
+  const farmsToShow = farms ?? [];
+  const isLoadingFarms = userLoading || isLoading;
 
   return (
     <div>
@@ -94,7 +84,7 @@ export default function MyFarmsPage() {
             >
               <div className="h-40 rounded-lg mb-4 overflow-hidden">
                 <img
-                  src={farm.photoUrl ?? "/logo-square.png"}
+                  src={farm.photoUrls?.[0] ?? "/logo-square.png"}
                   alt={farm.name}
                   className="h-full w-full object-cover transition-transform hover:scale-105"
                 />
@@ -117,6 +107,9 @@ export default function MyFarmsPage() {
                 <Button
                   size="sm"
                   className="flex-1 bg-primary/20 hover:bg-primary/30"
+                  onClick={() =>
+                    router.push(`/dashboard/farmer/farms/${farm.id}/edit` as Route)
+                  }
                 >
                   Edit
                 </Button>

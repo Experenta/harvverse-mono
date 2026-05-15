@@ -62,6 +62,19 @@ export const partnershipsRouter = router({
       });
     }),
 
+  forFarmer: publicProcedure
+    .input(z.object({ walletAddress: z.string().trim().min(1) }))
+    .query(({ ctx, input }) => {
+      return ctx.db.query.partnerships.findMany({
+        where: eq(partnerships.farmerWallet, input.walletAddress),
+        orderBy: [desc(partnerships.createdAt)],
+        with: {
+          lot: true,
+          plan: true,
+        },
+      });
+    }),
+
   updateStatus: publicProcedure
     .input(
       z.object({

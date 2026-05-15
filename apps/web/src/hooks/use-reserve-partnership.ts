@@ -9,7 +9,7 @@ import { useMutation } from "@tanstack/react-query";
 import { MockUSDCAbi, HarvversePartnershipAbi } from "@harvverse-monorepo/contracts";
 import { wagmiConfig } from "@/lib/wagmi";
 import { queryClient, trpc } from "@/utils/trpc";
-import { useCurrentUser, DEMO_WALLET } from "@/hooks/use-auth";
+import { useCurrentUser } from "@/hooks/use-auth";
 
 export type ReserveStep =
   | "idle"
@@ -70,9 +70,7 @@ export function useReservePartnership(params: {
   const usdcAddress = process.env.NEXT_PUBLIC_USDC_ADDRESS as `0x${string}` | undefined;
   const partnershipContractAddress = process.env.NEXT_PUBLIC_PARTNERSHIP_ADDRESS as `0x${string}` | undefined;
 
-  // In demo mode NEXT_PUBLIC_DEMO_WALLET acts as the identity for DB records.
-  // The actual transaction signer is still the connected wallet (address from wagmi).
-  const effectiveWallet = DEMO_WALLET ?? address ?? null;
+  const effectiveWallet = address ?? null;
 
   const isReady =
     !!lot &&
@@ -152,7 +150,7 @@ export function useReservePartnership(params: {
         farmerCents: projections.farmerCents,
         partnerCents: projections.partnerCents,
         proposalHash,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
       });
 
       await createPartnership.mutateAsync({

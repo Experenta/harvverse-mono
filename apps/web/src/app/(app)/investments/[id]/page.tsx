@@ -1,12 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Calendar, CheckCircle2, Clock } from "lucide-react";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { ArrowLeft, CheckCircle2, Clock, Copy, Plus, Loader2 } from "lucide-react";
 
 import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
 import { Button } from "@harvverse-monorepo/ui/components/button";
+import { Badge } from "@harvverse-monorepo/ui/components/badge";
 import { Progress } from "@harvverse-monorepo/ui/components/progress";
+import { Skeleton } from "@harvverse-monorepo/ui/components/skeleton";
 import {
   Dialog,
   DialogContent,
@@ -14,163 +20,132 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@harvverse-monorepo/ui/components/dialog";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@harvverse-monorepo/ui/components/form";
+import { Textarea } from "@harvverse-monorepo/ui/components/textarea";
 
-const mockInvestment = {
-  id: 1,
-  returnType: "PHYGITAL",
-  farmName: "Finca Zafiro",
-  lotName: "HVPLAN-ZAF-L02-2026",
-  lotArea: "1",
-  amount: "3425",
-  status: "active",
-};
+import { queryClient, trpc } from "@/utils/trpc";
+import { useCurrentUser } from "@/hooks/use-auth";
 
-type ActivityStatus = "released" | "in_progress" | "pending";
+const MILESTONES = [
+  { number: 1, name: "Soil Preparation", icon: "🌱" },
+  { number: 2, name: "Planting", icon: "🌿" },
+  { number: 3, name: "Maintenance", icon: "🔧" },
+  { number: 4, name: "Harvest", icon: "🌾" },
+  { number: 5, name: "Processing", icon: "⚙️" },
+  { number: 6, name: "Export / Delivery", icon: "🚢" },
+] as const;
 
-interface Activity {
-  id: number;
-  code: string;
-  name: string;
-  tokens: number;
-  status: ActivityStatus;
-  icon: string;
-}
+const evidenceSchema = z.object({
+  evidenceType: z.enum([
+    "photo",
+    "sensor_snapshot",
+    "receipt",
+    "agronomist_review",
+    "harvest_result",
+    "demo_fixture",
+  ]),
+  notes: z.string().optional(),
+  description: z.string().min(1, "Description required"),
+});
 
-interface ScheduleMonth {
-  month: number;
-  monthName: string;
-  subtotal: number;
-  activities: Activity[];
-}
+type EvidenceInput = z.input<typeof evidenceSchema>;
+type EvidenceValues = z.output<typeof evidenceSchema>;
 
-const mockSchedule: {
-  totalTokens: number;
-  tokensReleased: number;
-  schedule: ScheduleMonth[];
-} = {
-  totalTokens: 85,
-  tokensReleased: 12,
-  schedule: [
-    {
-      month: 1,
-      monthName: "January",
-      subtotal: 8,
-      activities: [
-        {
-          id: 1,
-          code: "FERT-001",
-          name: "Fertilización Base",
-          tokens: 5,
-          status: "released",
-          icon: "🌱",
-        },
-        {
-          id: 2,
-          code: "PEST-001",
-          name: "Control de Plagas",
-          tokens: 3,
-          status: "released",
-          icon: "🐛",
-        },
-      ],
-    },
-    {
-      month: 2,
-      monthName: "February",
-      subtotal: 6,
-      activities: [
-        {
-          id: 3,
-          code: "PODA-001",
-          name: "Poda de Formación",
-          tokens: 6,
-          status: "in_progress",
-          icon: "✂️",
-        },
-      ],
-    },
-    {
-      month: 3,
-      monthName: "March",
-      subtotal: 10,
-      activities: [
-        {
-          id: 4,
-          code: "RIEG-001",
-          name: "Riego Tecnificado",
-          tokens: 10,
-          status: "pending",
-          icon: "💧",
-        },
-      ],
-    },
-  ],
-};
-
-type SelectedToken = Activity & { monthName: string };
-
-function ActivityRow({
-  activity,
-  monthName,
-  onSelect,
-}: {
-  activity: Activity;
-  monthName: string;
-  onSelect: (token: SelectedToken) => void;
-}) {
-  return (
-    <div
-      onClick={() => onSelect({ ...activity, monthName })}
-      className="flex items-center justify-between bg-white/5 hover:bg-white/10 p-3 rounded-lg cursor-pointer"
-    >
-      <div className="flex items-center gap-4">
-        <span className="text-xl">{activity.icon}</span>
-        <div>
-          <p className="text-xs font-mono text-gray-500 mb-0.5">
-            {activity.code}
-          </p>
-          <p className="font-semibold">{activity.name}</p>
-        </div>
-      </div>
-      <div className="flex items-center gap-6">
-        <p className="font-bold">{activity.tokens} HARVI</p>
-        {activity.status === "released" && (
-          <CheckCircle2 className="w-4 h-4 text-green-400" />
-        )}
-        {activity.status === "in_progress" && (
-          <Clock className="w-4 h-4 text-yellow-400" />
-        )}
-        {activity.status === "pending" && <span>⏳</span>}
-      </div>
-    </div>
+async function sha256Hex(text: string): Promise<string> {
+  const buf = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(text),
   );
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 export default function InvestmentDetailPage() {
   const router = useRouter();
+  const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
-
-  const [selectedToken, setSelectedToken] = useState<SelectedToken | null>(
-    null,
-  );
-  const [expandedMonths, setExpandedMonths] = useState<Record<number, boolean>>(
-    { 1: true },
-  );
+  const partnershipId = Number(params.id);
+  const partnershipIdValid = Number.isFinite(partnershipId);
 
   const fromFarmer = searchParams.get("from") === "farmer";
-  const backPath = fromFarmer
-    ? "/dashboard/farmer/investments"
-    : "/my-investments";
-  const backLabel = fromFarmer
-    ? "Back to Farm Investments"
-    : "Back to My Investments";
+  const backPath = fromFarmer ? "/dashboard/farmer/investments" : "/my-investments";
+  const backLabel = fromFarmer ? "Back to Farm Investments" : "Back to My Investments";
 
-  const progressPercent = Math.round(
-    (mockSchedule.tokensReleased / mockSchedule.totalTokens) * 100,
+  const { data: user } = useCurrentUser();
+
+  const { data: partnership, isLoading } = useQuery(
+    trpc.partnerships.byId.queryOptions(
+      { id: partnershipId },
+      { enabled: partnershipIdValid },
+    ),
   );
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0a0e27] to-[#1a1f3a] text-white p-8">
+  const [recordingMilestone, setRecordingMilestone] = useState<number | null>(null);
+  const [settlementDone, setSettlementDone] = useState(false);
+
+  const form = useForm<EvidenceInput, unknown, EvidenceValues>({
+    resolver: zodResolver(evidenceSchema),
+    defaultValues: { evidenceType: "demo_fixture", notes: "", description: "" },
+  });
+
+  const requestSettlement = useMutation(
+    trpc.settlements.create.mutationOptions({
+      onSuccess: () => {
+        setSettlementDone(true);
+        queryClient.invalidateQueries({
+          queryKey: trpc.partnerships.byId.queryKey({ id: partnershipId }),
+        });
+      },
+    }),
+  );
+
+  const createEvidence = useMutation(
+    trpc.evidence.create.mutationOptions({
+      onSuccess: async () => {
+        await queryClient.invalidateQueries({
+          queryKey: trpc.partnerships.byId.queryKey({ id: partnershipId }),
+        });
+        setRecordingMilestone(null);
+        form.reset({ evidenceType: "demo_fixture", notes: "", description: "" });
+      },
+    }),
+  );
+
+  async function onSubmit(values: EvidenceValues) {
+    if (!user || !partnership) return;
+    const artifactHash = await sha256Hex(values.description);
+    createEvidence.mutate({
+      partnershipId,
+      milestoneNumber: recordingMilestone!,
+      evidenceType: values.evidenceType,
+      notes: values.notes || undefined,
+      artifactHash,
+      attesterUserId: user.id,
+      attesterRole: user.role,
+      demoOnly: true,
+    });
+  }
+
+  if (isLoading) {
+    return (
+      <div className="max-w-4xl mx-auto space-y-6">
+        <Skeleton className="h-10 w-48" />
+        <Skeleton className="h-48 w-full" />
+        <Skeleton className="h-96 w-full" />
+      </div>
+    );
+  }
+
+  if (!partnership) {
+    return (
       <div className="max-w-4xl mx-auto">
         <Button
           variant="ghost"
@@ -180,231 +155,456 @@ export default function InvestmentDetailPage() {
           <ArrowLeft className="w-4 h-4 mr-2" />
           {backLabel}
         </Button>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
-          <GlassCard className="p-8 border-primary/20 h-full md:col-span-2">
-            <div className="flex items-center gap-4 mb-6">
-              <span className="text-4xl">✨</span>
-              <div>
-                <h1 className="text-2xl font-bold uppercase">
-                  {mockInvestment.returnType} Investment
-                </h1>
-                <p className="text-primary font-semibold">
-                  {mockInvestment.farmName} • {mockInvestment.lotName}
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-6 text-sm">
-              <div>
-                <p className="text-gray-400">Area</p>
-                <p className="text-lg font-bold">
-                  {mockInvestment.lotArea} manzanas
-                </p>
-              </div>
-              <div>
-                <p className="text-gray-400">Invested</p>
-                <p className="text-lg font-bold text-primary">
-                  ${Number(mockInvestment.amount).toLocaleString()}
-                </p>
-              </div>
-              <div>
-                <p className="text-gray-400">Status</p>
-                <p className="text-lg font-bold capitalize">
-                  {mockInvestment.status}
-                </p>
-              </div>
-              <div>
-                <p className="text-gray-400">Yield Strategy</p>
-                <p className="text-lg font-bold">Specialty Blend</p>
-              </div>
-            </div>
-
-            <div className="mt-8 pt-6 border-t border-white/10">
-              <p className="text-sm font-semibold text-gray-400 mb-4">
-                EXPECTED RETURNS
-              </p>
-              <ul className="space-y-2">
-                <li>☕ 15 qq specialty coffee</li>
-                <li>🪙 85 HARVI tokens</li>
-                <li>📜 NFT Certificate</li>
-                <li>📊 IoT Data Access</li>
-              </ul>
-            </div>
-          </GlassCard>
-
-          <GlassCard className="p-8 border-primary/20 flex flex-col justify-between">
-            <div>
-              <p className="text-sm font-semibold text-gray-400 mb-6 uppercase tracking-wider">
-                Investment Breakdown
-              </p>
-              <div className="space-y-4">
-                <div className="flex justify-between">
-                  <span>Agricultural Operations</span>
-                  <span className="font-bold">$2,534.50</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Digital Layer</span>
-                  <span className="font-bold">$890.50</span>
-                </div>
-              </div>
-            </div>
-            <div className="pt-6 border-t border-white/10 mt-6">
-              <div className="flex justify-between text-lg font-bold text-primary">
-                <span>Total</span>
-                <span>$3,425</span>
-              </div>
-            </div>
-          </GlassCard>
-        </div>
-
-        <GlassCard className="p-8 border-primary/20 mb-8">
-          <div className="flex justify-between items-center mb-8">
-            <div className="flex items-center gap-3">
-              <Calendar className="w-6 h-6 text-primary" />
-              <h2 className="text-2xl font-bold uppercase tracking-tight">
-                Token Release Schedule
-              </h2>
-            </div>
-            <div className="text-right">
-              <p className="text-sm text-gray-400 mb-1">Total Value</p>
-              <p className="text-xl font-bold text-primary">
-                {mockSchedule.totalTokens} HARVI
-              </p>
-            </div>
-          </div>
-
-          <div className="mb-8">
-            <div className="flex justify-between text-sm mb-2">
-              <span className="text-gray-400">
-                Progress: {progressPercent}%
-              </span>
-              <span className="font-bold text-primary">
-                {mockSchedule.tokensReleased} of {mockSchedule.totalTokens}{" "}
-                tokens released
-              </span>
-            </div>
-            <Progress
-              value={progressPercent}
-              className="h-3 bg-black/40"
-            />
-          </div>
-
-          <div className="space-y-4">
-            {mockSchedule.schedule.map((month) => {
-              const expanded = !!expandedMonths[month.month];
-              return (
-                <div
-                  key={month.month}
-                  className="border border-white/10 rounded-lg overflow-hidden"
-                >
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setExpandedMonths((prev) => ({
-                        ...prev,
-                        [month.month]: !prev[month.month],
-                      }))
-                    }
-                    className="w-full flex justify-between items-center p-4 bg-white/5 hover:bg-white/10 transition"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="text-primary text-xs">
-                        {expanded ? "▼" : "▶"}
-                      </span>
-                      <h4 className="text-lg font-bold text-white uppercase tracking-wider">
-                        📆 {month.monthName}
-                      </h4>
-                      <span className="text-xs text-gray-500">
-                        ({month.activities.length} activities)
-                      </span>
-                    </div>
-                    <span className="text-sm font-bold text-primary">
-                      {month.subtotal} HARVI
-                    </span>
-                  </button>
-
-                  {expanded && (
-                    <div className="p-4 space-y-3 bg-black/20">
-                      {month.activities.map((activity) => (
-                        <ActivityRow
-                          key={activity.id}
-                          activity={activity}
-                          monthName={month.monthName}
-                          onSelect={setSelectedToken}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+        <GlassCard className="p-12 text-center border-primary/20">
+          <p className="text-gray-400">Partnership not found.</p>
         </GlassCard>
       </div>
+    );
+  }
+
+  const lot = partnership.lot;
+  const plan = partnership.plan;
+  const evidenceRecords = partnership.evidenceRecords;
+
+  const evidenceByMilestone = new Map<number, typeof evidenceRecords>();
+  for (const ev of evidenceRecords) {
+    const arr = evidenceByMilestone.get(ev.milestoneNumber) ?? [];
+    arr.push(ev);
+    evidenceByMilestone.set(ev.milestoneNumber, arr);
+  }
+
+  const ticketUsd = plan ? plan.ticketCents / 100 : 0;
+
+  return (
+    <div className="max-w-4xl mx-auto">
+        <Button
+          variant="ghost"
+          className="mb-8 text-white/70"
+          onClick={() => router.push(backPath)}
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          {backLabel}
+        </Button>
+
+        <GlassCard className="p-8 border-primary/20 mb-8">
+          <div className="flex items-start gap-4 mb-6">
+            <span className="text-4xl">✨</span>
+            <div className="flex-1">
+              <h1 className="text-2xl font-bold uppercase">PHYGITAL Partnership</h1>
+              <p className="text-primary font-semibold">
+                {lot.farmName} • {lot.code ?? `Lot #${lot.id}`}
+              </p>
+            </div>
+            <Badge
+              className={
+                partnership.status === "active"
+                  ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+                  : "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
+              }
+            >
+              {partnership.status}
+            </Badge>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-sm">
+            <div>
+              <p className="text-gray-400">Lot</p>
+              <p className="text-lg font-bold">{lot.code ?? `#${lot.id}`}</p>
+            </div>
+            <div>
+              <p className="text-gray-400">Area</p>
+              <p className="text-lg font-bold">{lot.areaManzanas ?? "—"} mz</p>
+            </div>
+            <div>
+              <p className="text-gray-400">Ticket</p>
+              <p className="text-lg font-bold text-primary">
+                ${ticketUsd.toLocaleString()}
+              </p>
+            </div>
+            <div>
+              <p className="text-gray-400">Location</p>
+              <p className="text-lg font-bold">
+                {lot.region}, {lot.country}
+              </p>
+            </div>
+          </div>
+
+          {plan && (
+            <div className="mt-6 pt-6 border-t border-white/10 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div>
+                <p className="text-gray-400">Price/lb</p>
+                <p className="font-bold">${(plan.priceCentsPerLb / 100).toFixed(2)}</p>
+              </div>
+              <div>
+                <p className="text-gray-400">Farmer split</p>
+                <p className="font-bold">{(plan.splitFarmerBps / 100).toFixed(0)}%</p>
+              </div>
+              <div>
+                <p className="text-gray-400">Proj. yield Y1</p>
+                <p className="font-bold">{(plan.projectedYieldY1TenthsQq / 10).toFixed(1)} qq</p>
+              </div>
+              <div>
+                <p className="text-gray-400">Plan status</p>
+                <p className="font-bold capitalize">{plan.status.replace(/_/g, " ")}</p>
+              </div>
+            </div>
+          )}
+        </GlassCard>
+
+        {(() => {
+          const completedCount = MILESTONES.filter(
+            (ms) => (evidenceByMilestone.get(ms.number) ?? []).length > 0,
+          ).length;
+          return (
+            <GlassCard className="p-6 border-primary/20 mb-4">
+              <div className="flex justify-between items-center mb-3">
+                <h2 className="text-xl font-bold">Production Milestones</h2>
+                <span className="text-sm text-gray-400">
+                  {completedCount} / {MILESTONES.length} complete
+                </span>
+              </div>
+              <Progress
+                value={(completedCount / MILESTONES.length) * 100}
+                className="h-2"
+              />
+            </GlassCard>
+          );
+        })()}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+          {MILESTONES.map((ms) => {
+            const records = evidenceByMilestone.get(ms.number) ?? [];
+            const hasEvidence = records.length > 0;
+            const latestRecord = records[records.length - 1];
+            const statusColor = hasEvidence
+              ? "border-emerald-500/30"
+              : "border-white/10";
+
+            return (
+              <GlassCard key={ms.number} className={`p-5 ${statusColor}`}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">{ms.icon}</span>
+                    <div>
+                      <p className="text-xs text-gray-500">
+                        Milestone {ms.number}
+                      </p>
+                      <p className="font-bold">{ms.name}</p>
+                    </div>
+                  </div>
+                  {hasEvidence ? (
+                    <CheckCircle2 className="w-5 h-5 text-green-400 shrink-0" />
+                  ) : (
+                    <Clock className="w-5 h-5 text-gray-500 shrink-0" />
+                  )}
+                </div>
+
+                {records.length > 0 && (
+                  <div className="mb-3 space-y-1">
+                    {records.map((ev) => (
+                      <div
+                        key={ev.id}
+                        className="text-xs bg-white/5 px-2 py-1.5 rounded space-y-1"
+                      >
+                        <div className="flex justify-between items-center">
+                          <span
+                            className={
+                              ev.status === "attested"
+                                ? "text-emerald-400"
+                                : ev.status === "recorded"
+                                  ? "text-yellow-400"
+                                  : "text-gray-400"
+                            }
+                          >
+                            {ev.evidenceType} · {ev.status}
+                          </span>
+                        </div>
+                        {ev.notes && (
+                          <p className="text-gray-500">{ev.notes}</p>
+                        )}
+                        <div className="flex items-center gap-1 text-gray-600 font-mono">
+                          <span className="truncate max-w-[180px]">
+                            {ev.artifactHash}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              navigator.clipboard.writeText(ev.artifactHash)
+                            }
+                            className="shrink-0 hover:text-gray-300 transition-colors"
+                            title="Copy hash"
+                          >
+                            <Copy className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full border-white/10 text-white/70 hover:border-white/30 hover:text-white text-xs"
+                  onClick={() => {
+                    setRecordingMilestone(ms.number);
+                    form.reset({
+                      evidenceType: "demo_fixture",
+                      notes: "",
+                      description: "",
+                    });
+                  }}
+                >
+                  <Plus className="w-3 h-3 mr-1" />
+                  {latestRecord ? "Add More Evidence" : "Record Evidence"}
+                </Button>
+              </GlassCard>
+            );
+          })}
+        </div>
+
+        {(() => {
+          const allRecorded = evidenceRecords.length >= 6;
+
+          if (partnership.status === "settled") {
+            return (
+              <GlassCard className="p-6 border-emerald-500/20">
+                <h2 className="text-xl font-bold mb-4">Settlement</h2>
+                <div className="text-emerald-400 flex items-center gap-2">
+                  <CheckCircle2 className="w-5 h-5" />
+                  <span>This partnership has been settled.</span>
+                </div>
+              </GlassCard>
+            );
+          }
+
+          if (!allRecorded) {
+            return (
+              <GlassCard className="p-6 border-white/10">
+                <h2 className="text-xl font-bold mb-4">Settlement</h2>
+                <p className="text-gray-400 text-sm">
+                  Settlement will be available once evidence is recorded for all
+                  6 production milestones ({evidenceRecords.length}/6 recorded).
+                </p>
+              </GlassCard>
+            );
+          }
+
+          const yieldQq = plan ? plan.projectedYieldY1TenthsQq / 10 : 0;
+          const yieldLbs = Math.round(yieldQq * 100);
+          const revenueCents = plan ? yieldLbs * plan.priceCentsPerLb : 0;
+          const costCents = plan ? plan.ticketCents : 0;
+          const profitCents = Math.max(0, revenueCents - costCents);
+          const farmerBps = plan?.splitFarmerBps ?? 6000;
+          const partnerBps = plan?.splitPartnerBps ?? (10000 - farmerBps);
+          const farmerCents = Math.round(profitCents * farmerBps / 10000);
+          const partnerCents = Math.round(profitCents * partnerBps / 10000);
+          const fmt = (c: number) =>
+            `$${(c / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+          if (settlementDone || partnership.status === "awaiting_settlement" || partnership.status === "milestones_attested") {
+            return (
+              <GlassCard className="p-6 border-emerald-500/20">
+                <h2 className="text-xl font-bold mb-4">Settlement</h2>
+                <div className="flex items-center gap-2 text-emerald-400 mb-3">
+                  <CheckCircle2 className="w-5 h-5" />
+                  <span className="font-semibold">Settlement intent created</span>
+                </div>
+                <p className="text-sm text-gray-400">
+                  Status:{" "}
+                  <span className="text-yellow-400 font-semibold">
+                    intent_created
+                  </span>{" "}
+                  — the settlement operator will process the final payment.
+                </p>
+              </GlassCard>
+            );
+          }
+
+          return (
+            <GlassCard className="p-6 border-primary/20">
+              <h2 className="text-xl font-bold mb-4">Settlement</h2>
+              <div className="flex items-center gap-2 text-emerald-400 mb-6">
+                <CheckCircle2 className="w-5 h-5" />
+                <span className="font-semibold">All 6 milestones recorded ✓</span>
+              </div>
+
+              {plan ? (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6 text-sm">
+                  <div className="bg-white/5 rounded-lg p-3">
+                    <p className="text-gray-400 text-xs">Revenue</p>
+                    <p className="text-base font-bold">{fmt(revenueCents)}</p>
+                    <p className="text-xs text-gray-500">
+                      {yieldLbs.toLocaleString()} lbs × ${(plan.priceCentsPerLb / 100).toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="bg-white/5 rounded-lg p-3">
+                    <p className="text-gray-400 text-xs">Cost</p>
+                    <p className="text-base font-bold">{fmt(costCents)}</p>
+                    <p className="text-xs text-gray-500">Agronomic investment</p>
+                  </div>
+                  <div className="bg-white/5 rounded-lg p-3">
+                    <p className="text-gray-400 text-xs">Profit</p>
+                    <p className="text-base font-bold text-emerald-400">{fmt(profitCents)}</p>
+                    <p className="text-xs text-gray-500">Revenue − Cost</p>
+                  </div>
+                  <div className="bg-white/5 rounded-lg p-3">
+                    <p className="text-gray-400 text-xs">Farmer Share</p>
+                    <p className="text-base font-bold text-primary">{fmt(farmerCents)}</p>
+                    <p className="text-xs text-gray-500">{(farmerBps / 100).toFixed(0)}% of profit</p>
+                  </div>
+                  <div className="bg-white/5 rounded-lg p-3">
+                    <p className="text-gray-400 text-xs">Partner Share</p>
+                    <p className="text-base font-bold text-primary">{fmt(partnerCents)}</p>
+                    <p className="text-xs text-gray-500">{(partnerBps / 100).toFixed(0)}% of profit</p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-gray-400 text-sm mb-6">
+                  No plan attached — financials unavailable.
+                </p>
+              )}
+
+              <Button
+                className="w-full bg-primary hover:bg-primary/90 text-[#0a0e27] font-bold h-11"
+                disabled={requestSettlement.isPending || !user || !plan}
+                onClick={() => {
+                  if (!user || !plan) return;
+                  const harvestHash =
+                    evidenceRecords[evidenceRecords.length - 1]?.artifactHash ??
+                    "demo_settlement_hash";
+                  requestSettlement.mutate({
+                    partnershipId,
+                    status: "intent_created",
+                    year: new Date().getFullYear(),
+                    yieldTenthsQq: plan.projectedYieldY1TenthsQq,
+                    scaScoreTenths:
+                      (lot as unknown as { scaScoreTenths?: number | null })
+                        .scaScoreTenths ?? 800,
+                    priceCentsPerLb: plan.priceCentsPerLb,
+                    revenueCents,
+                    profitCents,
+                    farmerCents,
+                    partnerCents,
+                    harvestEvidenceHash: harvestHash,
+                  });
+                }}
+              >
+                {requestSettlement.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  "Request Settlement"
+                )}
+              </Button>
+            </GlassCard>
+          );
+        })()}
 
       <Dialog
-        open={!!selectedToken}
+        open={recordingMilestone !== null}
         onOpenChange={(open) => {
-          if (!open) setSelectedToken(null);
+          if (!open) setRecordingMilestone(null);
         }}
       >
         <DialogContent className="bg-[#1a1f3a] text-white border-primary/20">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-3 text-2xl">
-              <span className="text-3xl">{selectedToken?.icon}</span>
-              {selectedToken?.code}
+            <DialogTitle>
+              Record Evidence — Milestone {recordingMilestone}
             </DialogTitle>
-            <DialogDescription className="text-gray-400 text-lg">
-              {selectedToken?.name}
+            <DialogDescription className="text-gray-400">
+              {MILESTONES.find((m) => m.number === recordingMilestone)?.name}
             </DialogDescription>
           </DialogHeader>
 
-          {selectedToken && (
-            <div className="space-y-6 mt-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-black/20 p-4 rounded-lg">
-                  <p className="text-xs text-gray-400">Value</p>
-                  <p className="text-xl font-bold text-primary">
-                    {selectedToken.tokens} HARVI
-                  </p>
-                  <p className="text-xs text-gray-400">
-                    (${selectedToken.tokens}.00 USD)
-                  </p>
-                </div>
-                <div className="bg-black/20 p-4 rounded-lg">
-                  <p className="text-xs text-gray-400">Scheduled</p>
-                  <p className="text-xl font-bold">
-                    {selectedToken.monthName} 2026
-                  </p>
-                </div>
+          <Form {...form}>
+            <form
+              onSubmit={form.handleSubmit(onSubmit)}
+              className="space-y-4 mt-2"
+            >
+              <FormField
+                control={form.control}
+                name="evidenceType"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Evidence Type</FormLabel>
+                    <FormControl>
+                      <select
+                        {...field}
+                        className="w-full bg-black/20 border border-white/10 text-white p-2 rounded"
+                        style={{ colorScheme: "dark" }}
+                      >
+                        <option value="demo_fixture">Demo Fixture</option>
+                        <option value="photo">Photo</option>
+                        <option value="sensor_snapshot">Sensor Snapshot</option>
+                        <option value="receipt">Receipt</option>
+                        <option value="agronomist_review">Agronomist Review</option>
+                        <option value="harvest_result">Harvest Result</option>
+                      </select>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description (hashed as artifact fingerprint)</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Describe the evidence in detail..."
+                        className="bg-black/20 border-white/10 text-white placeholder:text-gray-600"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="notes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Notes (optional)</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Additional notes..."
+                        className="bg-black/20 border-white/10 text-white placeholder:text-gray-600"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="flex gap-3 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1 border-white/10 text-white/70"
+                  onClick={() => setRecordingMilestone(null)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={createEvidence.isPending || !user}
+                  className="flex-1 bg-primary hover:bg-primary/90 text-[#0a0e27] font-bold"
+                >
+                  {createEvidence.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    "Save Evidence"
+                  )}
+                </Button>
               </div>
-
-              <div className="bg-black/20 p-4 rounded-lg">
-                <p className="text-xs text-gray-400">Status</p>
-                <div className="flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-yellow-400" />
-                  <span className="font-semibold text-yellow-400 uppercase tracking-wider">
-                    Pending Release
-                  </span>
-                </div>
-              </div>
-
-              <p className="text-gray-300 text-sm">
-                This token represents your contribution to the{" "}
-                {selectedToken.name} activity. Tokens are released once the
-                activity is verified on-chain by the producer and agricultural
-                auditors.
-              </p>
-
-              <Button
-                className="w-full bg-primary hover:bg-primary/90 text-[#0a0e27] font-bold"
-                onClick={() => setSelectedToken(null)}
-              >
-                Close
-              </Button>
-            </div>
-          )}
+            </form>
+          </Form>
         </DialogContent>
       </Dialog>
     </div>

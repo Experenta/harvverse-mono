@@ -30,6 +30,7 @@ export interface RiskScoreResult {
   ndviMonths: NdviMonth[];
   climateMonths: ClimateMonth[];
   hasSentinel: boolean;
+  eudrCompliant: boolean | null;
 }
 
 // ── Sentinel Hub ──────────────────────────────────────────────────────────────
@@ -280,9 +281,11 @@ async function fetchNdviStats(
   });
 }
 
-// ── ERA5 via Open-Meteo archive (daily → monthly aggregation) ─────────────────
-// Note: CDS API + netcdf4 would give identical ERA5 data but requires native
-// HDF5 bindings. Open-Meteo serves the same ERA5 reanalysis in JSON.
+// ── ERA5 via Open-Meteo archive (daily → manual monthly aggregation) ──────────
+// The archive API's &monthly= aggregation only accepts a narrow set of
+// ForecastVariableMonthly enum values — precipitation_sum and rain_sum are
+// both rejected. We use &daily= instead and aggregate per month ourselves.
+// daily precipitation_sum is mm/day; summing per month gives correct totals.
 
 async function fetchOpenMeteoClimate(
   lat: number,
@@ -290,74 +293,62 @@ async function fetchOpenMeteoClimate(
   months: number,
 ): Promise<ClimateMonth[]> {
   const now = new Date();
-  // End: last day of the previous completed month
+  // End: last day of the most recent completed month
   const endObj = new Date(now.getFullYear(), now.getMonth(), 0);
-  // Start: first day, `months` months before
+  // Start: first day, `months` months before end month
   const startObj = new Date(now.getFullYear(), now.getMonth() - months, 1);
 
   const fmt = (d: Date) =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-  const url = new URL("https://archive-api.open-meteo.com/v1/archive");
-  url.searchParams.set("latitude", lat.toFixed(4));
-  url.searchParams.set("longitude", lng.toFixed(4));
-  url.searchParams.set("start_date", fmt(startObj));
-  url.searchParams.set("end_date", fmt(endObj));
-  url.searchParams.set(
-    "daily",
-    "precipitation_sum,temperature_2m_mean",
-  );
-  url.searchParams.set("timezone", "UTC");
+  // Build URL manually to keep commas literal (searchParams would URL-encode them)
+  const rawUrl =
+    `https://archive-api.open-meteo.com/v1/archive` +
+    `?latitude=${lat.toFixed(4)}` +
+    `&longitude=${lng.toFixed(4)}` +
+    `&start_date=${fmt(startObj)}` +
+    `&end_date=${fmt(endObj)}` +
+    `&daily=precipitation_sum,temperature_2m_mean` +
+    `&timezone=UTC`;
 
-  const res = await fetch(url.toString());
+  console.log("[copernicus] Open-Meteo climate URL:", rawUrl);
+
+  const res = await fetch(rawUrl);
   if (!res.ok) {
     throw new Error(`Open-Meteo failed: ${res.status} ${await res.text()}`);
   }
 
-  type OMResponse = {
+  type OMDailyResponse = {
     daily?: {
       time?: string[];
       precipitation_sum?: (number | null)[];
       temperature_2m_mean?: (number | null)[];
     };
   };
-  const data = (await res.json()) as OMResponse;
+  const data = (await res.json()) as OMDailyResponse;
 
   const times = data.daily?.time ?? [];
-  const precip = data.daily?.precipitation_sum ?? [];
-  const temp = data.daily?.temperature_2m_mean ?? [];
+  const precipDaily = data.daily?.precipitation_sum ?? [];
+  const tempDaily = data.daily?.temperature_2m_mean ?? [];
 
-  // Aggregate daily → monthly
-  const byMonth = new Map<
-    string,
-    { year: number; month: number; precipSum: number; tempSum: number; count: number }
-  >();
+  // Aggregate daily rows into calendar months
+  const monthMap = new Map<string, { precipMm: number; tempSum: number; tempCount: number }>();
   for (let i = 0; i < times.length; i++) {
-    const parts = (times[i] ?? "").split("-");
-    const year = Number(parts[0]);
-    const month = Number(parts[1]);
-    const key = `${year}-${String(month).padStart(2, "0")}`;
-    const rec = byMonth.get(key) ?? {
-      year,
-      month,
-      precipSum: 0,
-      tempSum: 0,
-      count: 0,
-    };
-    rec.precipSum += precip[i] ?? 0;
-    if (temp[i] != null) {
-      rec.tempSum += temp[i] as number;
-      rec.count++;
-    }
-    byMonth.set(key, rec);
+    const month = (times[i] ?? "").slice(0, 7); // "YYYY-MM"
+    if (month.length !== 7) continue;
+    const entry = monthMap.get(month) ?? { precipMm: 0, tempSum: 0, tempCount: 0 };
+    entry.precipMm += precipDaily[i] ?? 0;
+    const t = tempDaily[i];
+    if (t != null) { entry.tempSum += t; entry.tempCount++; }
+    monthMap.set(month, entry);
   }
 
-  return Array.from(byMonth.values())
-    .sort((a, b) => a.year !== b.year ? a.year - b.year : a.month - b.month)
-    .map((r) => ({
-      date: `${r.year}-${String(r.month).padStart(2, "0")}`,
-      precipMm: r.precipSum,
-      tempC: r.count > 0 ? r.tempSum / r.count : 0,
+  return Array.from(monthMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, { precipMm, tempSum, tempCount }]) => ({
+      date,
+      precipMm,
+      tempC: tempCount > 0 ? tempSum / tempCount : 0,
     }));
 }
 
@@ -397,32 +388,54 @@ function scoreNdviStability(values: number[]): number {
   return lerp(cv, 0.05, 0.3, 100, 0);
 }
 
-// Optimal coffee precip: 1500–2000 mm/yr. Thresholds are author's judgment.
+// Optimal coffee precip: 1500–2000 mm/yr. Extended upper range for high-altitude
+// specialty regions (Honduras highlands can reach 2,500–3,000 mm and still excel).
 function scoreAnnualPrecip(annualMm: number): number {
-  if (annualMm < 1000) return 0;
-  if (annualMm <= 1500) return lerp(annualMm, 1000, 1500, 0, 100);
+  if (annualMm < 800) return 0;
+  if (annualMm <= 1200) return lerp(annualMm, 800, 1200, 0, 60);
+  if (annualMm <= 1500) return lerp(annualMm, 1200, 1500, 60, 85);
   if (annualMm <= 2000) return 100;
-  if (annualMm <= 2500) return lerp(annualMm, 2000, 2500, 100, 0);
+  if (annualMm <= 2500) return lerp(annualMm, 2000, 2500, 100, 70);
+  if (annualMm <= 3000) return lerp(annualMm, 2500, 3000, 70, 40);
+  if (annualMm <= 3500) return lerp(annualMm, 3000, 3500, 40, 20);
   return 0;
 }
 
-// Ideal: 1–4 months with <60 mm (dry season enables coffee flowering).
-// Threshold count bands are author's judgment.
+// Coffee needs a bimodal rainfall pattern: a pronounced dry season (allows
+// flowering) and a pronounced rainy season (drives bean development).
+// Thresholds are calibrated on Central American highland coffee regions.
 function scoreRainDistrib(months: ClimateMonth[]): number {
-  const dryCount = months.filter((m) => m.precipMm < 60).length;
-  if (dryCount === 0) return 30;
-  if (dryCount <= 4) return 100;
-  if (dryCount <= 7) return lerp(dryCount, 4, 7, 100, 40);
-  return lerp(dryCount, 7, 12, 40, 0);
+  // Rainy season: 4+ months above 150 mm
+  const hasRainySeason = months.filter((m) => m.precipMm > 150).length >= 4;
+
+  // Dry season: 2+ consecutive months below 100 mm
+  let maxConsecutiveDry = 0;
+  let run = 0;
+  for (const m of months) {
+    if (m.precipMm < 100) {
+      run++;
+      if (run > maxConsecutiveDry) maxConsecutiveDry = run;
+    } else {
+      run = 0;
+    }
+  }
+  const hasDrySeason = maxConsecutiveDry >= 2;
+
+  if (hasDrySeason && hasRainySeason) return 100;
+  if (hasDrySeason || hasRainySeason) return 60;
+  return 20;
 }
 
-// Optimal coffee temperature: 18–22 °C. Thresholds are author's judgment.
+// Optimal coffee temperature: 18–22 °C. High-altitude specialty coffee benefits
+// from cooler temps (slower maturation → better cup profile).
 function scoreTemperature(avgC: number): number {
-  if (avgC < 15) return 0;
-  if (avgC <= 18) return lerp(avgC, 15, 18, 0, 100);
-  if (avgC <= 22) return 100;
-  if (avgC <= 25) return lerp(avgC, 22, 25, 100, 0);
-  return 0;
+  if (avgC < 12) return 0;
+  if (avgC <= 15) return lerp(avgC, 12, 15, 0, 50);  // cold but viable for specialty
+  if (avgC <= 18) return 80;                           // good for specialty, slower maturation
+  if (avgC <= 22) return 100;                          // optimal
+  if (avgC <= 24) return 85;                           // warm but acceptable
+  if (avgC <= 26) return lerp(avgC, 24, 26, 85, 60); // marginal
+  return 20;
 }
 
 function scoreEudr(eudrCompliant: boolean | null): number {
@@ -506,13 +519,20 @@ export async function computeRiskScore(params: {
   const ndviAvgScore = hasSentinel ? scoreNdviAvg(avgNdvi) : null;
   const ndviStabScore = hasSentinel ? scoreNdviStability(validNdvi) : null;
 
+  // Infer EUDR compliance from NDVI if not explicitly set and Sentinel data is available
+  let effectiveEudr = params.eudrCompliant;
+  if (effectiveEudr === null && hasSentinel && validNdvi.length > 0) {
+    if (avgNdvi >= 0.5) effectiveEudr = true;
+    else if (avgNdvi < 0.3) effectiveEudr = false;
+  }
+
   const breakdown: ScoreBreakdown = {
     ndviAvg: ndviAvgScore,
     ndviStability: ndviStabScore,
     annualPrecip: scoreAnnualPrecip(annualPrecip),
     rainDistrib: scoreRainDistrib(climateMonths),
     temperature: scoreTemperature(avgTemp),
-    eudr: scoreEudr(params.eudrCompliant),
+    eudr: scoreEudr(effectiveEudr),
     total: 0,
   };
 
@@ -549,7 +569,7 @@ export async function computeRiskScore(params: {
       precipMm: Number(m.precipMm.toFixed(2)),
       tempC: Number(m.tempC.toFixed(2)),
     })),
-    eudrCompliant: params.eudrCompliant,
+    eudrCompliant: effectiveEudr,
   });
   const hash = createHash("sha256").update(hashInput).digest("hex");
 
@@ -560,5 +580,6 @@ export async function computeRiskScore(params: {
     ndviMonths,
     climateMonths,
     hasSentinel,
+    eudrCompliant: effectiveEudr,
   };
 }

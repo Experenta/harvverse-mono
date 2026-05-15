@@ -1,18 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect } from "react";
+import type { Route } from "next";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import {
-  Sprout,
-  ArrowLeft,
-  Loader2,
-  Clock,
-  CheckCircle,
-} from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
+import { Sprout, ArrowLeft, Loader2 } from "lucide-react";
 
 import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
 import { Button } from "@harvverse-monorepo/ui/components/button";
@@ -26,88 +23,64 @@ import {
   FormMessage,
 } from "@harvverse-monorepo/ui/components/form";
 
-const registerPlayerSchema = z
-  .object({
-    fullName: z.string().min(2, "Name required"),
-    email: z.string().email("Valid email required"),
-    phone: z.string().optional(),
-    password: z.string().min(6, "Min 6 characters"),
-    confirmPassword: z.string().min(6),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords do not match",
-    path: ["confirmPassword"],
-  });
+import { queryClient, trpc } from "@/utils/trpc";
 
-type RegisterPlayerValues = z.infer<typeof registerPlayerSchema>;
+const registerSchema = z.object({
+  displayName: z.string().min(2, "Name required"),
+  phone: z.string().optional(),
+  country: z.string().optional(),
+});
+
+type RegisterInput = z.input<typeof registerSchema>;
+type RegisterValues = z.output<typeof registerSchema>;
 
 const inputClasses =
   "bg-black/20 border-white/10 text-white placeholder:text-gray-600 focus:border-primary/50 focus:ring-primary/20";
 
 export default function RegisterPlayerPage() {
-  const [isPending] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const wallet = searchParams.get("wallet") ?? "";
 
-  const form = useForm<RegisterPlayerValues>({
-    resolver: zodResolver(registerPlayerSchema),
-    defaultValues: {
-      fullName: "",
-      email: "",
-      phone: "",
-      password: "",
-      confirmPassword: "",
-    },
+  useEffect(() => {
+    if (!wallet) router.replace("/login" as Route);
+  }, [wallet, router]);
+
+  const upsertUser = useMutation(trpc.users.upsert.mutationOptions());
+
+  const form = useForm<RegisterInput, unknown, RegisterValues>({
+    resolver: zodResolver(registerSchema),
+    defaultValues: { displayName: "", phone: "", country: "" },
   });
 
-  function onSubmit(_values: RegisterPlayerValues) {
-    setSubmitted(true);
-  }
-
-  if (submitted) {
-    return (
-      <div className="min-h-screen w-full flex items-center justify-center p-4 relative z-10">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.4 }}
-          className="max-w-md w-full"
-        >
-          <GlassCard className="p-8 border-primary/20 text-center">
-            <div className="w-16 h-16 bg-primary/20 rounded-full mx-auto mb-6 flex items-center justify-center">
-              <Clock className="w-8 h-8 text-primary" />
-            </div>
-            <h1 className="text-2xl font-bold text-white mb-3">
-              Registration Request Submitted
-            </h1>
-            <p className="text-gray-400 mb-6">
-              Your Phartmer account request has been submitted successfully. An
-              administrator will review and approve your access shortly.
-            </p>
-            <div className="flex items-center gap-2 justify-center text-sm text-yellow-400/80 bg-yellow-500/10 p-3 rounded-lg mb-6">
-              <CheckCircle className="w-4 h-4" />
-              <span>You will be able to log in once approved</span>
-            </div>
-            <Link href="/login" className="block">
-              <Button className="w-full bg-gradient-to-r from-primary to-[#82c926] text-[#0a0e27] font-bold h-11 rounded-xl">
-                Go to Login
-              </Button>
-            </Link>
-          </GlassCard>
-        </motion.div>
-      </div>
+  async function onSubmit(values: RegisterValues) {
+    const user = await upsertUser.mutateAsync({
+      walletAddress: wallet,
+      role: "partner",
+      displayName: values.displayName,
+      phone: values.phone || undefined,
+      country: values.country || undefined,
+    });
+    await queryClient.invalidateQueries({
+      queryKey: trpc.users.me.queryKey({ walletAddress: wallet }),
+    });
+    router.replace(
+      (user.role === "farmer" ? "/dashboard/farmer" : "/dashboard/player") as Route,
     );
   }
+
+  const isPending = upsertUser.isPending;
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center p-4 relative z-10">
       <div className="max-w-md w-full">
-        <Link href="/">
+        <Link href="/login">
           <Button
             variant="ghost"
             className="mb-6 text-white/70 hover:text-white pl-0 hover:bg-transparent"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Home
+            Back to Login
           </Button>
         </Link>
 
@@ -122,12 +95,14 @@ export default function RegisterPlayerPage() {
                 <Sprout className="w-6 h-6 text-primary" />
               </div>
               <h1 className="text-2xl font-bold text-white">
-                Request Phartmer Account
+                Complete Your Partner Profile
               </h1>
               <div className="h-1 w-20 bg-primary mt-4 rounded-full" />
-              <p className="text-gray-400 mt-2 text-center text-sm">
-                Join the ecosystem as an investor — invitation only
-              </p>
+              {wallet && (
+                <p className="text-xs text-gray-500 mt-2 font-mono">
+                  {wallet.slice(0, 10)}…{wallet.slice(-8)}
+                </p>
+              )}
             </div>
 
             <Form {...form}>
@@ -137,32 +112,13 @@ export default function RegisterPlayerPage() {
               >
                 <FormField
                   control={form.control}
-                  name="fullName"
+                  name="displayName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-white/80">Full Name</FormLabel>
+                      <FormLabel className="text-white/80">Full Name *</FormLabel>
                       <FormControl>
                         <Input
                           placeholder="John Doe"
-                          className={inputClasses}
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-white/80">Email</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="email"
-                          placeholder="john@example.com"
                           className={inputClasses}
                           {...field}
                         />
@@ -195,35 +151,15 @@ export default function RegisterPlayerPage() {
 
                 <FormField
                   control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-white/80">Password</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="password"
-                          placeholder="••••••••"
-                          className={inputClasses}
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="confirmPassword"
+                  name="country"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel className="text-white/80">
-                        Confirm Password
+                        Country (Optional)
                       </FormLabel>
                       <FormControl>
                         <Input
-                          type="password"
-                          placeholder="••••••••"
+                          placeholder="e.g., United States"
                           className={inputClasses}
                           {...field}
                         />
@@ -241,10 +177,10 @@ export default function RegisterPlayerPage() {
                   {isPending ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Submitting Request...
+                      Setting up account…
                     </>
                   ) : (
-                    "Submit Registration Request"
+                    "Create Account →"
                   )}
                 </Button>
               </form>

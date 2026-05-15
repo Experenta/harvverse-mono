@@ -43,7 +43,7 @@ interface PublicFarm {
   region: string;
   altitude: number | null;
   varieties: string[] | null;
-  photoUrl: string | null;
+  photoUrls: string[] | null;
   verified: boolean;
   rating: string | null;
   totalLots: number;
@@ -65,7 +65,7 @@ function FarmCard({ farm }: { farm: PublicFarm }) {
       >
         <div className="h-40 overflow-hidden relative">
           <img
-            src={farm.photoUrl ?? "/logo-square.png"}
+            src={farm.photoUrls?.[0] ?? "/logo-square.png"}
             alt={farm.farmName}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           />
@@ -205,7 +205,7 @@ export default function LandingPage() {
                     <TrendingUp className="w-8 h-8 text-[#080E04]" />
                   </div>
                   <div className="text-center">
-                    <h3 className="text-2xl font-bold text-white mb-2">I&apos;m a Phartmer</h3>
+                    <h3 className="text-2xl font-bold text-white mb-2">I&apos;m a Partner</h3>
                     <p className="text-sm text-gray-400">Invest capital, earn yield, and track real-time crop performance.</p>
                   </div>
                   <Button className="w-full bg-[#93d832] hover:bg-[#93d832]/90 text-[#080E04] font-bold h-12 rounded-xl group-hover:shadow-[0_0_20px_rgba(147,216,50,0.4)] transition-all">

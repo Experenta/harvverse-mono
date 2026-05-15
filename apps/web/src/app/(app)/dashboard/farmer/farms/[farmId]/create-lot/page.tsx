@@ -73,7 +73,18 @@ const createLotSchema = z.object({
     .optional(),
   numTrees: z.coerce.number().int().min(1).optional(),
   plantAgeYears: z.coerce.number().int().min(0).max(100).optional(),
+  scaScoreTenths: z.coerce.number().int().min(0).max(1000).optional(),
+  profile: z.string().optional(),
   summary: z.string().optional(),
+  // Investment plan (required — creates the plan atomically with the lot)
+  ticketCents: z.coerce.number().int().positive(),
+  priceCentsPerLb: z.coerce.number().int().positive(),
+  priceFloorCentsPerLb: z.coerce.number().int().positive(),
+  agronomicCostCents: z.coerce.number().int().positive(),
+  projectedYieldY1TenthsQq: z.coerce.number().int().positive(),
+  yieldCapY1TenthsQq: z.coerce.number().int().positive(),
+  splitFarmerBps: z.coerce.number().int().min(0).max(10000),
+  splitPartnerBps: z.coerce.number().int().min(0).max(10000),
 });
 
 type CreateLotInput = z.input<typeof createLotSchema>;
@@ -132,7 +143,17 @@ export default function CreateLotPage() {
       harvestYear: CURRENT_YEAR,
       numTrees: undefined,
       plantAgeYears: undefined,
+      scaScoreTenths: undefined,
+      profile: "",
       summary: "",
+      ticketCents: 342500,
+      priceCentsPerLb: 350,
+      priceFloorCentsPerLb: 250,
+      agronomicCostCents: 149000,
+      projectedYieldY1TenthsQq: 60,
+      yieldCapY1TenthsQq: 80,
+      splitFarmerBps: 6000,
+      splitPartnerBps: 4000,
     },
   });
 
@@ -217,9 +238,21 @@ export default function CreateLotPage() {
       harvestYear: values.harvestYear,
       numTrees: values.numTrees,
       plantAgeYears: values.plantAgeYears,
+      scaScoreTenths: values.scaScoreTenths,
+      profile: values.profile || undefined,
       summary: values.summary || undefined,
       polygon: lotPolygon ?? undefined,
       status: "available",
+      plan: {
+        ticketCents: values.ticketCents,
+        priceCentsPerLb: values.priceCentsPerLb,
+        priceFloorCentsPerLb: values.priceFloorCentsPerLb,
+        agronomicCostCents: values.agronomicCostCents,
+        projectedYieldY1TenthsQq: values.projectedYieldY1TenthsQq,
+        yieldCapY1TenthsQq: values.yieldCapY1TenthsQq,
+        splitFarmerBps: values.splitFarmerBps,
+        splitPartnerBps: values.splitPartnerBps,
+      },
     });
   }
 
@@ -303,7 +336,7 @@ export default function CreateLotPage() {
                       placeholder="auto-calculated from polygon, or enter manually"
                       className={inputClasses}
                       {...field}
-                      value={typeof field.value === "number" ? field.value : ""}
+                      value={(field.value as string | number | undefined) ?? ""}
                     />
                   </FormControl>
                   <FormMessage />
@@ -384,7 +417,7 @@ export default function CreateLotPage() {
                     <FormControl>
                       <select
                         {...field}
-                        value={field.value ?? ""}
+                        value={(field.value as string | number | undefined) ?? ""}
                         className={selectClasses}
                         style={{ colorScheme: "dark" }}
                       >
@@ -415,7 +448,7 @@ export default function CreateLotPage() {
                         placeholder="auto-filled from polygon"
                         className={inputClasses}
                         {...field}
-                        value={typeof field.value === "number" ? field.value : ""}
+                        value={(field.value as string | number | undefined) ?? ""}
                       />
                     </FormControl>
                     <FormMessage />
@@ -438,7 +471,7 @@ export default function CreateLotPage() {
                         placeholder="auto-filled from polygon"
                         className={inputClasses}
                         {...field}
-                        value={typeof field.value === "number" ? field.value : ""}
+                        value={(field.value as string | number | undefined) ?? ""}
                       />
                     </FormControl>
                     <FormMessage />
@@ -466,7 +499,7 @@ export default function CreateLotPage() {
                         }
                         className={inputClasses}
                         {...field}
-                        value={typeof field.value === "number" ? field.value : ""}
+                        value={(field.value as string | number | undefined) ?? ""}
                       />
                     </FormControl>
                     <FormMessage />
@@ -488,7 +521,7 @@ export default function CreateLotPage() {
                         placeholder={String(CURRENT_YEAR)}
                         className={inputClasses}
                         {...field}
-                        value={typeof field.value === "number" ? field.value : ""}
+                        value={(field.value as string | number | undefined) ?? ""}
                       />
                     </FormControl>
                     <FormMessage />
@@ -545,7 +578,7 @@ export default function CreateLotPage() {
                         placeholder="e.g., 1000"
                         className={inputClasses}
                         {...field}
-                        value={typeof field.value === "number" ? field.value : ""}
+                        value={(field.value as string | number | undefined) ?? ""}
                       />
                     </FormControl>
                     <FormMessage />
@@ -567,7 +600,7 @@ export default function CreateLotPage() {
                         placeholder="e.g., 5"
                         className={inputClasses}
                         {...field}
-                        value={typeof field.value === "number" ? field.value : ""}
+                        value={(field.value as string | number | undefined) ?? ""}
                       />
                     </FormControl>
                     <FormMessage />
@@ -575,6 +608,49 @@ export default function CreateLotPage() {
                 )}
               />
             </div>
+
+            <FormField
+              control={form.control}
+              name="scaScoreTenths"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-white/80">SCA Score (×10)</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      placeholder="e.g., 858 = 85.8 pts"
+                      className={inputClasses}
+                      {...field}
+                      value={(field.value as string | number | undefined) ?? ""}
+                    />
+                  </FormControl>
+                  {field.value ? (
+                    <p className="text-xs text-gray-500">
+                      {(Number(field.value) / 10).toFixed(1)} SCA points
+                    </p>
+                  ) : null}
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="profile"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-white/80">Tasting Profile</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="e.g., Caramel, dark chocolate, citric acidity"
+                      className={inputClasses}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}
@@ -593,6 +669,137 @@ export default function CreateLotPage() {
                 </FormItem>
               )}
             />
+
+            <GlassCard className="p-6 bg-primary/5 border-primary/20 space-y-4">
+              <div>
+                <h3 className="font-bold text-primary">Investment Plan</h3>
+                <p className="text-xs text-gray-400 mt-1">
+                  Pre-filled with standard terms — adjust as needed.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="ticketCents"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-white/80">Ticket Price (¢)</FormLabel>
+                      <FormControl>
+                        <Input type="number" className={inputClasses} {...field} value={(field.value as string | number | undefined) ?? ""} />
+                      </FormControl>
+                      <p className="text-xs text-gray-500">${((Number(field.value) || 0) / 100).toLocaleString()}</p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="agronomicCostCents"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-white/80">Agronomic Cost (¢)</FormLabel>
+                      <FormControl>
+                        <Input type="number" className={inputClasses} {...field} value={(field.value as string | number | undefined) ?? ""} />
+                      </FormControl>
+                      <p className="text-xs text-gray-500">${((Number(field.value) || 0) / 100).toLocaleString()}</p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="priceCentsPerLb"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-white/80">Price/lb (¢)</FormLabel>
+                      <FormControl>
+                        <Input type="number" className={inputClasses} {...field} value={(field.value as string | number | undefined) ?? ""} />
+                      </FormControl>
+                      <p className="text-xs text-gray-500">${((Number(field.value) || 0) / 100).toFixed(2)}/lb</p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="priceFloorCentsPerLb"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-white/80">Price Floor/lb (¢)</FormLabel>
+                      <FormControl>
+                        <Input type="number" className={inputClasses} {...field} value={(field.value as string | number | undefined) ?? ""} />
+                      </FormControl>
+                      <p className="text-xs text-gray-500">${((Number(field.value) || 0) / 100).toFixed(2)}/lb</p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="projectedYieldY1TenthsQq"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-white/80">Proj. Yield Y1 (0.1 qq)</FormLabel>
+                      <FormControl>
+                        <Input type="number" className={inputClasses} {...field} value={(field.value as string | number | undefined) ?? ""} />
+                      </FormControl>
+                      <p className="text-xs text-gray-500">{((Number(field.value) || 0) / 10).toFixed(1)} qq</p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="yieldCapY1TenthsQq"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-white/80">Yield Cap Y1 (0.1 qq)</FormLabel>
+                      <FormControl>
+                        <Input type="number" className={inputClasses} {...field} value={(field.value as string | number | undefined) ?? ""} />
+                      </FormControl>
+                      <p className="text-xs text-gray-500">{((Number(field.value) || 0) / 10).toFixed(1)} qq</p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="splitFarmerBps"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-white/80">Farmer Split (bps)</FormLabel>
+                      <FormControl>
+                        <Input type="number" className={inputClasses} {...field} value={(field.value as string | number | undefined) ?? ""} />
+                      </FormControl>
+                      <p className="text-xs text-gray-500">{((Number(field.value) || 0) / 100).toFixed(0)}%</p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="splitPartnerBps"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-white/80">Partner Split (bps)</FormLabel>
+                      <FormControl>
+                        <Input type="number" className={inputClasses} {...field} value={(field.value as string | number | undefined) ?? ""} />
+                      </FormControl>
+                      <p className="text-xs text-gray-500">{((Number(field.value) || 0) / 100).toFixed(0)}%</p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </GlassCard>
 
             <Button
               type="submit"

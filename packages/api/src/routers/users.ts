@@ -29,6 +29,9 @@ export const usersRouter = router({
         walletAddress: true,
         displayName: true,
         role: true,
+      }).extend({
+        phone: z.string().optional(),
+        country: z.string().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -40,6 +43,8 @@ export const usersRouter = router({
           set: {
             displayName: input.displayName,
             role: input.role,
+            ...(input.phone !== undefined && { phone: input.phone }),
+            ...(input.country !== undefined && { country: input.country }),
             updatedAt: new Date(),
           },
         })

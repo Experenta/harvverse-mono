@@ -6,17 +6,15 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useAccount, useConnect, useDisconnect } from "wagmi";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Loader2, Wallet, ArrowLeft } from "lucide-react";
 
 import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
 import { Button } from "@harvverse-monorepo/ui/components/button";
 
-import { queryClient, trpc } from "@/utils/trpc";
+import { trpc } from "@/utils/trpc";
 
 type Role = "partner" | "farmer";
-
-const DEMO_WALLET = process.env.NEXT_PUBLIC_DEMO_WALLET ?? null;
 
 export default function LoginPage() {
   const router = useRouter();
@@ -25,16 +23,14 @@ export default function LoginPage() {
   const { disconnect } = useDisconnect();
 
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
-  const [step, setStep] = useState<"connect" | "role" | "saving">("connect");
+  const [step, setStep] = useState<"connect" | "role">("connect");
   const [isMiniPay, setIsMiniPay] = useState(false);
-  // Only true after the user explicitly clicks "Connect Wallet", MiniPay auto-detects,
-  // or DEMO_WALLET bypasses real connection. Prevents wagmi's auto-reconnect on mount
-  // from silently driving the login flow before the user clicks anything.
-  const [hasTriggeredConnect, setHasTriggeredConnect] = useState(
-    DEMO_WALLET !== null,
-  );
+  // Only true after the user explicitly clicks "Connect Wallet" or MiniPay auto-detects.
+  // Prevents wagmi's auto-reconnect on mount from silently driving the login flow
+  // before the user clicks anything.
+  const [hasTriggeredConnect, setHasTriggeredConnect] = useState(false);
 
-  const walletAddress = DEMO_WALLET ?? address ?? null;
+  const walletAddress = address ?? null;
 
   // Detect MiniPay environment (only available on client after mount)
   useEffect(() => {
@@ -59,8 +55,6 @@ export default function LoginPage() {
     enabled: hasTriggeredConnect && !!walletAddress,
   });
 
-  const upsertUser = useMutation(trpc.users.upsert.mutationOptions());
-
   // Redirect existing users, or advance to role picker for new ones.
   // Only runs after the user has triggered the connect flow.
   useEffect(() => {
@@ -76,27 +70,13 @@ export default function LoginPage() {
     }
   }, [hasTriggeredConnect, existingUser, walletAddress, userLoading, router]);
 
-  async function handleConfirmRole() {
+  function handleConfirmRole() {
     if (!walletAddress || !selectedRole) return;
-    setStep("saving");
-    try {
-      const displayName = address
-        ? `${address.slice(0, 6)}…${address.slice(-4)}`
-        : walletAddress;
-      const user = await upsertUser.mutateAsync({
-        walletAddress,
-        role: selectedRole,
-        displayName,
-      });
-      await queryClient.invalidateQueries({
-        queryKey: trpc.users.me.queryKey({ walletAddress }),
-      });
-      const dest =
-        user.role === "farmer" ? "/dashboard/farmer" : "/dashboard/player";
-      router.replace(dest as Route);
-    } catch {
-      setStep("role");
-    }
+    const dest =
+      selectedRole === "farmer"
+        ? `/register/farmer?wallet=${encodeURIComponent(walletAddress)}`
+        : `/register/player?wallet=${encodeURIComponent(walletAddress)}`;
+    router.push(dest as Route);
   }
 
   // Pick the right connector for the button: MiniPay if detected, else generic injected
@@ -190,7 +170,7 @@ export default function LoginPage() {
             </div>
           )}
 
-          {(step === "role" || step === "saving") && (
+          {step === "role" && (
             <div className="space-y-4">
               <p className="text-sm text-gray-400 text-center">
                 How will you use Harvverse?
@@ -227,13 +207,10 @@ export default function LoginPage() {
               </div>
               <Button
                 className="w-full bg-primary hover:bg-primary/90 text-[#0a0e27] font-bold h-11"
-                disabled={!selectedRole || step === "saving"}
+                disabled={!selectedRole}
                 onClick={handleConfirmRole}
               >
-                {step === "saving" && (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                )}
-                {step === "saving" ? "Setting up…" : "Continue →"}
+                Continue →
               </Button>
               <button
                 onClick={() => {

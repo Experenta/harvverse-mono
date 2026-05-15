@@ -25,7 +25,7 @@ export default function FarmDetailPage() {
   );
 
   return (
-    <div className="min-h-screen bg-[#0a0e27] text-white p-8">
+    <div>
       <Button
         variant="ghost"
         className="mb-6 text-white/70"
@@ -49,7 +49,7 @@ export default function FarmDetailPage() {
         <>
           <div className="relative h-64 rounded-lg mb-8 overflow-hidden">
             <img
-              src={farm.photoUrl ?? "/logo-square.png"}
+              src={farm.photoUrls?.[0] ?? "/logo-square.png"}
               alt={farm.name}
               className="h-full w-full object-cover"
             />
