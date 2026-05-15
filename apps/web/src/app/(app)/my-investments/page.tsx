@@ -3,7 +3,7 @@
 import type { Route } from "next";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, TrendingUp } from "lucide-react";
+import { ArrowLeft, TrendingUp, AlertCircle } from "lucide-react";
 
 import { Badge } from "@harvverse-monorepo/ui/components/badge";
 import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
@@ -34,7 +34,11 @@ export default function MyInvestmentsPage() {
   const router = useRouter();
   const { data: user, isLoading: userLoading } = useCurrentUser();
 
-  const { data: partnerships, isLoading: partnershipLoading } = useQuery(
+  const {
+    data: partnerships,
+    isLoading: partnershipLoading,
+    isError,
+  } = useQuery(
     trpc.partnerships.myPartnerships.queryOptions(
       { walletAddress: user?.walletAddress ?? "" },
       { enabled: !!user },
@@ -62,7 +66,14 @@ export default function MyInvestmentsPage() {
           </p>
         </header>
 
-        {isLoading ? (
+        {isError ? (
+          <GlassCard className="p-8 border-red-500/20">
+            <p className="flex items-center gap-2 text-red-400">
+              <AlertCircle className="w-5 h-5 shrink-0" />
+              Failed to load investments. Please refresh and try again.
+            </p>
+          </GlassCard>
+        ) : isLoading ? (
           <div className="space-y-4">
             <Skeleton className="h-48 w-full rounded-xl" />
             <Skeleton className="h-48 w-full rounded-xl" />

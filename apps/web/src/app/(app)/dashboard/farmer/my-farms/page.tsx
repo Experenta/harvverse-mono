@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
-import { Sprout, Plus, ArrowLeft } from "lucide-react";
+import { Sprout, Plus, ArrowLeft, AlertCircle } from "lucide-react";
 
 import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
 import { Button } from "@harvverse-monorepo/ui/components/button";
@@ -16,7 +16,7 @@ import { trpc } from "@/utils/trpc";
 export default function MyFarmsPage() {
   const router = useRouter();
   const { data: user, isLoading: userLoading } = useCurrentUser();
-  const { data: farms, isLoading } = useQuery(
+  const { data: farms, isLoading, isError } = useQuery(
     trpc.farms.list.queryOptions(
       { farmerId: user?.id },
       { enabled: !!user },
@@ -48,7 +48,14 @@ export default function MyFarmsPage() {
         </Button>
       </header>
 
-      {isLoadingFarms ? (
+      {isError ? (
+        <GlassCard className="p-8 border-red-500/20">
+          <p className="flex items-center gap-2 text-red-400">
+            <AlertCircle className="w-5 h-5 shrink-0" />
+            Failed to load farms. Please refresh and try again.
+          </p>
+        </GlassCard>
+      ) : isLoadingFarms ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {Array.from({ length: 2 }).map((_, idx) => (
             <GlassCard key={idx} className="p-6 border-primary/20">

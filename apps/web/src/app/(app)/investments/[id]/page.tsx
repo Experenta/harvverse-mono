@@ -6,7 +6,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ArrowLeft, CheckCircle2, Clock, Copy, Plus, Loader2 } from "lucide-react";
+import { AlertCircle, ArrowLeft, CheckCircle2, Clock, Copy, Plus, Loader2 } from "lucide-react";
 
 import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
 import { Button } from "@harvverse-monorepo/ui/components/button";
@@ -81,7 +81,7 @@ export default function InvestmentDetailPage() {
 
   const { data: user } = useCurrentUser();
 
-  const { data: partnership, isLoading } = useQuery(
+  const { data: partnership, isLoading, isError } = useQuery(
     trpc.partnerships.byId.queryOptions(
       { id: partnershipId },
       { enabled: partnershipIdValid },
@@ -100,11 +100,21 @@ export default function InvestmentDetailPage() {
     trpc.settlements.create.mutationOptions({
       onSuccess: () => {
         setSettlementDone(true);
-        queryClient.invalidateQueries({
+        void queryClient.invalidateQueries({
           queryKey: trpc.partnerships.byId.queryKey({ id: partnershipId }),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: trpc.settlements.byPartnership.queryKey({ partnershipId }),
         });
       },
     }),
+  );
+
+  const { data: settlement } = useQuery(
+    trpc.settlements.byPartnership.queryOptions(
+      { partnershipId },
+      { enabled: partnershipIdValid },
+    ),
   );
 
   const createEvidence = useMutation(
@@ -140,6 +150,27 @@ export default function InvestmentDetailPage() {
         <Skeleton className="h-10 w-48" />
         <Skeleton className="h-48 w-full" />
         <Skeleton className="h-96 w-full" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="max-w-4xl mx-auto">
+        <Button
+          variant="ghost"
+          className="mb-8 text-white/70"
+          onClick={() => router.push(backPath)}
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          {backLabel}
+        </Button>
+        <GlassCard className="p-8 border-red-500/20">
+          <p className="flex items-center gap-2 text-red-400">
+            <AlertCircle className="w-5 h-5 shrink-0" />
+            Failed to load partnership details. Please refresh and try again.
+          </p>
+        </GlassCard>
       </div>
     );
   }
@@ -402,21 +433,54 @@ export default function InvestmentDetailPage() {
           const fmt = (c: number) =>
             `$${(c / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-          if (settlementDone || partnership.status === "awaiting_settlement" || partnership.status === "milestones_attested") {
+          if (settlementDone || !!settlement || partnership.status === "awaiting_settlement" || partnership.status === "milestones_attested") {
+            const s = settlement;
+            const displayRevenue = s?.revenueCents ?? revenueCents;
+            const displayCost = s ? (s.revenueCents - s.profitCents) : costCents;
+            const displayProfit = s?.profitCents ?? profitCents;
+            const displayFarmerCents = s?.farmerCents ?? farmerCents;
+            const displayPartnerCents = s?.partnerCents ?? partnerCents;
+            const displayStatus = s?.status ?? "intent_created";
             return (
               <GlassCard className="p-6 border-emerald-500/20">
                 <h2 className="text-xl font-bold mb-4">Settlement</h2>
-                <div className="flex items-center gap-2 text-emerald-400 mb-3">
+                <div className="flex items-center gap-2 text-emerald-400 mb-1">
                   <CheckCircle2 className="w-5 h-5" />
-                  <span className="font-semibold">Settlement intent created</span>
+                  <span className="font-semibold">Settlement Requested ✓</span>
                 </div>
-                <p className="text-sm text-gray-400">
+                <p className="text-sm text-gray-400 mb-6">
                   Status:{" "}
-                  <span className="text-yellow-400 font-semibold">
-                    intent_created
+                  <span className="text-yellow-400 font-semibold capitalize">
+                    {displayStatus.replace(/_/g, " ")}
                   </span>{" "}
-                  — the settlement operator will process the final payment.
+                  — Pending operator review
                 </p>
+                <div className="space-y-2 text-sm border-t border-white/10 pt-4">
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Gross Revenue</span>
+                    <span className="font-semibold">{fmt(displayRevenue)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Agronomic Cost</span>
+                    <span className="font-semibold text-red-400">−{fmt(displayCost)}</span>
+                  </div>
+                  <div className="flex justify-between border-t border-white/10 pt-2">
+                    <span className="text-gray-400">Net Profit</span>
+                    <span className="font-bold text-emerald-400">{fmt(displayProfit)}</span>
+                  </div>
+                  <div className="flex justify-between pt-2">
+                    <span className="text-gray-400">
+                      Your share ({(partnerBps / 100).toFixed(0)}%)
+                    </span>
+                    <span className="font-bold text-primary">{fmt(displayPartnerCents)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">
+                      Farmer share ({(farmerBps / 100).toFixed(0)}%)
+                    </span>
+                    <span className="font-semibold">{fmt(displayFarmerCents)}</span>
+                  </div>
+                </div>
               </GlassCard>
             );
           }
@@ -468,25 +532,24 @@ export default function InvestmentDetailPage() {
               <Button
                 className="w-full bg-primary hover:bg-primary/90 text-[#0a0e27] font-bold h-11"
                 disabled={requestSettlement.isPending || !user || !plan}
-                onClick={() => {
+                onClick={async () => {
                   if (!user || !plan) return;
-                  const harvestHash =
-                    evidenceRecords[evidenceRecords.length - 1]?.artifactHash ??
-                    "demo_settlement_hash";
+                  const combined = evidenceRecords
+                    .map((ev) => ev.artifactHash)
+                    .join("|");
+                  const harvestEvidenceHash = await sha256Hex(combined);
                   requestSettlement.mutate({
                     partnershipId,
                     status: "intent_created",
                     year: new Date().getFullYear(),
                     yieldTenthsQq: plan.projectedYieldY1TenthsQq,
-                    scaScoreTenths:
-                      (lot as unknown as { scaScoreTenths?: number | null })
-                        .scaScoreTenths ?? 800,
+                    scaScoreTenths: lot.scaScoreTenths ?? 845,
                     priceCentsPerLb: plan.priceCentsPerLb,
                     revenueCents,
                     profitCents,
                     farmerCents,
                     partnerCents,
-                    harvestEvidenceHash: harvestHash,
+                    harvestEvidenceHash,
                   });
                 }}
               >

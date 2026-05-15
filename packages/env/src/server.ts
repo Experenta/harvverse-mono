@@ -7,6 +7,7 @@ export const env = createEnv({
     DATABASE_URL: z.string().min(1),
     CORS_ORIGIN: z.url(),
     NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
+    CLERK_SECRET_KEY: z.string().min(1),
     SENTINEL_HUB_CLIENT_ID: z.string().min(1).optional(),
     SENTINEL_HUB_CLIENT_SECRET: z.string().min(1).optional(),
     CDS_API_KEY: z.string().min(1).optional(),

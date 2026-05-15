@@ -132,9 +132,11 @@ export const users = pgTable(
 	"users",
 	{
 		id: serial("id").primaryKey(),
+		clerkId: text("clerk_id").unique(),
+		email: text("email"),
 		displayName: text("display_name").notNull(),
 		role: userRoleEnum("role").notNull(),
-		walletAddress: text("wallet_address").notNull().unique(),
+		walletAddress: text("wallet_address").unique(),
 		phone: text("phone"),
 		country: text("country"),
 		status: userStatusEnum("status").notNull().default("active"),
@@ -821,6 +823,20 @@ export const agentEventsRelations = relations(agentEvents, ({ one }) => ({
 	proposal: one(proposals, {
 		fields: [agentEvents.proposalId],
 		references: [proposals.id],
+	}),
+}));
+
+export const agronomicPlansRelations = relations(agronomicPlans, ({ one }) => ({
+	lot: one(lots, {
+		fields: [agronomicPlans.lotCode],
+		references: [lots.code],
+	}),
+}));
+
+export const sensorDataRelations = relations(sensorData, ({ one }) => ({
+	module: one(modules, {
+		fields: [sensorData.moduleId],
+		references: [modules.moduleId],
 	}),
 }));
 

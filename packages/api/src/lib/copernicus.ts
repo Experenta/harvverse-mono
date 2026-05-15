@@ -311,8 +311,6 @@ async function fetchOpenMeteoClimate(
     `&daily=precipitation_sum,temperature_2m_mean` +
     `&timezone=UTC`;
 
-  console.log("[copernicus] Open-Meteo climate URL:", rawUrl);
-
   const res = await fetch(rawUrl);
   if (!res.ok) {
     throw new Error(`Open-Meteo failed: ${res.status} ${await res.text()}`);

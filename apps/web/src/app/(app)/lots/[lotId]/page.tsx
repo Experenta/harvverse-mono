@@ -120,7 +120,7 @@ export default function LotDetailPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
-  const { data: lot, isLoading } = useQuery(
+  const { data: lot, isLoading, isError } = useQuery(
     trpc.lots.byId.queryOptions(
       { id: lotId },
       { enabled: Number.isFinite(lotId) },
@@ -178,6 +178,13 @@ export default function LotDetailPage() {
           <Skeleton className="h-6 w-1/3" />
           <Skeleton className="h-48 w-full" />
         </div>
+      ) : isError ? (
+        <GlassCard className="p-12 text-center border-red-500/20">
+          <p className="flex items-center gap-2 text-red-400 justify-center">
+            <AlertCircle className="w-5 h-5 shrink-0" />
+            Failed to load lot details. Please refresh and try again.
+          </p>
+        </GlassCard>
       ) : !lot ? (
         <GlassCard className="p-12 text-center border-primary/20">
           <p className="text-gray-400">Lot not found.</p>
@@ -458,14 +465,14 @@ export default function LotDetailPage() {
                     const isOpen = expandedRow === label;
                     return (
                       <div key={label}>
-                        <div className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-3 py-2">
+                        <div className="grid grid-cols-[1fr_auto_auto] md:grid-cols-[1fr_auto_auto_auto] items-center gap-3 py-2">
                           <div>
                             <p className="text-sm text-white/80">{label}</p>
                             {note ? (
                               <p className="text-xs text-yellow-500/70">{note}</p>
                             ) : null}
                           </div>
-                          <span className="text-xs text-gray-500 w-10 text-right">
+                          <span className="hidden md:block text-xs text-gray-500 w-10 text-right">
                             {weight ?? "—"}
                           </span>
                           {value != null ? (

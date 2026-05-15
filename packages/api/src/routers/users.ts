@@ -15,34 +15,39 @@ const statusSchema = z.enum(userStatusEnum.enumValues);
 
 export const usersRouter = router({
   me: publicProcedure
-    .input(z.object({ walletAddress: z.string().trim().min(1) }))
+    .input(z.object({ clerkId: z.string().trim().min(1) }))
     .query(async ({ ctx, input }) => {
       const user = await ctx.db.query.users.findFirst({
-        where: eq(users.walletAddress, input.walletAddress),
+        where: eq(users.clerkId, input.clerkId),
       });
       return user ?? null;
     }),
 
   upsert: publicProcedure
     .input(
-      insertUserSchema.pick({
-        walletAddress: true,
-        displayName: true,
-        role: true,
-      }).extend({
-        phone: z.string().optional(),
-        country: z.string().optional(),
-      }),
+      insertUserSchema
+        .pick({ displayName: true, role: true })
+        .extend({
+          clerkId: z.string().trim().min(1),
+          email: z.string().email().optional(),
+          walletAddress: z.string().optional(),
+          phone: z.string().optional(),
+          country: z.string().optional(),
+        }),
     )
     .mutation(async ({ ctx, input }) => {
       const [user] = await ctx.db
         .insert(users)
         .values(input)
         .onConflictDoUpdate({
-          target: users.walletAddress,
+          target: users.clerkId,
           set: {
             displayName: input.displayName,
             role: input.role,
+            ...(input.email !== undefined && { email: input.email }),
+            ...(input.walletAddress !== undefined && {
+              walletAddress: input.walletAddress,
+            }),
             ...(input.phone !== undefined && { phone: input.phone }),
             ...(input.country !== undefined && { country: input.country }),
             updatedAt: new Date(),

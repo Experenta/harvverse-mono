@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import type { Route } from "next";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, Award, MapPin, Mountain } from "lucide-react";
+import { AlertCircle, ArrowLeft, ArrowRight, Award, MapPin, Mountain } from "lucide-react";
 
 import { Badge } from "@harvverse-monorepo/ui/components/badge";
 import { Button } from "@harvverse-monorepo/ui/components/button";
@@ -17,7 +17,7 @@ export default function FarmDetailPage() {
   const params = useParams<{ farmId: string }>();
   const farmId = Number(params.farmId);
 
-  const { data: farm, isLoading } = useQuery(
+  const { data: farm, isLoading, isError } = useQuery(
     trpc.farms.byId.queryOptions(
       { id: farmId },
       { enabled: Number.isFinite(farmId) },
@@ -41,6 +41,13 @@ export default function FarmDetailPage() {
           <Skeleton className="h-10 w-1/2" />
           <Skeleton className="h-24 w-full" />
         </div>
+      ) : isError ? (
+        <GlassCard className="p-12 text-center border-red-500/20">
+          <p className="flex items-center gap-2 text-red-400 justify-center">
+            <AlertCircle className="w-5 h-5 shrink-0" />
+            Failed to load farm details. Please refresh and try again.
+          </p>
+        </GlassCard>
       ) : !farm ? (
         <GlassCard className="p-12 text-center border-primary/20">
           <p className="text-gray-400">Farm not found.</p>

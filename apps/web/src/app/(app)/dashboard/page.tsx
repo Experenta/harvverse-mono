@@ -32,9 +32,9 @@ export default function DashboardPage() {
         <GlassCard className="p-12 text-center border-primary/20 max-w-xl mx-auto">
           <h1 className="text-2xl font-bold mb-3">No user found</h1>
           <p className="text-gray-400">
-            No account found for this wallet. Go to{" "}
-            <a href="/register" className="text-primary underline">register</a>{" "}
-            to create one.
+            No account found. Go to{" "}
+            <a href="/onboarding" className="text-primary underline">onboarding</a>{" "}
+            to complete your profile.
           </p>
         </GlassCard>
       </div>
@@ -56,7 +56,7 @@ export default function DashboardPage() {
       {user.role === "farmer" ? (
         <FarmerView userId={user.id} />
       ) : user.role === "partner" ? (
-        <PartnerView walletAddress={user.walletAddress} />
+        <PartnerView walletAddress={user.walletAddress ?? ""} />
       ) : (
         <GlassCard className="p-8 border-primary/20">
           <p className="text-gray-400">

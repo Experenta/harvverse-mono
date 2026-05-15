@@ -1,22 +1,26 @@
 "use client";
 
-import { useAccount, useDisconnect } from "wagmi";
+import { useUser } from "@clerk/nextjs";
 import { useQuery } from "@tanstack/react-query";
+import { useDisconnect } from "wagmi";
 
 import { trpc } from "@/utils/trpc";
 
 export function useCurrentUser() {
-  const { address } = useAccount();
-  const walletAddress = address ?? null;
-
-  const query = useQuery({
-    ...trpc.users.me.queryOptions({ walletAddress: walletAddress ?? "" }),
-    enabled: !!walletAddress,
+  const { user: clerkUser, isLoaded } = useUser();
+  const { data: dbUser, isLoading: isLoadingDb } = useQuery({
+    ...trpc.users.me.queryOptions({ clerkId: clerkUser?.id ?? "" }),
+    enabled: isLoaded && !!clerkUser?.id,
   });
 
   return {
-    data: query.data ?? null,
-    isLoading: query.isLoading,
+    data: dbUser ?? null,
+    user: dbUser ?? null,
+    clerkUser,
+    isLoading: !isLoaded || isLoadingDb,
+    isLoaded,
+    isSignedIn: !!clerkUser,
+    walletAddress: clerkUser?.web3Wallets?.[0]?.web3Wallet ?? null,
   };
 }
 

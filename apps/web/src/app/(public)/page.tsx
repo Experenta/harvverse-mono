@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { Route } from "next";
 import { motion } from "framer-motion";
 import {
   Users,
@@ -198,7 +199,7 @@ export default function LandingPage() {
             transition={{ duration: 0.6, delay: 0.2 }}
             className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-2xl mx-auto"
           >
-            <Link href="/register/player">
+            <Link href={"/sign-up" as Route}>
               <div className="group cursor-pointer">
                 <GlassCard className="h-full p-8 hover:border-[#93d832]/50 transition-colors duration-300 flex flex-col items-center justify-between gap-6">
                   <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#93d832] to-[#93d832]/50 flex items-center justify-center shadow-lg shadow-[#93d832]/20 group-hover:scale-110 transition-transform duration-300">
@@ -215,7 +216,7 @@ export default function LandingPage() {
               </div>
             </Link>
 
-            <Link href="/register/farmer">
+            <Link href={"/sign-up" as Route}>
               <div className="group cursor-pointer">
                 <GlassCard className="h-full p-8 hover:border-[#a37241]/50 transition-colors duration-300 flex flex-col items-center justify-between gap-6">
                   <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#a37241] to-[#5e3c1e] flex items-center justify-center shadow-lg shadow-[#a37241]/20 group-hover:scale-110 transition-transform duration-300">

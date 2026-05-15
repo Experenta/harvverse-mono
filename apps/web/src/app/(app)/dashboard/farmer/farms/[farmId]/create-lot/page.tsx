@@ -225,7 +225,7 @@ export default function CreateLotPage() {
     createLot.mutate({
       farmId: farm.id,
       farmName: farm.name,
-      farmerWallet: user.walletAddress,
+      farmerWallet: user.walletAddress ?? "",
       region: farm.region,
       country: farm.country,
       code: values.code,

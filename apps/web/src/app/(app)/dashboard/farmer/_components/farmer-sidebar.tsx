@@ -90,7 +90,13 @@ export default function FarmerSidebar() {
           Create Farm
         </Button>
 
-        <Button variant="ghost" className={INACTIVE_CLASSES}>
+        <Button
+          variant="ghost"
+          className={
+            isActive("/settings") ? ACTIVE_CLASSES : INACTIVE_CLASSES
+          }
+          onClick={() => router.push("/settings")}
+        >
           <Settings className="w-4 h-4 mr-3" />
           Settings
         </Button>

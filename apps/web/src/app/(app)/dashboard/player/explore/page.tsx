@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Mountain, Sprout, ArrowRight, ArrowLeft, Loader2 } from "lucide-react";
+import { Mountain, Sprout, ArrowRight, ArrowLeft, Loader2, AlertCircle } from "lucide-react";
 
 import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
 import { Button } from "@harvverse-monorepo/ui/components/button";
@@ -19,7 +19,7 @@ export default function ExplorePage() {
   const [selectedCountry, setSelectedCountry] = useState("All");
   const [selectedVariety, setSelectedVariety] = useState("All");
 
-  const { data: lots = [], isLoading } = useQuery(
+  const { data: lots = [], isLoading, isError } = useQuery(
     trpc.lots.list.queryOptions({ status: "available" }),
   );
 
@@ -88,6 +88,13 @@ export default function ExplorePage() {
         <GlassCard className="p-12 text-center border-primary/20">
           <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-4" />
           <p className="text-gray-400">Loading available lots...</p>
+        </GlassCard>
+      ) : isError ? (
+        <GlassCard className="p-8 border-red-500/20">
+          <p className="flex items-center gap-2 text-red-400">
+            <AlertCircle className="w-5 h-5 shrink-0" />
+            Failed to load lots. Please refresh and try again.
+          </p>
         </GlassCard>
       ) : filteredLots.length === 0 ? (
         <GlassCard className="p-12 text-center border-primary/20">

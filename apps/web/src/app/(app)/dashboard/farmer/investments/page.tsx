@@ -3,7 +3,7 @@
 import type { Route } from "next";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, DollarSign } from "lucide-react";
+import { ArrowLeft, DollarSign, AlertCircle } from "lucide-react";
 
 import { Badge } from "@harvverse-monorepo/ui/components/badge";
 import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
@@ -26,7 +26,11 @@ export default function FarmerInvestmentsPage() {
   const router = useRouter();
   const { data: user, isLoading: userLoading } = useCurrentUser();
 
-  const { data: partnerships, isLoading: partnershipLoading } = useQuery(
+  const {
+    data: partnerships,
+    isLoading: partnershipLoading,
+    isError,
+  } = useQuery(
     trpc.partnerships.forFarmer.queryOptions(
       { walletAddress: user?.walletAddress ?? "" },
       { enabled: !!user },
@@ -56,14 +60,25 @@ export default function FarmerInvestmentsPage() {
         </div>
       </div>
 
-      {isLoading ? (
+      {isError ? (
+        <GlassCard className="p-8 border-red-500/20">
+          <p className="flex items-center gap-2 text-red-400">
+            <AlertCircle className="w-5 h-5 shrink-0" />
+            Failed to load investments. Please refresh and try again.
+          </p>
+        </GlassCard>
+      ) : isLoading ? (
         <div className="space-y-4">
           <Skeleton className="h-40 w-full rounded-xl" />
           <Skeleton className="h-40 w-full rounded-xl" />
         </div>
       ) : !partnerships || partnerships.length === 0 ? (
         <GlassCard className="p-12 text-center border-[#a37241]/20">
-          <p className="text-gray-400">No investments yet.</p>
+          <DollarSign className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <p className="text-gray-400 text-lg mb-2">No active partnerships yet.</p>
+          <p className="text-gray-500 text-sm">
+            Investments from partners will appear here once they reserve a lot.
+          </p>
         </GlassCard>
       ) : (
         <div className="grid grid-cols-1 gap-6">

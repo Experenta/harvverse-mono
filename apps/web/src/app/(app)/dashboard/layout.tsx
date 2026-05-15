@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Harvverse | Partner Dashboard",
+  title: "Harvverse | Dashboard",
 };
 
-export default function PlayerDashboardLayout({
+export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
