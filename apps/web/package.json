@@ -10,8 +10,8 @@
   "dependencies": {
     "@clerk/nextjs": "^7.3.4",
     "@harvverse-monorepo/api": "workspace:*",
-    "@harvverse-monorepo/db": "workspace:*",
     "@harvverse-monorepo/contracts": "workspace:*",
+    "@harvverse-monorepo/db": "workspace:*",
     "@harvverse-monorepo/env": "workspace:*",
     "@harvverse-monorepo/ui": "workspace:*",
     "@hookform/resolvers": "^5.2.2",
@@ -20,6 +20,8 @@
     "@trpc/client": "catalog:",
     "@trpc/server": "catalog:",
     "@trpc/tanstack-react-query": "^11.16.0",
+    "@turf/area": "^7.3.5",
+    "@turf/helpers": "^7.3.5",
     "@types/geojson": "^7946.0.16",
     "@types/leaflet": "^1.9.21",
     "@wagmi/connectors": "^8.0.13",

@@ -24,7 +24,7 @@ const STATUS_CLASSES: Record<string, string> = {
 
 export default function FarmerInvestmentsPage() {
   const router = useRouter();
-  const { data: user, isLoading: userLoading } = useCurrentUser();
+  const { data: user, clerkUser, isLoading: userLoading } = useCurrentUser();
 
   const {
     data: partnerships,
@@ -32,8 +32,8 @@ export default function FarmerInvestmentsPage() {
     isError,
   } = useQuery(
     trpc.partnerships.forFarmer.queryOptions(
-      { walletAddress: user?.walletAddress ?? "" },
-      { enabled: !!user },
+      { clerkId: clerkUser?.id },
+      { enabled: !!clerkUser?.id },
     ),
   );
 

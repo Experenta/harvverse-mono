@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
@@ -15,28 +16,20 @@ import { formatUsdFromCents } from "@/lib/format";
 import { trpc } from "@/utils/trpc";
 
 export default function DashboardPage() {
-  const { data: user, isLoading: userLoading } = useCurrentUser();
+  const router = useRouter();
+  const { data: user, clerkUser, isLoading: userLoading } = useCurrentUser();
 
-  if (userLoading) {
+  useEffect(() => {
+    if (!userLoading && !user) {
+      router.push("/sign-in" as Route);
+    }
+  }, [user, userLoading, router]);
+
+  if (userLoading || !user) {
     return (
       <div>
         <Skeleton className="h-10 w-1/3 mb-6" />
         <Skeleton className="h-40 w-full" />
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div>
-        <GlassCard className="p-12 text-center border-primary/20 max-w-xl mx-auto">
-          <h1 className="text-2xl font-bold mb-3">No user found</h1>
-          <p className="text-gray-400">
-            No account found. Go to{" "}
-            <a href="/onboarding" className="text-primary underline">onboarding</a>{" "}
-            to complete your profile.
-          </p>
-        </GlassCard>
       </div>
     );
   }
@@ -56,7 +49,7 @@ export default function DashboardPage() {
       {user.role === "farmer" ? (
         <FarmerView userId={user.id} />
       ) : user.role === "partner" ? (
-        <PartnerView walletAddress={user.walletAddress ?? ""} />
+        <PartnerView clerkId={clerkUser?.id ?? ""} />
       ) : (
         <GlassCard className="p-8 border-primary/20">
           <p className="text-gray-400">
@@ -126,13 +119,16 @@ function FarmerView({ userId }: { userId: number }) {
   );
 }
 
-function PartnerView({ walletAddress }: { walletAddress: string }) {
+function PartnerView({ clerkId }: { clerkId: string }) {
   const router = useRouter();
   const lotsQuery = useQuery(
     trpc.lots.list.queryOptions({ status: "available" }),
   );
   const proposalsQuery = useQuery(
-    trpc.proposals.myProposals.queryOptions({ walletAddress }),
+    trpc.proposals.myProposals.queryOptions(
+      { clerkId },
+      { enabled: !!clerkId },
+    ),
   );
 
   return (

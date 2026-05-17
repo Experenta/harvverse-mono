@@ -14,6 +14,7 @@ import { formatUsdFromCents } from "@/lib/format";
 import { useCurrentUser } from "@/hooks/use-auth";
 import { trpc } from "@/utils/trpc";
 
+
 const PARTNERSHIP_TYPE_ICON: Record<string, string> = {
   phygital: "✨",
   physical: "🌿",
@@ -32,7 +33,7 @@ const STATUS_CLASSES: Record<string, string> = {
 
 export default function MyInvestmentsPage() {
   const router = useRouter();
-  const { data: user, isLoading: userLoading } = useCurrentUser();
+  const { data: user, clerkUser, isLoading: userLoading } = useCurrentUser();
 
   const {
     data: partnerships,
@@ -40,8 +41,8 @@ export default function MyInvestmentsPage() {
     isError,
   } = useQuery(
     trpc.partnerships.myPartnerships.queryOptions(
-      { walletAddress: user?.walletAddress ?? "" },
-      { enabled: !!user },
+      { clerkId: clerkUser?.id },
+      { enabled: !!clerkUser?.id },
     ),
   );
 

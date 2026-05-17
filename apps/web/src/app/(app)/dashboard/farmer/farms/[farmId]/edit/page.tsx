@@ -240,7 +240,7 @@ export default function EditFarmPage() {
                   name="totalArea"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-white/80">Total Area (Manzanas)</FormLabel>
+                      <FormLabel className="text-white/80">Total Area (ha)</FormLabel>
                       <FormControl>
                         <Input
                           type="number"

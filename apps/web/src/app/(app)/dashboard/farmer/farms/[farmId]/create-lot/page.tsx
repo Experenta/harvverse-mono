@@ -27,8 +27,8 @@ import {
 import { useCurrentUser } from "@/hooks/use-auth";
 import { queryClient, trpc } from "@/utils/trpc";
 import PolygonInput from "@/components/polygon-input";
+import RiskScorePreview, { type RiskScoreData } from "@/components/risk-score-preview";
 import {
-  polygonAreaManzanas,
   polygonCentroid,
   polygonContainedIn,
 } from "@/lib/geo";
@@ -109,6 +109,9 @@ export default function CreateLotPage() {
   const [lotPolygon, setLotPolygon] = useState<Polygon | null>(null);
   const [outsideFarm, setOutsideFarm] = useState(false);
   const [altitudeMessage, setAltitudeMessage] = useState<string | null>(null);
+  const [calculatedArea, setCalculatedArea] = useState<{ hectares: number; manzanas: number } | null>(null);
+  const [previewScoreData, setPreviewScoreData] = useState<RiskScoreData | null>(null);
+  const [riskScoreMessage, setRiskScoreMessage] = useState<string | null>(null);
 
   const farmPolygon =
     farm?.polygon != null ? (farm.polygon as Polygon) : undefined;
@@ -157,14 +160,11 @@ export default function CreateLotPage() {
     },
   });
 
-  // Auto-fill area + GPS centroid from polygon when those fields are untouched
+  // Auto-fill GPS centroid from polygon when those fields are untouched
   useEffect(() => {
+    setPreviewScoreData(null);
+    setRiskScoreMessage(null);
     if (!lotPolygon) return;
-
-    if (!form.formState.dirtyFields.areaManzanas) {
-      const area = parseFloat(polygonAreaManzanas(lotPolygon).toFixed(2));
-      if (area > 0) form.setValue("areaManzanas", area);
-    }
 
     if (
       form.getValues("gpsLat") === undefined &&
@@ -179,6 +179,14 @@ export default function CreateLotPage() {
       setOutsideFarm(!polygonContainedIn(lotPolygon, farmPolygon));
     }
   }, [lotPolygon]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function handleAreaCalculated(area: { hectares: number; manzanas: number } | null) {
+    setCalculatedArea(area);
+    if (!area) return;
+    if (!form.formState.dirtyFields.areaManzanas) {
+      form.setValue("areaManzanas", area.manzanas);
+    }
+  }
 
   const detectAltitude = useMutation(
     trpc.lots.detectAltitude.mutationOptions({
@@ -197,6 +205,18 @@ export default function CreateLotPage() {
     }),
   );
 
+  const previewRiskScore = useMutation(
+    trpc.lots.previewRiskScore.mutationOptions({
+      onSuccess: (data) => {
+        setPreviewScoreData(data);
+        setRiskScoreMessage(null);
+      },
+      onError: (err) => {
+        setRiskScoreMessage(`Error: ${err.message}`);
+      },
+    }),
+  );
+
   const rawLat = form.watch("gpsLat");
   const rawLng = form.watch("gpsLng");
   const gpsLat =
@@ -208,6 +228,12 @@ export default function CreateLotPage() {
       ? Number(rawLng)
       : null;
   const canDetect = gpsLat !== null && gpsLng !== null;
+
+  // Clear stale preview when GPS coords change manually
+  useEffect(() => {
+    setPreviewScoreData(null);
+    setRiskScoreMessage(null);
+  }, [rawLat, rawLng]);
 
   const areaManzanas = form.watch("areaManzanas");
   const showPreview =
@@ -243,6 +269,9 @@ export default function CreateLotPage() {
       summary: values.summary || undefined,
       polygon: lotPolygon ?? undefined,
       status: "available",
+      riskScore: previewScoreData?.score ?? undefined,
+      eudrCompliant: previewScoreData?.eudrCompliant ?? undefined,
+      scoreHash: previewScoreData?.hash ?? undefined,
       plan: {
         ticketCents: values.ticketCents,
         priceCentsPerLb: values.priceCentsPerLb,
@@ -305,6 +334,7 @@ export default function CreateLotPage() {
               <PolygonInput
                 value={lotPolygon}
                 onChange={setLotPolygon}
+                onAreaCalculated={handleAreaCalculated}
                 farmPolygon={farmPolygon}
                 label={
                   farmPolygon
@@ -312,6 +342,11 @@ export default function CreateLotPage() {
                     : "Lot Boundary (optional)"
                 }
               />
+              {calculatedArea && (
+                <p className="text-xs text-green-400">
+                  Calculated area: {calculatedArea.hectares.toFixed(2)} hectares ({calculatedArea.manzanas.toFixed(2)} manzanas)
+                </p>
+              )}
               {outsideFarm && lotPolygon && (
                 <p className="text-xs text-yellow-400 flex items-center gap-1 mt-1">
                   <AlertTriangle className="w-3 h-3 shrink-0" />
@@ -560,6 +595,46 @@ export default function CreateLotPage() {
                     {altitudeMessage}
                   </p>
                 )}
+              </div>
+            )}
+
+            {(canDetect || lotPolygon !== null) && (
+              <div className="space-y-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-primary/30 text-primary hover:border-primary/60 hover:text-primary w-full"
+                  disabled={previewRiskScore.isPending}
+                  onClick={() => {
+                    setRiskScoreMessage(null);
+                    const lat = gpsLat ?? (lotPolygon ? polygonCentroid(lotPolygon).lat : null);
+                    const lng = gpsLng ?? (lotPolygon ? polygonCentroid(lotPolygon).lng : null);
+                    if (lat === null || lng === null) return;
+                    previewRiskScore.mutate({
+                      lat,
+                      lng,
+                      polygon: lotPolygon
+                        ? { coordinates: lotPolygon.coordinates as number[][][] }
+                        : undefined,
+                    });
+                  }}
+                >
+                  {previewRiskScore.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Consulting Sentinel-2 and ERA5 satellites...
+                    </>
+                  ) : (
+                    <>
+                      <Satellite className="w-4 h-4 mr-2" />
+                      Calculate Risk Score from Satellite Data
+                    </>
+                  )}
+                </Button>
+                {riskScoreMessage && (
+                  <p className="text-xs text-red-400">{riskScoreMessage}</p>
+                )}
+                {previewScoreData && <RiskScorePreview data={previewScoreData} />}
               </div>
             )}
 

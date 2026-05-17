@@ -128,3 +128,57 @@ import { Button } from "@harvverse-monorepo/ui/components/button";
 - `pnpm db:studio`: Open Drizzle Studio.
 - `pnpm db:stop`: Stop local PostgreSQL.
 - `pnpm db:down`: Remove local PostgreSQL Compose resources.
+
+## Environment Variables
+
+Copy `.env.example` to `apps/web/.env` and fill in the required values:
+
+```
+# Required
+DATABASE_URL=postgresql://postgres:password@localhost:5432/harvverse-monorepo
+CORS_ORIGIN=http://localhost:3001
+
+# Clerk authentication — create a project at https://clerk.com/dashboard
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
+CLERK_SECRET_KEY=sk_test_...
+
+# Local Hardhat demo contracts (populated automatically — see Demo Contracts below)
+NEXT_PUBLIC_USE_LOCAL_CONTRACTS=true
+NEXT_PUBLIC_HARDHAT_CHAIN_ID=31337
+NEXT_PUBLIC_USDC_ADDRESS=
+NEXT_PUBLIC_PARTNERSHIP_ADDRESS=
+
+# Copernicus / satellite risk scoring (optional — degrades gracefully)
+SENTINEL_HUB_CLIENT_ID=
+SENTINEL_HUB_CLIENT_SECRET=
+CDS_API_KEY=
+```
+
+## Clerk Authentication
+
+Auth is handled by [Clerk](https://clerk.com). Before running the app:
+
+1. Create a project at [clerk.com/dashboard](https://clerk.com/dashboard).
+2. Copy the **Publishable Key** and **Secret Key** into `apps/web/.env`.
+3. Enable **Web3 / Ethereum** wallet support in Clerk's dashboard if you want wallet-linked accounts.
+
+The app uses `/sign-in` and `/sign-up` routes (Clerk-hosted components) and an `/onboarding` page where users pick their role (Farmer or Partner) and the DB record is created.
+
+## Demo Contracts (Local Hardhat)
+
+To deploy the Harvverse contracts to a local Hardhat node and populate the DB with demo data:
+
+```bash
+# Terminal 1 — start the local chain
+pnpm --filter @harvverse-monorepo/contracts node
+
+# Terminal 2 — deploy and seed
+pnpm setup:demo
+```
+
+`pnpm setup:demo` deploys `MockUSDC`, `HarvverseLot`, `HarvverseEvidence`, and `HarvversePartnership`, then writes their addresses into `apps/web/.env` automatically and seeds the database with a demo farm, lot, plan, and partner account.
+
+Demo wallet (Hardhat account #0, pre-funded with 10 000 ETH and mock USDC):
+- Address: `0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266`
+- Private key: `0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80`
+> **Never use Hardhat demo keys outside of localhost.**

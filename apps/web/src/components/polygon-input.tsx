@@ -1,5 +1,6 @@
 "use client";
 
+import { area as turfArea } from "@turf/area";
 import dynamic from "next/dynamic";
 import type { Polygon } from "geojson";
 
@@ -24,11 +25,25 @@ const PolygonMap = dynamic(() => import("./polygon-map"), {
 interface Props {
   value: Polygon | null;
   onChange: (polygon: Polygon | null) => void;
+  onAreaCalculated?: (area: { hectares: number; manzanas: number } | null) => void;
   farmPolygon?: Polygon;
   label?: string;
 }
 
-export default function PolygonInput({ value, onChange, farmPolygon, label }: Props) {
+export default function PolygonInput({ value, onChange, onAreaCalculated, farmPolygon, label }: Props) {
+  function handlePolygonChange(p: Polygon | null) {
+    onChange(p);
+    if (!onAreaCalculated) return;
+    if (!p) {
+      onAreaCalculated(null);
+      return;
+    }
+    const areaM2 = turfArea({ type: "Feature", geometry: p, properties: {} });
+    const hectares = parseFloat((areaM2 / 10000).toFixed(2));
+    const manzanas = parseFloat((hectares / 0.7).toFixed(2));
+    onAreaCalculated({ hectares, manzanas });
+  }
+
   return (
     <div className="space-y-2">
       {label && (
@@ -41,14 +56,14 @@ export default function PolygonInput({ value, onChange, farmPolygon, label }: Pr
         </TabsList>
         <TabsContent value="map">
           <PolygonMap
-            onPolygonChange={onChange}
+            onPolygonChange={handlePolygonChange}
             initialPolygon={value ?? undefined}
             farmPolygon={farmPolygon}
           />
         </TabsContent>
         <TabsContent value="upload">
           <PolygonFileUpload
-            onPolygonChange={onChange}
+            onPolygonChange={handlePolygonChange}
           />
         </TabsContent>
       </Tabs>

@@ -34,12 +34,12 @@ import { queryClient, trpc } from "@/utils/trpc";
 import { useCurrentUser } from "@/hooks/use-auth";
 
 const MILESTONES = [
-  { number: 1, name: "Soil Preparation", icon: "🌱" },
-  { number: 2, name: "Planting", icon: "🌿" },
-  { number: 3, name: "Maintenance", icon: "🔧" },
-  { number: 4, name: "Harvest", icon: "🌾" },
-  { number: 5, name: "Processing", icon: "⚙️" },
-  { number: 6, name: "Export / Delivery", icon: "🚢" },
+  { number: 1, name: "Soil Preparation", icon: "🌱", capitalPct: 0.111 },
+  { number: 2, name: "Planting", icon: "🌿", capitalPct: 0.066 },
+  { number: 3, name: "Maintenance", icon: "🔧", capitalPct: 0.051 },
+  { number: 4, name: "Harvest", icon: "🌾", capitalPct: 0.061 },
+  { number: 5, name: "Processing", icon: "⚙️", capitalPct: 0.134 },
+  { number: 6, name: "Export / Delivery", icon: "🚢", capitalPct: 0.012 },
 ] as const;
 
 const evidenceSchema = z.object({
@@ -286,6 +286,11 @@ export default function InvestmentDetailPage() {
           const completedCount = MILESTONES.filter(
             (ms) => (evidenceByMilestone.get(ms.number) ?? []).length > 0,
           ).length;
+          const releasedUsd = plan
+            ? MILESTONES.filter(
+                (ms) => (evidenceByMilestone.get(ms.number) ?? []).length > 0,
+              ).reduce((s, ms) => s + ticketUsd * ms.capitalPct, 0)
+            : 0;
           return (
             <GlassCard className="p-6 border-primary/20 mb-4">
               <div className="flex justify-between items-center mb-3">
@@ -298,6 +303,22 @@ export default function InvestmentDetailPage() {
                 value={(completedCount / MILESTONES.length) * 100}
                 className="h-2"
               />
+              {plan && (
+                <div className="mt-4 grid grid-cols-3 gap-3 text-center text-sm border-t border-white/10 pt-4">
+                  <div>
+                    <p className="text-xs text-gray-400">Total Escrow</p>
+                    <p className="font-bold text-primary">${Math.round(ticketUsd).toLocaleString()} USDC</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400">Released ({completedCount}/6)</p>
+                    <p className="font-bold text-green-400">${Math.round(releasedUsd).toLocaleString()} USDC</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400">Remaining</p>
+                    <p className="font-bold text-white">${Math.round(ticketUsd - releasedUsd).toLocaleString()} USDC</p>
+                  </div>
+                </div>
+              )}
             </GlassCard>
           );
         })()}
@@ -329,6 +350,18 @@ export default function InvestmentDetailPage() {
                     <Clock className="w-5 h-5 text-gray-500 shrink-0" />
                   )}
                 </div>
+
+                {plan && (
+                  <div className="mb-3">
+                    {hasEvidence ? (
+                      <span className="text-xs text-primary font-medium">Capital released ✓</span>
+                    ) : (
+                      <span className="text-xs text-gray-400">
+                        Capital: ${Math.round(ticketUsd * ms.capitalPct).toLocaleString()} USDC — pending verification
+                      </span>
+                    )}
+                  </div>
+                )}
 
                 {records.length > 0 && (
                   <div className="mb-3 space-y-1">

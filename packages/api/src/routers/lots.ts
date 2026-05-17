@@ -146,30 +146,62 @@ export const lotsRouter = router({
       const { plan: planInput, ...lotInput } = input;
 
       const lot = await ctx.db.transaction(async (tx) => {
-        const [created] = await tx.insert(lots).values(lotInput).returning();
-        if (!created) throw new Error("Failed to insert lot");
+        const insertValues = {
+          ...lotInput,
+          scoreUpdatedAt: lotInput.riskScore != null ? new Date() : lotInput.scoreUpdatedAt,
+        };
+
+        let created: typeof lots.$inferSelect;
+        try {
+          const [row] = await tx.insert(lots).values(insertValues).returning();
+          if (!row) throw new Error("Insert returned no rows");
+          created = row;
+        } catch (err) {
+          const pg = err as { code?: string; constraint?: string; detail?: string };
+          console.error("[lots.create] lot insert failed:", { code: pg.code, constraint: pg.constraint, detail: pg.detail, message: (err as Error).message });
+          if (pg.code === "23505") {
+            throw new TRPCError({
+              code: "CONFLICT",
+              message: `A lot with code "${lotInput.code}" already exists. Choose a different code.`,
+            });
+          }
+          throw err;
+        }
 
         if (planInput) {
-          const planCode = `${created.code ?? String(created.id)}-${new Date().getFullYear()}`;
+          const rawCode = created.code ?? String(created.id);
+          const planCode = `${rawCode}-${new Date().getFullYear()}`.slice(0, 30);
           const planHash = createHash("sha256")
             .update(JSON.stringify({ ...planInput, planCode, lotId: created.id }))
             .digest("hex");
-          await tx.insert(plans).values({
-            ...planInput,
-            lotId: created.id,
-            lotCode: created.code ?? null,
-            planCode,
-            status: "approved_for_demo",
-            validatedByName: "Pending validation",
-            planHash,
-          });
+          try {
+            await tx.insert(plans).values({
+              ...planInput,
+              lotId: created.id,
+              lotCode: created.code ?? null,
+              planCode,
+              status: "approved_for_demo",
+              validatedByName: "Pending validation",
+              planHash,
+            });
+          } catch (err) {
+            const pg = err as { code?: string; constraint?: string; detail?: string };
+            console.error("[lots.create] plan insert failed:", { code: pg.code, constraint: pg.constraint, detail: pg.detail, message: (err as Error).message });
+            if (pg.code === "23505") {
+              throw new TRPCError({
+                code: "CONFLICT",
+                message: `An investment plan for lot code "${rawCode}" already exists for ${new Date().getFullYear()}.`,
+              });
+            }
+            throw err;
+          }
         }
 
         return created;
       });
 
-      // Best-effort risk score — may not complete in serverless environments
-      if (lot.gpsLat != null || lot.gpsLng != null) {
+      // Best-effort risk score — skip if a pre-calculated score was provided
+      if (lot.riskScore == null && (lot.gpsLat != null || lot.gpsLng != null)) {
         computeRiskScoreForLot(lot.id, ctx.db).catch((err) =>
           console.error("[lots.create] Risk score computation failed:", err),
         );
@@ -256,6 +288,28 @@ export const lotsRouter = router({
         })
         .where(eq(lots.id, input.id));
 
+      return result;
+    }),
+
+  previewRiskScore: publicProcedure
+    .input(
+      z.object({
+        lat: z.number().min(-90).max(90),
+        lng: z.number().min(-180).max(180),
+        polygon: z
+          .object({ coordinates: z.array(z.array(z.array(z.number()))) })
+          .optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const result = await computeRiskScore({
+        lat: input.lat,
+        lng: input.lng,
+        eudrCompliant: null,
+        sentinelClientId: env.SENTINEL_HUB_CLIENT_ID,
+        sentinelClientSecret: env.SENTINEL_HUB_CLIENT_SECRET,
+        polygon: input.polygon ?? null,
+      });
       return result;
     }),
 

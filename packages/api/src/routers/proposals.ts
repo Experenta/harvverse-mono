@@ -2,6 +2,7 @@ import {
   insertProposalSchema,
   proposalStatusEnum,
   proposals,
+  users,
 } from "@harvverse-monorepo/db/schema";
 import { TRPCError } from "@trpc/server";
 import { desc, eq } from "drizzle-orm";
@@ -49,16 +50,32 @@ export const proposalsRouter = router({
     }),
 
   myProposals: publicProcedure
-    .input(z.object({ walletAddress: z.string().trim().min(1) }))
-    .query(({ ctx, input }) => {
-      return ctx.db.query.proposals.findMany({
-        where: eq(proposals.walletAddress, input.walletAddress),
-        orderBy: [desc(proposals.createdAt)],
-        with: {
-          lot: true,
-          plan: true,
-        },
-      });
+    .input(
+      z.object({
+        clerkId: z.string().optional(),
+        walletAddress: z.string().optional(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      if (input.clerkId) {
+        const user = await ctx.db.query.users.findFirst({
+          where: eq(users.clerkId, input.clerkId),
+        });
+        if (!user) return [];
+        return ctx.db.query.proposals.findMany({
+          where: eq(proposals.userId, user.id),
+          orderBy: [desc(proposals.createdAt)],
+          with: { lot: true, plan: true },
+        });
+      }
+      if (input.walletAddress) {
+        return ctx.db.query.proposals.findMany({
+          where: eq(proposals.walletAddress, input.walletAddress),
+          orderBy: [desc(proposals.createdAt)],
+          with: { lot: true, plan: true },
+        });
+      }
+      return [];
     }),
 
   updateStatus: publicProcedure

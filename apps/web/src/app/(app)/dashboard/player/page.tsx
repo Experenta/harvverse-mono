@@ -14,7 +14,7 @@ import { useCurrentUser } from "@/hooks/use-auth";
 import { trpc } from "@/utils/trpc";
 
 export default function PlayerDashboardPage() {
-  const { data: user, isLoading: userLoading } = useCurrentUser();
+  const { data: user, clerkUser, isLoading: userLoading } = useCurrentUser();
   const router = useRouter();
 
   const {
@@ -23,8 +23,8 @@ export default function PlayerDashboardPage() {
     isError,
   } = useQuery(
     trpc.partnerships.myPartnerships.queryOptions(
-      { walletAddress: user?.walletAddress ?? "" },
-      { enabled: !!user?.walletAddress },
+      { clerkId: clerkUser?.id },
+      { enabled: !!clerkUser?.id },
     ),
   );
 

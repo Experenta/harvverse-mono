@@ -9,7 +9,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import type { Polygon } from "geojson";
-import { ArrowLeft, CheckCircle, Loader2, Satellite } from "lucide-react";
+import { ArrowLeft, CheckCircle, Loader2 } from "lucide-react";
 
 import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
 import { Button } from "@harvverse-monorepo/ui/components/button";
@@ -27,7 +27,6 @@ import {
 import { useCurrentUser } from "@/hooks/use-auth";
 import { queryClient, trpc } from "@/utils/trpc";
 import PolygonInput from "@/components/polygon-input";
-import { polygonAreaManzanas } from "@/lib/geo";
 
 const createFarmSchema = z.object({
   name: z.string().min(2, "Farm name required"),
@@ -83,11 +82,28 @@ export default function CreateFarmPage() {
   const { data: user } = useCurrentUser();
   const [polygon, setPolygon] = useState<Polygon | null>(null);
   const [altitudeMessage, setAltitudeMessage] = useState<string | null>(null);
+  const [calculatedArea, setCalculatedArea] = useState<{ hectares: number; manzanas: number } | null>(null);
 
   function handlePolygonChange(p: Polygon | null) {
     setPolygon(p);
     setAltitudeMessage(null);
     form.setValue("altitudeMasl", undefined);
+    if (p) {
+      const ring = (p.coordinates[0] ?? []).slice(0, -1);
+      if (ring.length > 0) {
+        const lat = ring.reduce((s: number, c: number[]) => s + (c[1] ?? 0), 0) / ring.length;
+        const lng = ring.reduce((s: number, c: number[]) => s + (c[0] ?? 0), 0) / ring.length;
+        detectAltitude.mutate({ lat, lng });
+      }
+    }
+  }
+
+  function handleAreaCalculated(area: { hectares: number; manzanas: number } | null) {
+    setCalculatedArea(area);
+    if (!area) return;
+    if (!form.formState.dirtyFields.totalArea) {
+      form.setValue("totalArea", area.hectares);
+    }
   }
 
   const detectAltitude = useMutation(
@@ -141,11 +157,6 @@ export default function CreateFarmPage() {
     },
   });
 
-  const rawLat = form.watch("latitude");
-  const rawLng = form.watch("longitude");
-  const gpsLat = Number.isFinite(Number(rawLat)) && rawLat !== undefined ? Number(rawLat) : null;
-  const gpsLng = Number.isFinite(Number(rawLng)) && rawLng !== undefined ? Number(rawLng) : null;
-  const canDetect = gpsLat !== null && gpsLng !== null;
 
   // Auto-fill lat/lng from polygon centroid when fields are untouched
   useEffect(() => {
@@ -160,14 +171,6 @@ export default function CreateFarmPage() {
     const lngSum = ring.reduce((s: number, c: number[]) => s + (c[0] ?? 0), 0);
     form.setValue("latitude", parseFloat((latSum / ring.length).toFixed(6)));
     form.setValue("longitude", parseFloat((lngSum / ring.length).toFixed(6)));
-  }, [polygon]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Auto-fill total area from polygon when the field hasn't been manually edited
-  useEffect(() => {
-    if (!polygon) return;
-    if (form.formState.dirtyFields.totalArea) return;
-    const area = parseFloat(polygonAreaManzanas(polygon).toFixed(2));
-    if (area > 0) form.setValue("totalArea", area);
   }, [polygon]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function onSubmit(values: CreateFarmValues) {
@@ -280,26 +283,34 @@ export default function CreateFarmPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="altitudeMasl"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-white/80">
-                        Altitude (MASL)
-                      </FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          className={inputClasses}
-                          {...field}
-                          value={typeof field.value === "number" ? field.value : ""}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
+                <div className="space-y-1">
+                  <FormField
+                    control={form.control}
+                    name="altitudeMasl"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-white/80 flex items-center gap-2">
+                          Altitude (MASL)
+                          {detectAltitude.isPending && <Loader2 className="w-3 h-3 animate-spin" />}
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            className={inputClasses}
+                            {...field}
+                            value={typeof field.value === "number" ? field.value : ""}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  {altitudeMessage && (
+                    <p className={`text-xs ${altitudeMessage.startsWith("Detected") ? "text-green-400" : "text-yellow-400"}`}>
+                      {altitudeMessage}
+                    </p>
                   )}
-                />
+                </div>
 
                 <FormField
                   control={form.control}
@@ -307,7 +318,7 @@ export default function CreateFarmPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel className="text-white/80">
-                        Total Area (Manzanas)
+                        Total Area (ha)
                       </FormLabel>
                       <FormControl>
                         <Input
@@ -327,8 +338,14 @@ export default function CreateFarmPage() {
               <PolygonInput
                 value={polygon}
                 onChange={handlePolygonChange}
+                onAreaCalculated={handleAreaCalculated}
                 label="Farm Boundary (optional but recommended for risk scoring)"
               />
+              {calculatedArea && (
+                <p className="text-xs text-green-400">
+                  Calculated area: {calculatedArea.hectares.toFixed(2)} hectares ({calculatedArea.manzanas.toFixed(2)} manzanas)
+                </p>
+              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <FormField
@@ -374,38 +391,6 @@ export default function CreateFarmPage() {
                 />
               </div>
 
-              {canDetect && (
-                <div className="space-y-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="border-white/10 text-white/80 hover:border-white/30 hover:text-white"
-                    disabled={detectAltitude.isPending}
-                    onClick={() => {
-                      setAltitudeMessage(null);
-                      detectAltitude.mutate({ lat: gpsLat!, lng: gpsLng! });
-                    }}
-                  >
-                    {detectAltitude.isPending ? (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    ) : (
-                      <Satellite className="w-4 h-4 mr-2" />
-                    )}
-                    Detect Altitude from Satellite
-                  </Button>
-                  {altitudeMessage && (
-                    <p
-                      className={`text-xs ${
-                        altitudeMessage.startsWith("Detected")
-                          ? "text-green-400"
-                          : "text-yellow-400"
-                      }`}
-                    >
-                      {altitudeMessage}
-                    </p>
-                  )}
-                </div>
-              )}
 
               <FormField
                 control={form.control}

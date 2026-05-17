@@ -14,7 +14,7 @@ export default function SignInPage() {
             colorInputText: "#ffffff",
           },
         }}
-        fallbackRedirectUrl="/onboarding"
+        fallbackRedirectUrl="/dashboard"
       />
     </div>
   );

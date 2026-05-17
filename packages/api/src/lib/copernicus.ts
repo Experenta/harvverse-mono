@@ -374,11 +374,12 @@ function scoreNdviAvg(avg: number): number {
 }
 
 function scoreNdviStability(values: number[]): number {
-  if (values.length < 2) return 50;
-  const mean = values.reduce((a, b) => a + b, 0) / values.length;
+  // Filter out cloud/shadow artifacts — NDVI < 0.2 are not real vegetation readings
+  const clean = values.filter((v) => v >= 0.2);
+  if (clean.length < 6) return 50;
+  const mean = clean.reduce((a, b) => a + b, 0) / clean.length;
   if (mean === 0) return 50;
-  const variance =
-    values.reduce((s, v) => s + (v - mean) ** 2, 0) / values.length;
+  const variance = clean.reduce((s, v) => s + (v - mean) ** 2, 0) / clean.length;
   const cv = Math.sqrt(variance) / mean;
   // Low CV = stable = good. Thresholds: <0.05 = 100, >0.3 = 0
   if (cv <= 0.05) return 100;

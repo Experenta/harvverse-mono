@@ -55,7 +55,7 @@ export function useReservePartnership(params: {
   const { lot, activePlan, projections } = params;
   const { address } = useAccount();
   const chainId = useChainId();
-  const { data: user } = useCurrentUser();
+  const { data: user, clerkUser } = useCurrentUser();
 
   const [step, setStep] = useState<ReserveStep>("idle");
   const [txHash, setTxHash] = useState<Hex | null>(null);
@@ -84,7 +84,7 @@ export function useReservePartnership(params: {
 
   const start = useCallback(async () => {
     if (!lot || !activePlan || !projections || !address || !user || !usdcAddress || !partnershipContractAddress || !effectiveWallet) {
-      setError("Wallet not connected or contracts not configured. Run pnpm setup:demo first.");
+      setError(!address ? "Connect your wallet to invest." : "Contracts not configured — check NEXT_PUBLIC_USDC_ADDRESS and NEXT_PUBLIC_PARTNERSHIP_ADDRESS in .env.");
       setStep("error");
       return;
     }
@@ -176,7 +176,7 @@ export function useReservePartnership(params: {
         }),
         queryClient.invalidateQueries({
           queryKey: trpc.partnerships.myPartnerships.queryKey({
-            walletAddress: effectiveWallet,
+            clerkId: clerkUser?.id,
           }),
         }),
       ]);

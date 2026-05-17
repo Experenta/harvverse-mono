@@ -35,10 +35,13 @@ import {
   DialogFooter,
 } from "@harvverse-monorepo/ui/components/dialog";
 
+import { useAccount, useConnect } from "wagmi";
+
 import { formatUsdFromCents } from "@/lib/format";
 import { useCurrentUser } from "@/hooks/use-auth";
 import { queryClient, trpc } from "@/utils/trpc";
 import { useReservePartnership, type ReserveStep } from "@/hooks/use-reserve-partnership";
+import { wagmiConfig } from "@/lib/wagmi";
 import { useState } from "react";
 
 const PolygonDisplayMap = dynamic(() => import("@/components/polygon-display-map"), {
@@ -117,6 +120,8 @@ export default function LotDetailPage() {
   const lotId = Number(params.lotId);
 
   const { data: user } = useCurrentUser();
+  const { address } = useAccount();
+  const { connect, isPending: isConnecting } = useConnect();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
@@ -467,7 +472,7 @@ export default function LotDetailPage() {
                       <div key={label}>
                         <div className="grid grid-cols-[1fr_auto_auto] md:grid-cols-[1fr_auto_auto_auto] items-center gap-3 py-2">
                           <div>
-                            <p className="text-sm text-white/80">{label}</p>
+                            <p className="text-sm text-white font-medium">{label}</p>
                             {note ? (
                               <p className="text-xs text-yellow-500/70">{note}</p>
                             ) : null}
@@ -477,8 +482,8 @@ export default function LotDetailPage() {
                           </span>
                           {value != null ? (
                             <div className="flex items-center gap-2 w-32">
-                              <Progress value={value} className="flex-1 h-1.5" />
-                              <span className="text-xs font-mono text-white/70 w-8 text-right">
+                              <Progress value={value} className="flex-1 h-1.5 [&>div]:bg-primary" />
+                              <span className="text-xs font-mono text-primary font-bold w-8 text-right">
                                 {Math.round(value)}
                               </span>
                             </div>
@@ -627,16 +632,37 @@ export default function LotDetailPage() {
                 </div>
 
                 <DialogFooter showCloseButton>
-                  <Button
-                    className="bg-primary hover:bg-primary/90 text-[#0a0e27] font-bold"
-                    disabled={reserve.isLoading}
-                    onClick={reserve.step === "error" ? reserve.reset : reserve.start}
-                  >
-                    {reserve.isLoading && (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    )}
-                    {STEP_LABELS[reserve.step]}
-                  </Button>
+                  {!address ? (
+                    <div className="w-full space-y-2">
+                      <p className="text-xs text-yellow-400 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3 shrink-0" />
+                        Connect a wallet to complete this investment on-chain.
+                      </p>
+                      <Button
+                        className="w-full bg-primary hover:bg-primary/90 text-[#0a0e27] font-bold"
+                        disabled={isConnecting}
+                        onClick={() =>
+                          connect({ connector: wagmiConfig.connectors[1]! })
+                        }
+                      >
+                        {isConnecting && (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        )}
+                        Connect Wallet
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      className="bg-primary hover:bg-primary/90 text-[#0a0e27] font-bold"
+                      disabled={reserve.isLoading}
+                      onClick={reserve.step === "error" ? reserve.reset : reserve.start}
+                    >
+                      {reserve.isLoading && (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      )}
+                      {STEP_LABELS[reserve.step]}
+                    </Button>
+                  )}
                 </DialogFooter>
               </DialogContent>
             </Dialog>
