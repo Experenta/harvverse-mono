@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import {
   LayoutDashboard,
   Sprout,
@@ -13,6 +14,7 @@ import {
 
 import { Button } from "@harvverse-monorepo/ui/components/button";
 import { useLogout } from "@/hooks/use-auth";
+import { LanguageSwitcher } from "@/components/language-switcher";
 
 const ACTIVE_CLASSES =
   "w-full justify-start text-[#a37241] bg-[#a37241]/10 hover:bg-[#a37241]/20 hover:text-[#a37241]";
@@ -23,6 +25,7 @@ export default function FarmerSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const logout = useLogout();
+  const t = useTranslations("nav");
 
   const isActive = (match: string, exact = true) =>
     exact ? pathname === match : pathname.startsWith(match);
@@ -48,7 +51,7 @@ export default function FarmerSidebar() {
           onClick={() => router.push("/dashboard/farmer")}
         >
           <LayoutDashboard className="w-4 h-4 mr-3" />
-          Dashboard
+          {t("dashboard")}
         </Button>
 
         <Button
@@ -61,7 +64,7 @@ export default function FarmerSidebar() {
           onClick={() => router.push("/dashboard/farmer/my-farms")}
         >
           <Sprout className="w-4 h-4 mr-3" />
-          My Farms
+          {t("my_farms")}
         </Button>
 
         <Button
@@ -74,7 +77,7 @@ export default function FarmerSidebar() {
           onClick={() => router.push("/dashboard/farmer/investments")}
         >
           <DollarSign className="w-4 h-4 mr-3" />
-          Investments
+          {t("investments")}
         </Button>
 
         <Button
@@ -87,7 +90,7 @@ export default function FarmerSidebar() {
           onClick={() => router.push("/dashboard/farmer/create-farm")}
         >
           <Plus className="w-4 h-4 mr-3" />
-          Create Farm
+          {t("create_farm")}
         </Button>
 
         <Button
@@ -98,11 +101,12 @@ export default function FarmerSidebar() {
           onClick={() => router.push("/settings")}
         >
           <Settings className="w-4 h-4 mr-3" />
-          Settings
+          {t("settings")}
         </Button>
       </nav>
 
-      <div className="p-4 border-t border-white/5">
+      <div className="p-4 border-t border-white/5 space-y-3">
+        <LanguageSwitcher />
         <Button
           variant="ghost"
           className="w-full justify-start text-red-400 hover:text-red-300 hover:bg-red-500/10"
@@ -114,7 +118,7 @@ export default function FarmerSidebar() {
           }
         >
           <LogOut className="w-4 h-4 mr-3" />
-          {logout.isPending ? "Signing out..." : "Sign Out"}
+          {logout.isPending ? t("signing_out") : t("sign_out")}
         </Button>
       </div>
     </aside>

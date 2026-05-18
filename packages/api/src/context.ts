@@ -4,15 +4,16 @@ import { db } from "@harvverse-monorepo/db";
 import type { Db } from "@harvverse-monorepo/db";
 
 export type Context = {
-  auth: null;
+  clerkId: string | null;
   db: Db;
-  session: null;
 };
 
-export async function createContext(_req: NextRequest): Promise<Context> {
+export async function createContext(
+  _req: NextRequest,
+  opts?: { clerkId?: string | null },
+): Promise<Context> {
   return {
-    auth: null,
+    clerkId: opts?.clerkId ?? null,
     db,
-    session: null,
   };
 }

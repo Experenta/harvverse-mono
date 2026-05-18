@@ -3,6 +3,7 @@
 import { area as turfArea } from "@turf/area";
 import dynamic from "next/dynamic";
 import type { Polygon } from "geojson";
+import { useTranslations } from "next-intl";
 
 import {
   Tabs,
@@ -15,12 +16,17 @@ import PolygonFileUpload from "./polygon-file-upload";
 
 const PolygonMap = dynamic(() => import("./polygon-map"), {
   ssr: false,
-  loading: () => (
-    <div className="flex items-center justify-center h-[350px] rounded-lg bg-black/20 border border-white/10 text-gray-500 text-sm">
-      Loading map…
-    </div>
-  ),
+  loading: () => <LoadingMap />,
 });
+
+function LoadingMap() {
+  const t = useTranslations("polygon");
+  return (
+    <div className="flex items-center justify-center h-[350px] rounded-lg bg-black/20 border border-white/10 text-gray-500 text-sm">
+      {t("loading_map")}
+    </div>
+  );
+}
 
 interface Props {
   value: Polygon | null;
@@ -31,6 +37,8 @@ interface Props {
 }
 
 export default function PolygonInput({ value, onChange, onAreaCalculated, farmPolygon, label }: Props) {
+  const t = useTranslations("polygon");
+
   function handlePolygonChange(p: Polygon | null) {
     onChange(p);
     if (!onAreaCalculated) return;
@@ -51,8 +59,8 @@ export default function PolygonInput({ value, onChange, onAreaCalculated, farmPo
       )}
       <Tabs defaultValue="map">
         <TabsList className="mb-3">
-          <TabsTrigger value="map">Draw on map</TabsTrigger>
-          <TabsTrigger value="upload">Upload file</TabsTrigger>
+          <TabsTrigger value="map">{t("draw_tab")}</TabsTrigger>
+          <TabsTrigger value="upload">{t("upload_tab")}</TabsTrigger>
         </TabsList>
         <TabsContent value="map">
           <PolygonMap

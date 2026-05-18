@@ -9,6 +9,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 import { AlertTriangle, ArrowLeft, CheckCircle, Loader2, Satellite } from "lucide-react";
 
 import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
@@ -53,39 +54,49 @@ const PROCESSES = ["Washed", "Natural", "Honey", "Anaerobic"];
 
 const CURRENT_YEAR = new Date().getFullYear();
 
-const createLotSchema = z.object({
-  code: z
-    .string()
-    .trim()
-    .min(2, "Lot code required")
-    .max(30, "Max 30 characters"),
-  variety: z.string().min(1, "Variety required"),
-  process: z.string().optional(),
-  areaManzanas: z.coerce.number().min(0.1, "Area required"),
-  altitudeMasl: z.coerce.number().int().min(0).optional(),
-  gpsLat: z.coerce.number().min(-90).max(90).optional(),
-  gpsLng: z.coerce.number().min(-180).max(180).optional(),
-  harvestYear: z.coerce
-    .number()
-    .int()
-    .min(2020)
-    .max(CURRENT_YEAR + 2)
-    .optional(),
-  numTrees: z.coerce.number().int().min(1).optional(),
-  plantAgeYears: z.coerce.number().int().min(0).max(100).optional(),
-  scaScoreTenths: z.coerce.number().int().min(0).max(1000).optional(),
-  profile: z.string().optional(),
-  summary: z.string().optional(),
-  // Investment plan (required — creates the plan atomically with the lot)
-  ticketCents: z.coerce.number().int().positive(),
-  priceCentsPerLb: z.coerce.number().int().positive(),
-  priceFloorCentsPerLb: z.coerce.number().int().positive(),
-  agronomicCostCents: z.coerce.number().int().positive(),
-  projectedYieldY1TenthsQq: z.coerce.number().int().positive(),
-  yieldCapY1TenthsQq: z.coerce.number().int().positive(),
-  splitFarmerBps: z.coerce.number().int().min(0).max(10000),
-  splitPartnerBps: z.coerce.number().int().min(0).max(10000),
-});
+const createLotSchema = z
+  .object({
+    code: z
+      .string()
+      .trim()
+      .min(3, "Lot code must be at least 3 characters")
+      .max(30, "Max 30 characters"),
+    variety: z.string().min(1, "Variety required"),
+    process: z.string().optional(),
+    areaManzanas: z.coerce.number().min(0.1, "Area required"),
+    altitudeMasl: z.coerce.number().int().min(0).max(4000, "Max 4000 m").optional(),
+    gpsLat: z.coerce.number().min(-90).max(90).optional(),
+    gpsLng: z.coerce.number().min(-180).max(180).optional(),
+    harvestYear: z.coerce
+      .number()
+      .int()
+      .min(2020)
+      .max(CURRENT_YEAR + 2)
+      .optional(),
+    numTrees: z.coerce.number().int().min(1).optional(),
+    plantAgeYears: z.coerce.number().int().min(0).max(100).optional(),
+    scaScoreTenths: z.coerce.number().int().min(0).max(1000).optional(),
+    profile: z.string().optional(),
+    summary: z.string().optional(),
+    ticketCents: z.coerce
+      .number()
+      .int()
+      .min(100000, "Minimum ticket is $1,000"),
+    priceCentsPerLb: z.coerce.number().int().positive(),
+    priceFloorCentsPerLb: z.coerce.number().int().positive(),
+    agronomicCostCents: z.coerce.number().int().positive(),
+    projectedYieldY1TenthsQq: z.coerce.number().int().positive(),
+    yieldCapY1TenthsQq: z.coerce.number().int().positive(),
+    splitFarmerBps: z.coerce.number().int().min(0).max(10000),
+    splitPartnerBps: z.coerce.number().int().min(0).max(10000),
+  })
+  .refine(
+    (v) => v.splitFarmerBps + v.splitPartnerBps === 10000,
+    {
+      message: "Farmer + partner split must equal 100% (10000 bps)",
+      path: ["splitPartnerBps"],
+    },
+  );
 
 type CreateLotInput = z.input<typeof createLotSchema>;
 type CreateLotValues = z.output<typeof createLotSchema>;
@@ -100,6 +111,9 @@ export default function CreateLotPage() {
   const params = useParams<{ farmId: string }>();
   const farmId = Number(params.farmId);
   const farmIdValid = Number.isFinite(farmId);
+  const t = useTranslations("lot");
+  const tf = useTranslations("farm");
+  const tc = useTranslations("common");
 
   const { data: user } = useCurrentUser();
   const { data: farm, isLoading: farmLoading } = useQuery(
@@ -108,7 +122,8 @@ export default function CreateLotPage() {
 
   const [lotPolygon, setLotPolygon] = useState<Polygon | null>(null);
   const [outsideFarm, setOutsideFarm] = useState(false);
-  const [altitudeMessage, setAltitudeMessage] = useState<string | null>(null);
+  const [altitudeStatus, setAltitudeStatus] = useState<"detected" | "error" | null>(null);
+  const [detectedAltitude, setDetectedAltitude] = useState<number | null>(null);
   const [calculatedArea, setCalculatedArea] = useState<{ hectares: number; manzanas: number } | null>(null);
   const [previewScoreData, setPreviewScoreData] = useState<RiskScoreData | null>(null);
   const [riskScoreMessage, setRiskScoreMessage] = useState<string | null>(null);
@@ -193,15 +208,15 @@ export default function CreateLotPage() {
       onSuccess: (data) => {
         if (data.altitudeMeters != null) {
           form.setValue("altitudeMasl", data.altitudeMeters);
-          setAltitudeMessage(
-            `Detected: ${data.altitudeMeters} m above sea level (Copernicus DEM)`,
-          );
+          setDetectedAltitude(data.altitudeMeters);
+          setAltitudeStatus("detected");
         } else {
-          setAltitudeMessage("Could not detect automatically, enter manually");
+          setAltitudeStatus("error");
         }
       },
-      onError: () =>
-        setAltitudeMessage("Could not detect automatically, enter manually"),
+      onError: () => {
+        setAltitudeStatus("error");
+      },
     }),
   );
 
@@ -241,11 +256,11 @@ export default function CreateLotPage() {
 
   function onSubmit(values: CreateLotValues) {
     if (!farm) {
-      toast.error("Farm not loaded yet");
+      toast.error(t("farm_not_loaded"));
       return;
     }
     if (!user) {
-      toast.error("Sign in to create a lot");
+      toast.error(t("sign_in_required"));
       return;
     }
     createLot.mutate({
@@ -297,17 +312,17 @@ export default function CreateLotPage() {
         }
       >
         <ArrowLeft className="w-4 h-4 mr-2" />
-        Back
+        {tc("back")}
       </Button>
 
       <GlassCard className="p-8 border-primary/20">
-        <h1 className="text-3xl font-bold mb-2">Create Investment Lot</h1>
+        <h1 className="text-3xl font-bold mb-2">{t("create_title")}</h1>
         <p className="text-gray-400 mb-8">
           {farmLoading
-            ? "Loading farm..."
+            ? t("loading_farm")
             : farm
-              ? `Adding a lot to ${farm.name}`
-              : "Farm not found"}
+              ? t("adding_to", { farmName: farm.name })
+              : t("farm_not_found")}
         </p>
 
         <Form {...form}>
@@ -317,7 +332,7 @@ export default function CreateLotPage() {
               name="code"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-white/80">Lot Code *</FormLabel>
+                  <FormLabel className="text-white/80">{t("code")}</FormLabel>
                   <FormControl>
                     <Input
                       placeholder="e.g., HV-HN-ZAF-L02"
@@ -338,20 +353,19 @@ export default function CreateLotPage() {
                 farmPolygon={farmPolygon}
                 label={
                   farmPolygon
-                    ? "Lot Boundary (blue = farm boundary)"
-                    : "Lot Boundary (optional)"
+                    ? t("lot_boundary_with_farm")
+                    : t("lot_boundary")
                 }
               />
               {calculatedArea && (
                 <p className="text-xs text-green-400">
-                  Calculated area: {calculatedArea.hectares.toFixed(2)} hectares ({calculatedArea.manzanas.toFixed(2)} manzanas)
+                  {tf("area_calculated", { hectares: calculatedArea.hectares.toFixed(2), manzanas: calculatedArea.manzanas.toFixed(2) })}
                 </p>
               )}
               {outsideFarm && lotPolygon && (
                 <p className="text-xs text-yellow-400 flex items-center gap-1 mt-1">
                   <AlertTriangle className="w-3 h-3 shrink-0" />
-                  Some lot corners appear to fall outside the farm boundary.
-                  Double-check the polygon.
+                  {t("outside_farm_warning")}
                 </p>
               )}
             </div>
@@ -362,13 +376,13 @@ export default function CreateLotPage() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="text-white/80">
-                    Area (Manzanas) *
+                    {t("area_manzanas")}
                   </FormLabel>
                   <FormControl>
                     <Input
                       type="number"
                       step="0.01"
-                      placeholder="auto-calculated from polygon, or enter manually"
+                      placeholder={t("area_auto")}
                       className={inputClasses}
                       {...field}
                       value={(field.value as string | number | undefined) ?? ""}
@@ -382,7 +396,7 @@ export default function CreateLotPage() {
             {showPreview && (
               <GlassCard className="p-6 bg-primary/5 border-primary/20">
                 <h3 className="font-bold mb-4">
-                  Investment Preview (for {areaManzanas} manzanas)
+                  {t("investment_preview", { area: areaManzanas })}
                 </h3>
                 <div className="text-sm space-y-3">
                   <div className="flex justify-between items-center">
@@ -423,7 +437,7 @@ export default function CreateLotPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="text-white/80">
-                      Coffee Variety *
+                      {t("variety")}
                     </FormLabel>
                     <FormControl>
                       <select
@@ -448,7 +462,7 @@ export default function CreateLotPage() {
                 name="process"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-white/80">Process</FormLabel>
+                    <FormLabel className="text-white/80">{t("process")}</FormLabel>
                     <FormControl>
                       <select
                         {...field}
@@ -475,12 +489,12 @@ export default function CreateLotPage() {
                 name="gpsLat"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-white/80">GPS Latitude</FormLabel>
+                    <FormLabel className="text-white/80">{t("gps_lat")}</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
                         step="0.000001"
-                        placeholder="auto-filled from polygon"
+                        placeholder={t("gps_auto")}
                         className={inputClasses}
                         {...field}
                         value={(field.value as string | number | undefined) ?? ""}
@@ -497,13 +511,13 @@ export default function CreateLotPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="text-white/80">
-                      GPS Longitude
+                      {t("gps_lng")}
                     </FormLabel>
                     <FormControl>
                       <Input
                         type="number"
                         step="0.000001"
-                        placeholder="auto-filled from polygon"
+                        placeholder={t("gps_auto")}
                         className={inputClasses}
                         {...field}
                         value={(field.value as string | number | undefined) ?? ""}
@@ -522,14 +536,14 @@ export default function CreateLotPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="text-white/80">
-                      Altitude (MASL)
+                      {t("altitude")}
                     </FormLabel>
                     <FormControl>
                       <Input
                         type="number"
                         placeholder={
                           farm?.altitudeMasl
-                            ? `defaults to ${farm.altitudeMasl}`
+                            ? t("altitude_default", { value: farm.altitudeMasl })
                             : "e.g., 1300"
                         }
                         className={inputClasses}
@@ -548,7 +562,7 @@ export default function CreateLotPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="text-white/80">
-                      Harvest Year
+                      {t("harvest_year")}
                     </FormLabel>
                     <FormControl>
                       <Input
@@ -573,7 +587,8 @@ export default function CreateLotPage() {
                   className="border-white/10 text-white/80 hover:border-white/30 hover:text-white"
                   disabled={detectAltitude.isPending}
                   onClick={() => {
-                    setAltitudeMessage(null);
+                    setAltitudeStatus(null);
+                    setDetectedAltitude(null);
                     detectAltitude.mutate({ lat: gpsLat!, lng: gpsLng! });
                   }}
                 >
@@ -582,17 +597,19 @@ export default function CreateLotPage() {
                   ) : (
                     <Satellite className="w-4 h-4 mr-2" />
                   )}
-                  Detect Altitude from Satellite
+                  {detectAltitude.isPending ? t("detecting_altitude") : t("detect_altitude")}
                 </Button>
-                {altitudeMessage && (
+                {altitudeStatus && (
                   <p
                     className={`text-xs ${
-                      altitudeMessage.startsWith("Detected")
+                      altitudeStatus === "detected"
                         ? "text-green-400"
                         : "text-yellow-400"
                     }`}
                   >
-                    {altitudeMessage}
+                    {altitudeStatus === "detected" && detectedAltitude != null
+                      ? t("altitude_detected", { value: detectedAltitude })
+                      : t("altitude_error")}
                   </p>
                 )}
               </div>
@@ -622,12 +639,12 @@ export default function CreateLotPage() {
                   {previewRiskScore.isPending ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Consulting Sentinel-2 and ERA5 satellites...
+                      {t("calculating_risk")}
                     </>
                   ) : (
                     <>
                       <Satellite className="w-4 h-4 mr-2" />
-                      Calculate Risk Score from Satellite Data
+                      {t("calculate_risk")}
                     </>
                   )}
                 </Button>
@@ -645,7 +662,7 @@ export default function CreateLotPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="text-white/80">
-                      Number of Trees
+                      {t("num_trees")}
                     </FormLabel>
                     <FormControl>
                       <Input
@@ -667,7 +684,7 @@ export default function CreateLotPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="text-white/80">
-                      Plant Age (Years)
+                      {t("plant_age")}
                     </FormLabel>
                     <FormControl>
                       <Input
@@ -689,7 +706,7 @@ export default function CreateLotPage() {
               name="scaScoreTenths"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-white/80">SCA Score (×10)</FormLabel>
+                  <FormLabel className="text-white/80">{t("sca_score")}</FormLabel>
                   <FormControl>
                     <Input
                       type="number"
@@ -701,7 +718,7 @@ export default function CreateLotPage() {
                   </FormControl>
                   {field.value ? (
                     <p className="text-xs text-gray-500">
-                      {(Number(field.value) / 10).toFixed(1)} SCA points
+                      {t("sca_hint", { value: (Number(field.value) / 10).toFixed(1) })}
                     </p>
                   ) : null}
                   <FormMessage />
@@ -714,7 +731,7 @@ export default function CreateLotPage() {
               name="profile"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-white/80">Tasting Profile</FormLabel>
+                  <FormLabel className="text-white/80">{t("tasting_profile")}</FormLabel>
                   <FormControl>
                     <Input
                       placeholder="e.g., Caramel, dark chocolate, citric acidity"
@@ -732,10 +749,10 @@ export default function CreateLotPage() {
               name="summary"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-white/80">Summary</FormLabel>
+                  <FormLabel className="text-white/80">{t("summary")}</FormLabel>
                   <FormControl>
                     <Textarea
-                      placeholder="Short description of the lot..."
+                      placeholder={t("summary_placeholder")}
                       className="bg-black/20 border-white/10 text-white placeholder:text-gray-600"
                       {...field}
                     />
@@ -747,10 +764,8 @@ export default function CreateLotPage() {
 
             <GlassCard className="p-6 bg-primary/5 border-primary/20 space-y-4">
               <div>
-                <h3 className="font-bold text-primary">Investment Plan</h3>
-                <p className="text-xs text-gray-400 mt-1">
-                  Pre-filled with standard terms — adjust as needed.
-                </p>
+                <h3 className="font-bold text-primary">{t("investment_plan")}</h3>
+                <p className="text-xs text-gray-400 mt-1">{t("plan_hint")}</p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -759,7 +774,7 @@ export default function CreateLotPage() {
                   name="ticketCents"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-white/80">Ticket Price (¢)</FormLabel>
+                      <FormLabel className="text-white/80">{t("ticket_cents")}</FormLabel>
                       <FormControl>
                         <Input type="number" className={inputClasses} {...field} value={(field.value as string | number | undefined) ?? ""} />
                       </FormControl>
@@ -774,7 +789,7 @@ export default function CreateLotPage() {
                   name="agronomicCostCents"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-white/80">Agronomic Cost (¢)</FormLabel>
+                      <FormLabel className="text-white/80">{t("agronomic_cost_cents")}</FormLabel>
                       <FormControl>
                         <Input type="number" className={inputClasses} {...field} value={(field.value as string | number | undefined) ?? ""} />
                       </FormControl>
@@ -789,7 +804,7 @@ export default function CreateLotPage() {
                   name="priceCentsPerLb"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-white/80">Price/lb (¢)</FormLabel>
+                      <FormLabel className="text-white/80">{t("price_lb")}</FormLabel>
                       <FormControl>
                         <Input type="number" className={inputClasses} {...field} value={(field.value as string | number | undefined) ?? ""} />
                       </FormControl>
@@ -804,7 +819,7 @@ export default function CreateLotPage() {
                   name="priceFloorCentsPerLb"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-white/80">Price Floor/lb (¢)</FormLabel>
+                      <FormLabel className="text-white/80">{t("price_floor_lb")}</FormLabel>
                       <FormControl>
                         <Input type="number" className={inputClasses} {...field} value={(field.value as string | number | undefined) ?? ""} />
                       </FormControl>
@@ -819,7 +834,7 @@ export default function CreateLotPage() {
                   name="projectedYieldY1TenthsQq"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-white/80">Proj. Yield Y1 (0.1 qq)</FormLabel>
+                      <FormLabel className="text-white/80">{t("proj_yield")}</FormLabel>
                       <FormControl>
                         <Input type="number" className={inputClasses} {...field} value={(field.value as string | number | undefined) ?? ""} />
                       </FormControl>
@@ -834,7 +849,7 @@ export default function CreateLotPage() {
                   name="yieldCapY1TenthsQq"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-white/80">Yield Cap Y1 (0.1 qq)</FormLabel>
+                      <FormLabel className="text-white/80">{t("yield_cap")}</FormLabel>
                       <FormControl>
                         <Input type="number" className={inputClasses} {...field} value={(field.value as string | number | undefined) ?? ""} />
                       </FormControl>
@@ -849,7 +864,7 @@ export default function CreateLotPage() {
                   name="splitFarmerBps"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-white/80">Farmer Split (bps)</FormLabel>
+                      <FormLabel className="text-white/80">{t("farmer_split")}</FormLabel>
                       <FormControl>
                         <Input type="number" className={inputClasses} {...field} value={(field.value as string | number | undefined) ?? ""} />
                       </FormControl>
@@ -864,7 +879,7 @@ export default function CreateLotPage() {
                   name="splitPartnerBps"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-white/80">Partner Split (bps)</FormLabel>
+                      <FormLabel className="text-white/80">{t("partner_split")}</FormLabel>
                       <FormControl>
                         <Input type="number" className={inputClasses} {...field} value={(field.value as string | number | undefined) ?? ""} />
                       </FormControl>
@@ -886,7 +901,7 @@ export default function CreateLotPage() {
               ) : (
                 <CheckCircle className="w-4 h-4 mr-2" />
               )}
-              {isSubmitting ? "Creating..." : "Create Lot"}
+              {isSubmitting ? t("creating") : t("create_btn")}
             </Button>
           </form>
         </Form>

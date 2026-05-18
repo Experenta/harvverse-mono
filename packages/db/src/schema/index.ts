@@ -252,6 +252,7 @@ export const lots = pgTable(
 		plantAgeYears: integer("plant_age_years"),
 		scaScoreTenths: integer("sca_score_tenths"),
 		harvestYear: integer("harvest_year"),
+		cycleNotes: text("cycle_notes"),
 		profile: text("profile"),
 		summary: text("summary"),
 		coverImages: text("cover_images").array(),

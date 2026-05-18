@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { Mountain, Sprout, ArrowRight, ArrowLeft, Loader2, AlertCircle } from "lucide-react";
 
 import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
@@ -16,6 +17,9 @@ const selectClasses =
 
 export default function ExplorePage() {
   const router = useRouter();
+  const t = useTranslations("explore");
+  const tl = useTranslations("lot");
+  const tc = useTranslations("common");
   const [selectedCountry, setSelectedCountry] = useState("All");
   const [selectedVariety, setSelectedVariety] = useState("All");
 
@@ -23,15 +27,15 @@ export default function ExplorePage() {
     trpc.lots.list.queryOptions({ status: "available" }),
   );
 
-  const countries = ["All", ...Array.from(new Set(lots.map((l) => l.country)))];
+  const countries = [tc("all"), ...Array.from(new Set(lots.map((l) => l.country)))];
   const varieties = [
-    "All",
+    tc("all"),
     ...Array.from(new Set(lots.map((l) => l.variety).filter(Boolean))),
   ];
 
   const filteredLots = lots.filter((lot) => {
-    if (selectedCountry !== "All" && lot.country !== selectedCountry) return false;
-    if (selectedVariety !== "All" && lot.variety !== selectedVariety) return false;
+    if (selectedCountry !== tc("all") && lot.country !== selectedCountry) return false;
+    if (selectedVariety !== tc("all") && lot.variety !== selectedVariety) return false;
     return true;
   });
 
@@ -43,14 +47,14 @@ export default function ExplorePage() {
         onClick={() => router.push("/dashboard/player")}
       >
         <ArrowLeft className="w-4 h-4 mr-2" />
-        Back to Dashboard
+        {t("back_to_dashboard")}
       </Button>
 
-      <h1 className="text-4xl font-bold mb-8">Explore Lots</h1>
+      <h1 className="text-4xl font-bold mb-8">{t("title")}</h1>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         <div>
-          <label className="block text-sm text-gray-400 mb-2">Country</label>
+          <label className="block text-sm text-gray-400 mb-2">{t("country_filter")}</label>
           <select
             value={selectedCountry}
             onChange={(e) => setSelectedCountry(e.target.value)}
@@ -67,7 +71,7 @@ export default function ExplorePage() {
 
         <div>
           <label className="block text-sm text-gray-400 mb-2">
-            Coffee Variety
+            {t("variety_filter")}
           </label>
           <select
             value={selectedVariety}
@@ -77,7 +81,7 @@ export default function ExplorePage() {
           >
             {varieties.map((v) => (
               <option key={v ?? "unknown"} value={v ?? ""}>
-                {v ?? "Unknown"}
+                {v ?? tc("unknown")}
               </option>
             ))}
           </select>
@@ -87,22 +91,20 @@ export default function ExplorePage() {
       {isLoading ? (
         <GlassCard className="p-12 text-center border-primary/20">
           <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-4" />
-          <p className="text-gray-400">Loading available lots...</p>
+          <p className="text-gray-400">{t("loading")}</p>
         </GlassCard>
       ) : isError ? (
         <GlassCard className="p-8 border-red-500/20">
           <p className="flex items-center gap-2 text-red-400">
             <AlertCircle className="w-5 h-5 shrink-0" />
-            Failed to load lots. Please refresh and try again.
+            {t("failed_load")}
           </p>
         </GlassCard>
       ) : filteredLots.length === 0 ? (
         <GlassCard className="p-12 text-center border-primary/20">
-          <p className="text-gray-400 text-lg mb-2">No available lots found</p>
+          <p className="text-gray-400 text-lg mb-2">{t("no_lots_found")}</p>
           <p className="text-gray-500 text-sm">
-            {lots.length === 0
-              ? "Farmers haven't published any lots yet."
-              : "No lots match your current filters."}
+            {lots.length === 0 ? t("no_lots_farmers") : t("no_lots_filters")}
           </p>
         </GlassCard>
       ) : (
@@ -122,13 +124,13 @@ export default function ExplorePage() {
                   </Badge>
                   {lot.plans.length > 0 && (
                     <Badge className="bg-primary/20 text-primary border-primary/30 text-xs">
-                      Plan ready
+                      {t("plan_ready")}
                     </Badge>
                   )}
                 </div>
 
                 <h3 className="text-lg font-bold mb-1">
-                  {lot.code ?? `Lot #${lot.id}`}
+                  {lot.code ?? tl("lot_id", { id: lot.id })}
                 </h3>
                 <p className="text-gray-300 text-sm mb-1">{lot.farmName}</p>
                 <p className="text-gray-400 text-sm mb-3">
@@ -165,7 +167,7 @@ export default function ExplorePage() {
                       )
                     }
                   >
-                    View Lot
+                    {tl("view_lot")}
                     <ArrowRight className="w-3 h-3 ml-2" />
                   </Button>
                 </div>

@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Sprout, Plus, ArrowLeft, AlertCircle } from "lucide-react";
 
 import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
@@ -16,6 +17,10 @@ import { trpc } from "@/utils/trpc";
 export default function MyFarmsPage() {
   const router = useRouter();
   const { data: user, isLoading: userLoading } = useCurrentUser();
+  const t = useTranslations("farm");
+  const tn = useTranslations("nav");
+  const tc = useTranslations("common");
+
   const { data: farms, isLoading, isError } = useQuery(
     trpc.farms.list.queryOptions(
       { farmerId: user?.id },
@@ -34,17 +39,17 @@ export default function MyFarmsPage() {
         onClick={() => router.push("/dashboard/farmer")}
       >
         <ArrowLeft className="w-4 h-4 mr-2" />
-        Back to Dashboard
+        {tc("back_to_dashboard")}
       </Button>
 
       <header className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">My Farms</h1>
+        <h1 className="text-3xl font-bold">{tn("my_farms")}</h1>
         <Button
           className="bg-primary hover:bg-primary/90 text-[#0a0e27]"
           onClick={() => router.push("/dashboard/farmer/create-farm")}
         >
           <Plus className="w-4 h-4 mr-2" />
-          Add Farm
+          {tc("add_farm")}
         </Button>
       </header>
 
@@ -52,7 +57,7 @@ export default function MyFarmsPage() {
         <GlassCard className="p-8 border-red-500/20">
           <p className="flex items-center gap-2 text-red-400">
             <AlertCircle className="w-5 h-5 shrink-0" />
-            Failed to load farms. Please refresh and try again.
+            {t("failed_load")}
           </p>
         </GlassCard>
       ) : isLoadingFarms ? (
@@ -71,15 +76,13 @@ export default function MyFarmsPage() {
           <div className="w-20 h-20 bg-primary/10 rounded-full mx-auto mb-6 flex items-center justify-center">
             <Sprout className="w-10 h-10 text-primary" />
           </div>
-          <h2 className="text-2xl font-bold mb-3">No Farms Yet</h2>
-          <p className="text-gray-400 mb-8">
-            Register your first farm to start offering investment opportunities
-          </p>
+          <h2 className="text-2xl font-bold mb-3">{t("no_farms_yet")}</h2>
+          <p className="text-gray-400 mb-8">{t("no_farms_subtitle")}</p>
           <Button
             className="bg-primary hover:bg-primary/90 text-[#0a0e27]"
             onClick={() => router.push("/dashboard/farmer/create-farm")}
           >
-            Register Your First Farm
+            {t("register_first")}
           </Button>
         </GlassCard>
       ) : (
@@ -109,7 +112,7 @@ export default function MyFarmsPage() {
                     router.push(`/dashboard/farmer/farms/${farm.id}`)
                   }
                 >
-                  Manage Lots
+                  {tn("manage_lots")}
                 </Button>
                 <Button
                   size="sm"
@@ -118,7 +121,7 @@ export default function MyFarmsPage() {
                     router.push(`/dashboard/farmer/farms/${farm.id}/edit` as Route)
                   }
                 >
-                  Edit
+                  {tc("edit")}
                 </Button>
               </div>
             </GlassCard>

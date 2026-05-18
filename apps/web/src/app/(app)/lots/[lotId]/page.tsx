@@ -6,6 +6,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import type { Polygon } from "geojson";
+import { useTranslations } from "next-intl";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -74,17 +75,6 @@ function computeProjections(plan: {
   return { revenueCents, profitCents, farmerCents, partnerCents };
 }
 
-const STEP_LABELS: Record<ReserveStep, string> = {
-  idle: "Confirm & Reserve",
-  approving: "Approving USDC…",
-  approved: "Approved",
-  opening: "Opening partnership…",
-  confirmed: "Confirmed",
-  saving: "Saving…",
-  done: "Done",
-  error: "Try again",
-};
-
 function StepRow({
   label,
   active,
@@ -118,6 +108,10 @@ export default function LotDetailPage() {
   const router = useRouter();
   const params = useParams<{ lotId: string }>();
   const lotId = Number(params.lotId);
+  const t = useTranslations("lot");
+  const tp = useTranslations("partnership");
+  const trs = useTranslations("risk_score");
+  const tc = useTranslations("common");
 
   const { data: user } = useCurrentUser();
   const { address } = useAccount();
@@ -166,6 +160,20 @@ export default function LotDetailPage() {
 
   const si = stepIndex(reserve.step);
 
+  function getStepLabel(step: ReserveStep): string {
+    const map: Record<ReserveStep, string> = {
+      idle: tp("step_idle"),
+      approving: tp("step_approving"),
+      approved: tp("step_approved"),
+      opening: tp("step_opening"),
+      confirmed: tp("step_confirmed"),
+      saving: tp("step_saving"),
+      done: tp("step_done"),
+      error: tp("step_error"),
+    };
+    return map[step];
+  }
+
   return (
     <div>
       <Button
@@ -174,7 +182,7 @@ export default function LotDetailPage() {
         onClick={() => router.back()}
       >
         <ArrowLeft className="w-4 h-4 mr-2" />
-        Back
+        {tc("back")}
       </Button>
 
       {isLoading ? (
@@ -187,12 +195,12 @@ export default function LotDetailPage() {
         <GlassCard className="p-12 text-center border-red-500/20">
           <p className="flex items-center gap-2 text-red-400 justify-center">
             <AlertCircle className="w-5 h-5 shrink-0" />
-            Failed to load lot details. Please refresh and try again.
+            {t("failed_load")}
           </p>
         </GlassCard>
       ) : !lot ? (
         <GlassCard className="p-12 text-center border-primary/20">
-          <p className="text-gray-400">Lot not found.</p>
+          <p className="text-gray-400">{t("not_found")}</p>
         </GlassCard>
       ) : (
         <div className="max-w-4xl">
@@ -212,7 +220,7 @@ export default function LotDetailPage() {
             <div className="flex items-start justify-between mb-3">
               <div>
                 <h1 className="text-4xl font-bold mb-2">
-                  {lot.code ?? `Lot #${lot.id}`}
+                  {lot.code ?? t("lot_id", { id: lot.id })}
                 </h1>
                 <p className="text-gray-400">{lot.farmName}</p>
               </div>
@@ -241,7 +249,7 @@ export default function LotDetailPage() {
               {lot.eudrCompliant ? (
                 <span className="flex items-center gap-1 text-green-400">
                   <ShieldCheck className="w-4 h-4" />
-                  EUDR compliant
+                  {t("eudr_compliant")}
                 </span>
               ) : null}
             </div>
@@ -249,51 +257,51 @@ export default function LotDetailPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <GlassCard className="p-6 border-primary/20 md:col-span-2">
-              <h2 className="text-xl font-bold mb-4">Plan Terms</h2>
+              <h2 className="text-xl font-bold mb-4">{t("plan_terms")}</h2>
               {activePlan ? (
                 <dl className="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <dt className="text-gray-400">Plan Code</dt>
+                    <dt className="text-gray-400">{t("plan_code")}</dt>
                     <dd className="text-white">{activePlan.planCode}</dd>
                   </div>
                   <div>
-                    <dt className="text-gray-400">Ticket</dt>
+                    <dt className="text-gray-400">{t("ticket")}</dt>
                     <dd className="text-primary font-bold text-lg">
                       {formatUsdFromCents(activePlan.ticketCents)}
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-gray-400">Price / lb</dt>
+                    <dt className="text-gray-400">{t("price_per_lb")}</dt>
                     <dd className="text-white">
                       {formatUsdFromCents(activePlan.priceCentsPerLb)}
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-gray-400">Floor / lb</dt>
+                    <dt className="text-gray-400">{t("floor_per_lb")}</dt>
                     <dd className="text-white">
                       {formatUsdFromCents(activePlan.priceFloorCentsPerLb)}
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-gray-400">Projected yield Y1</dt>
+                    <dt className="text-gray-400">{t("proj_yield_y1")}</dt>
                     <dd className="text-white">
                       {(activePlan.projectedYieldY1TenthsQq / 10).toFixed(1)} qq
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-gray-400">Yield cap Y1</dt>
+                    <dt className="text-gray-400">{t("yield_cap_y1")}</dt>
                     <dd className="text-white">
                       {(activePlan.yieldCapY1TenthsQq / 10).toFixed(1)} qq
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-gray-400">Farmer split</dt>
+                    <dt className="text-gray-400">{t("farmer_split_pct")}</dt>
                     <dd className="text-white">
                       {activePlan.splitFarmerBps / 100}%
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-gray-400">Partner split</dt>
+                    <dt className="text-gray-400">{t("partner_split_pct")}</dt>
                     <dd className="text-white">
                       {activePlan.splitPartnerBps
                         ? `${activePlan.splitPartnerBps / 100}%`
@@ -302,14 +310,12 @@ export default function LotDetailPage() {
                   </div>
                 </dl>
               ) : (
-                <p className="text-gray-400 text-sm">
-                  No active plan published for this lot yet.
-                </p>
+                <p className="text-gray-400 text-sm">{t("no_active_plan")}</p>
               )}
             </GlassCard>
 
             <GlassCard className="p-6 border-primary/20">
-              <h2 className="text-xl font-bold mb-4">Risk Score</h2>
+              <h2 className="text-xl font-bold mb-4">{t("risk_score")}</h2>
               {(() => {
                 const displayScore =
                   computeScore.data?.score ?? lot.riskScore;
@@ -318,17 +324,17 @@ export default function LotDetailPage() {
                     <div className="text-5xl font-bold text-primary mb-1">
                       {displayScore}
                     </div>
-                    <p className="text-xs text-gray-400 mb-4">out of 100</p>
+                    <p className="text-xs text-gray-400 mb-4">{t("out_of_100")}</p>
                     <Progress value={displayScore} className="mb-4" />
                     <p className="text-xs text-gray-400">
                       {lot.eudrCompliant
-                        ? "EUDR-compliant verified."
-                        : "EUDR verification pending."}
+                        ? t("eudr_verified")
+                        : t("eudr_pending")}
                     </p>
                   </>
                 ) : (
                   <p className="text-sm text-gray-400 mb-4">
-                    No risk score recorded yet.
+                    {t("no_risk_score")}
                   </p>
                 );
               })()}
@@ -360,12 +366,12 @@ export default function LotDetailPage() {
                       ) : (
                         <RefreshCw className="w-3 h-3 mr-2" />
                       )}
-                      {computeScore.isPending ? "Calculating…" : "Calculate Risk Score"}
+                      {computeScore.isPending ? t("calculating_score") : t("calculate_score")}
                     </Button>
                     {!canScore ? (
                       <p className="text-xs text-yellow-500/80 mt-2 flex items-center gap-1">
                         <AlertCircle className="w-3 h-3 shrink-0" />
-                        Farm polygon or GPS coordinates required
+                        {t("farm_polygon_required")}
                       </p>
                     ) : null}
                   </>
@@ -394,13 +400,19 @@ export default function LotDetailPage() {
               ? ndviValid.reduce((a, b) => a + b, 0) / ndviValid.length
               : null;
 
-            // Dry-season count for rain distribution detail
             let maxDry = 0, dryRun = 0;
             for (const m of climate) {
               if (m.precipMm < 100) { dryRun++; if (dryRun > maxDry) maxDry = dryRun; }
               else dryRun = 0;
             }
             const rainyMonths = climate.filter((m) => m.precipMm > 150).length;
+
+            const rainyStr = rainyMonths >= 4
+              ? t("rain_yes_months", { count: rainyMonths })
+              : t("rain_no_months", { count: rainyMonths });
+            const dryStr = maxDry >= 2
+              ? t("dry_yes", { count: maxDry })
+              : t("dry_no", { count: maxDry });
 
             const rows: {
               label: string;
@@ -410,60 +422,60 @@ export default function LotDetailPage() {
               detail: string;
             }[] = [
               {
-                label: "NDVI Average",
+                label: trs("ndvi_avg"),
                 value: sd.breakdown.ndviAvg,
                 weight: sd.hasSentinel ? "20%" : null,
-                note: !sd.hasSentinel ? "No Sentinel Hub credentials" : undefined,
+                note: !sd.hasSentinel ? t("no_sentinel_credentials") : undefined,
                 detail: avgNdvi != null
-                  ? `Measured: ${avgNdvi.toFixed(3)} avg NDVI over ${ndviValid.length} months (0 = bare soil, 1 = dense vegetation)`
-                  : "No Sentinel-2 data available — add credentials to enable NDVI scoring",
+                  ? t("ndvi_measured", { value: avgNdvi.toFixed(3), months: ndviValid.length })
+                  : t("ndvi_no_data"),
               },
               {
-                label: "NDVI Stability",
+                label: trs("ndvi_stability"),
                 value: sd.breakdown.ndviStability,
                 weight: sd.hasSentinel ? "10%" : null,
-                note: !sd.hasSentinel ? "No Sentinel Hub credentials" : undefined,
+                note: !sd.hasSentinel ? t("no_sentinel_credentials") : undefined,
                 detail: ndviValid.length >= 2
-                  ? `Coefficient of variation across ${ndviValid.length} monthly readings — lower CV = more stable canopy`
-                  : "Need at least 2 NDVI readings to compute stability",
+                  ? t("ndvi_stability_has_data", { months: ndviValid.length })
+                  : t("ndvi_stability_no_data"),
               },
               {
-                label: "Annual Precipitation",
+                label: trs("annual_precip"),
                 value: sd.breakdown.annualPrecip,
                 weight: sd.hasSentinel ? "15%" : "25%",
-                detail: `Measured: ${Math.round(annualPrecipMm).toLocaleString()} mm/yr (average over ${Math.round(climate.length / 12)} years · optimal range 1,500–2,000 mm/yr)`,
+                detail: t("precip_detail", { mm: Math.round(annualPrecipMm).toLocaleString(), years: Math.round(climate.length / 12) }),
               },
               {
-                label: "Rain Distribution",
+                label: trs("rain_distrib"),
                 value: sd.breakdown.rainDistrib,
                 weight: sd.hasSentinel ? "15%" : "25%",
-                detail: `Rainy season: ${rainyMonths >= 4 ? `Yes (${rainyMonths} months >150 mm)` : `No (only ${rainyMonths} months >150 mm, need ≥4)`} · Dry season: ${maxDry >= 2 ? `Yes (${maxDry} consecutive months <100 mm)` : `No (longest dry run: ${maxDry} month)`}`,
+                detail: t("rain_detail", { rainy: rainyStr, dry: dryStr }),
               },
               {
-                label: "Temperature",
+                label: trs("temperature"),
                 value: sd.breakdown.temperature,
                 weight: sd.hasSentinel ? "10%" : "17%",
-                detail: `Measured: ${avgTempC.toFixed(1)} °C avg over ${climate.length} months (optimal 18–22 °C · 15–18 °C good for specialty)`,
+                detail: t("temp_detail", { temp: avgTempC.toFixed(1), months: climate.length }),
               },
               {
-                label: "EUDR Compliance",
+                label: trs("eudr_compliance"),
                 value: sd.breakdown.eudr,
                 weight: sd.hasSentinel ? "20%" : "33%",
                 detail: sd.eudrCompliant === true
-                  ? "Compliant — lot is deforestation-free per EUDR regulation"
+                  ? t("eudr_compliant_detail")
                   : sd.eudrCompliant === false
-                  ? "Non-compliant — deforestation detected or reported"
-                  : "Pending assessment — compliance status not yet verified",
+                  ? t("eudr_non_compliant_detail")
+                  : t("eudr_pending_detail"),
               },
             ];
 
             return (
               <GlassCard className="p-6 border-primary/20 mb-8">
-                <h2 className="text-lg font-bold mb-1">Score Breakdown</h2>
+                <h2 className="text-lg font-bold mb-1">{t("score_breakdown")}</h2>
                 <p className="text-xs text-gray-400 mb-4">
                   {sd.hasSentinel
-                    ? "Sentinel-2 NDVI + ERA5 climate (Open-Meteo) · last 24 months"
-                    : "ERA5 climate (Open-Meteo) · last 24 months · add Sentinel Hub credentials to include NDVI"}
+                    ? t("score_source_sentinel")
+                    : t("score_source_climate")}
                 </p>
                 <div className="space-y-1">
                   {rows.map(({ label, value, weight, note, detail }) => {
@@ -508,7 +520,7 @@ export default function LotDetailPage() {
                   })}
                 </div>
                 <div className="border-t border-white/10 mt-4 pt-3 flex justify-between items-center">
-                  <span className="text-sm text-gray-400">Total</span>
+                  <span className="text-sm text-gray-400">{t("score_total")}</span>
                   <span className="text-2xl font-bold text-primary">
                     {sd.score}
                     <span className="text-sm text-gray-400 font-normal ml-1">/ 100</span>
@@ -528,14 +540,14 @@ export default function LotDetailPage() {
           >
             <HandCoins className="w-5 h-5 mr-2" />
             {lot.status !== "available"
-              ? `Lot ${lot.status}`
+              ? t("lot_status", { status: lot.status })
               : !activePlan
-                ? "No active plan"
+                ? t("no_plan_btn")
                 : !user
-                  ? "Sign in to invest"
+                  ? t("sign_in_invest")
                   : user.role !== "partner"
-                    ? "Partner account required"
-                    : "Reserve Partnership"}
+                    ? t("partner_required")
+                    : t("reserve_partnership")}
           </Button>
 
           {activePlan && projections && (
@@ -543,28 +555,24 @@ export default function LotDetailPage() {
               <DialogContent className="bg-[#1a1f3a] border border-white/10 text-white max-w-md max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle className="text-xl font-bold text-white">
-                    Confirm Investment
+                    {tp("confirm_investment")}
                   </DialogTitle>
                   <DialogDescription className="text-gray-400">
-                    Review the terms before reserving your partnership in{" "}
-                    <span className="text-white font-medium">
-                      {lot.code ?? `Lot #${lot.id}`}
-                    </span>
-                    .
+                    {tp("review_terms", { lot: lot.code ?? t("lot_id", { id: lot.id }) })}
                   </DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-4 py-2">
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div className="bg-white/5 rounded-lg p-3">
-                      <p className="text-gray-400 text-xs mb-1">Your ticket</p>
+                      <p className="text-gray-400 text-xs mb-1">{tp("your_ticket")}</p>
                       <p className="font-bold text-primary text-lg">
                         {formatUsdFromCents(activePlan.ticketCents)}
                       </p>
                     </div>
                     <div className="bg-white/5 rounded-lg p-3">
                       <p className="text-gray-400 text-xs mb-1">
-                        Your projected return
+                        {tp("projected_return")}
                       </p>
                       <p className="font-bold text-white text-lg">
                         {formatUsdFromCents(
@@ -574,7 +582,7 @@ export default function LotDetailPage() {
                     </div>
                     <div className="bg-white/5 rounded-lg p-3">
                       <p className="text-gray-400 text-xs mb-1">
-                        Projected revenue
+                        {tp("projected_revenue")}
                       </p>
                       <p className="text-white">
                         {formatUsdFromCents(projections.revenueCents)}
@@ -582,7 +590,7 @@ export default function LotDetailPage() {
                     </div>
                     <div className="bg-white/5 rounded-lg p-3">
                       <p className="text-gray-400 text-xs mb-1">
-                        Your profit share ({activePlan.splitPartnerBps ? activePlan.splitPartnerBps / 100 : "—"}%)
+                        {tp("profit_share", { pct: activePlan.splitPartnerBps ? activePlan.splitPartnerBps / 100 : "—" })}
                       </p>
                       <p className="text-white">
                         {formatUsdFromCents(projections.partnerCents)}
@@ -594,17 +602,17 @@ export default function LotDetailPage() {
                   {reserve.step !== "idle" && (
                     <div className="bg-white/5 rounded-lg p-3 space-y-2">
                       <StepRow
-                        label="Approve USDC"
+                        label={tp("approve_usdc")}
                         active={reserve.step === "approving"}
                         done={si >= stepIndex("approved")}
                       />
                       <StepRow
-                        label="Open partnership on-chain"
+                        label={tp("open_chain")}
                         active={reserve.step === "opening"}
                         done={si >= stepIndex("confirmed")}
                       />
                       <StepRow
-                        label="Save to database"
+                        label={tp("save_database")}
                         active={reserve.step === "saving"}
                         done={reserve.step === "done"}
                       />
@@ -625,9 +633,7 @@ export default function LotDetailPage() {
                   )}
 
                   <p className="text-xs text-gray-500 leading-relaxed break-words">
-                    By confirming, you reserve a Phygital partnership for this
-                    lot. Settlement happens after harvest based on actual yield.
-                    All projected returns are estimates.
+                    {tp("disclaimer")}
                   </p>
                 </div>
 
@@ -636,7 +642,7 @@ export default function LotDetailPage() {
                     <div className="w-full space-y-2">
                       <p className="text-xs text-yellow-400 flex items-center gap-1">
                         <AlertCircle className="w-3 h-3 shrink-0" />
-                        Connect a wallet to complete this investment on-chain.
+                        {tp("connect_wallet_warning")}
                       </p>
                       <Button
                         className="w-full bg-primary hover:bg-primary/90 text-[#0a0e27] font-bold"
@@ -648,7 +654,7 @@ export default function LotDetailPage() {
                         {isConnecting && (
                           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                         )}
-                        Connect Wallet
+                        {tp("connect_wallet")}
                       </Button>
                     </div>
                   ) : (
@@ -660,7 +666,7 @@ export default function LotDetailPage() {
                       {reserve.isLoading && (
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                       )}
-                      {STEP_LABELS[reserve.step]}
+                      {getStepLabel(reserve.step)}
                     </Button>
                   )}
                 </DialogFooter>

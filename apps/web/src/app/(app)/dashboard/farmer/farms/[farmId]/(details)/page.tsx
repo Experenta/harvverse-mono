@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import type { Route } from "next";
 import { useRouter, useParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Sprout, Plus, ArrowLeft } from "lucide-react";
 
 import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
@@ -17,6 +18,9 @@ export default function FarmerFarmDetailPage() {
   const params = useParams<{ farmId: string }>();
   const farmId = Number(params.farmId);
   const farmIdValid = Number.isFinite(farmId);
+  const t = useTranslations("farm");
+  const tl = useTranslations("lot");
+  const tc = useTranslations("common");
 
   const { data: farm, isLoading } = useQuery(
     trpc.farms.byId.queryOptions(
@@ -33,7 +37,7 @@ export default function FarmerFarmDetailPage() {
         onClick={() => router.push("/dashboard/farmer/my-farms")}
       >
         <ArrowLeft className="w-4 h-4 mr-2" />
-        Back to My Farms
+        {t("back_to_my_farms")}
       </Button>
 
       {isLoading ? (
@@ -44,7 +48,7 @@ export default function FarmerFarmDetailPage() {
         </div>
       ) : !farm ? (
         <GlassCard className="p-12 text-center border-primary/20">
-          <p className="text-gray-400">Farm not found.</p>
+          <p className="text-gray-400">{t("not_found")}</p>
         </GlassCard>
       ) : (
         <>
@@ -58,14 +62,14 @@ export default function FarmerFarmDetailPage() {
                 </p>
               </div>
               <div className="text-sm bg-primary/20 text-primary px-3 py-1 rounded">
-                {farm.verified ? "✓ Verified" : "Pending Verification"}
+                {farm.verified ? t("verified") : t("pending_verification")}
               </div>
             </div>
           </GlassCard>
 
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold">
-              Investment Lots ({farm.lots.length})
+              {t("investment_lots", { count: farm.lots.length })}
             </h2>
             <Button
               className="bg-primary hover:bg-primary/90 text-[#0a0e27]"
@@ -76,13 +80,13 @@ export default function FarmerFarmDetailPage() {
               }
             >
               <Plus className="w-4 h-4 mr-2" />
-              Create Lot
+              {tl("create_btn")}
             </Button>
           </div>
 
           {farm.lots.length === 0 ? (
             <GlassCard className="p-8 text-center border-primary/20">
-              <p className="text-gray-400">No lots on this farm yet.</p>
+              <p className="text-gray-400">{t("no_lots_yet")}</p>
             </GlassCard>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -91,17 +95,17 @@ export default function FarmerFarmDetailPage() {
                   key={lot.id}
                   className="p-6 border-primary/20 cursor-pointer hover:border-primary/40 transition-colors"
                   onClick={() =>
-                    router.push(`/lots/${lot.id}` as Route)
+                    router.push(`/dashboard/farmer/lots/${lot.id}` as Route)
                   }
                 >
                   <div className="flex justify-between items-start mb-3">
                     <div>
                       <h3 className="text-xl font-bold">
-                        {lot.code ?? `Lot #${lot.id}`}
+                        {lot.code ?? tl("lot_id", { id: lot.id })}
                       </h3>
                       <p className="text-gray-400 text-sm mt-1">
                         <Sprout className="w-3 h-3 inline mr-1" />
-                        {lot.variety ?? "Unknown"} • {lot.areaManzanas ?? "N/A"} manzanas
+                        {lot.variety ?? tc("unknown")} • {lot.areaManzanas ?? "N/A"} manzanas
                       </p>
                     </div>
                     <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 uppercase">
@@ -110,7 +114,7 @@ export default function FarmerFarmDetailPage() {
                   </div>
                   {lot.harvestYear ? (
                     <p className="text-sm text-gray-400">
-                      Harvest: {lot.harvestYear}
+                      {t("harvest_year", { year: lot.harvestYear })}
                     </p>
                   ) : null}
                 </GlassCard>

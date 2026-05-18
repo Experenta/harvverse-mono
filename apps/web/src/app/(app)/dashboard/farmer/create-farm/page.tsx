@@ -9,6 +9,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import type { Polygon } from "geojson";
+import { useTranslations } from "next-intl";
 import { ArrowLeft, CheckCircle, Loader2 } from "lucide-react";
 
 import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
@@ -29,10 +30,10 @@ import { queryClient, trpc } from "@/utils/trpc";
 import PolygonInput from "@/components/polygon-input";
 
 const createFarmSchema = z.object({
-  name: z.string().min(2, "Farm name required"),
+  name: z.string().min(2, "Farm name required").max(100, "Max 100 characters"),
   country: z.string().min(1, "Country required"),
   region: z.string().min(2, "Region required"),
-  altitudeMasl: z.coerce.number().int().min(0).optional(),
+  altitudeMasl: z.coerce.number().int().min(0).max(4000, "Max 4000 m").optional(),
   totalArea: z.coerce.number().min(0.1).optional(),
   latitude: z.coerce.number().min(-90).max(90).optional(),
   longitude: z.coerce.number().min(-180).max(180).optional(),
@@ -80,13 +81,17 @@ const inputClasses =
 export default function CreateFarmPage() {
   const router = useRouter();
   const { data: user } = useCurrentUser();
+  const t = useTranslations("farm");
+  const tc = useTranslations("common");
   const [polygon, setPolygon] = useState<Polygon | null>(null);
-  const [altitudeMessage, setAltitudeMessage] = useState<string | null>(null);
+  const [altitudeStatus, setAltitudeStatus] = useState<"detected" | "error" | null>(null);
+  const [detectedAltitude, setDetectedAltitude] = useState<number | null>(null);
   const [calculatedArea, setCalculatedArea] = useState<{ hectares: number; manzanas: number } | null>(null);
 
   function handlePolygonChange(p: Polygon | null) {
     setPolygon(p);
-    setAltitudeMessage(null);
+    setAltitudeStatus(null);
+    setDetectedAltitude(null);
     form.setValue("altitudeMasl", undefined);
     if (p) {
       const ring = (p.coordinates[0] ?? []).slice(0, -1);
@@ -111,19 +116,14 @@ export default function CreateFarmPage() {
       onSuccess: (data) => {
         if (data.altitudeMeters != null) {
           form.setValue("altitudeMasl", data.altitudeMeters);
-          setAltitudeMessage(
-            `Detected: ${data.altitudeMeters} meters above sea level (via Copernicus DEM)`,
-          );
+          setDetectedAltitude(data.altitudeMeters);
+          setAltitudeStatus("detected");
         } else {
-          setAltitudeMessage(
-            "Could not detect automatically, please enter manually",
-          );
+          setAltitudeStatus("error");
         }
       },
       onError: () => {
-        setAltitudeMessage(
-          "Could not detect automatically, please enter manually",
-        );
+        setAltitudeStatus("error");
       },
     }),
   );
@@ -134,7 +134,7 @@ export default function CreateFarmPage() {
         await queryClient.invalidateQueries({
           queryKey: trpc.farms.list.queryKey(),
         });
-        toast.success(`Farm "${farm.name}" registered`);
+        toast.success(t("registered", { name: farm.name }));
         router.push("/dashboard/farmer/my-farms" as Route);
       },
     }),
@@ -175,7 +175,7 @@ export default function CreateFarmPage() {
 
   function onSubmit(values: CreateFarmValues) {
     if (!user) {
-      toast.error("Sign in as a farmer to register a farm");
+      toast.error(t("sign_in_required"));
       return;
     }
     createFarm.mutate({
@@ -205,15 +205,13 @@ export default function CreateFarmPage() {
         onClick={() => router.push("/dashboard/farmer" as Route)}
       >
         <ArrowLeft className="w-4 h-4 mr-2" />
-        Back to Dashboard
+        {tc("back_to_dashboard")}
       </Button>
 
       <div className="max-w-2xl mx-auto">
         <GlassCard className="p-8 border-primary/20">
-          <h1 className="text-3xl font-bold mb-2">Register Your Farm</h1>
-          <p className="text-gray-400 mb-8">
-            Create a new farm to start offering investment opportunities
-          </p>
+          <h1 className="text-3xl font-bold mb-2">{t("register_title")}</h1>
+          <p className="text-gray-400 mb-8">{t("register_subtitle")}</p>
 
           <Form {...form}>
             <form
@@ -225,7 +223,7 @@ export default function CreateFarmPage() {
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-white/80">Farm Name *</FormLabel>
+                    <FormLabel className="text-white/80">{t("name")}</FormLabel>
                     <FormControl>
                       <Input
                         placeholder="e.g., Finca La Huerta"
@@ -244,7 +242,7 @@ export default function CreateFarmPage() {
                   name="country"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-white/80">Country *</FormLabel>
+                      <FormLabel className="text-white/80">{t("country")}</FormLabel>
                       <FormControl>
                         <select
                           {...field}
@@ -268,7 +266,7 @@ export default function CreateFarmPage() {
                   name="region"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-white/80">Region *</FormLabel>
+                      <FormLabel className="text-white/80">{t("region")}</FormLabel>
                       <FormControl>
                         <Input
                           placeholder="e.g., Cielito Mountain"
@@ -290,7 +288,7 @@ export default function CreateFarmPage() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel className="text-white/80 flex items-center gap-2">
-                          Altitude (MASL)
+                          {t("altitude")}
                           {detectAltitude.isPending && <Loader2 className="w-3 h-3 animate-spin" />}
                         </FormLabel>
                         <FormControl>
@@ -305,9 +303,11 @@ export default function CreateFarmPage() {
                       </FormItem>
                     )}
                   />
-                  {altitudeMessage && (
-                    <p className={`text-xs ${altitudeMessage.startsWith("Detected") ? "text-green-400" : "text-yellow-400"}`}>
-                      {altitudeMessage}
+                  {altitudeStatus && (
+                    <p className={`text-xs ${altitudeStatus === "detected" ? "text-green-400" : "text-yellow-400"}`}>
+                      {altitudeStatus === "detected" && detectedAltitude != null
+                        ? t("altitude_detected", { value: detectedAltitude })
+                        : t("altitude_error")}
                     </p>
                   )}
                 </div>
@@ -318,7 +318,7 @@ export default function CreateFarmPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel className="text-white/80">
-                        Total Area (ha)
+                        {t("total_area")}
                       </FormLabel>
                       <FormControl>
                         <Input
@@ -339,11 +339,11 @@ export default function CreateFarmPage() {
                 value={polygon}
                 onChange={handlePolygonChange}
                 onAreaCalculated={handleAreaCalculated}
-                label="Farm Boundary (optional but recommended for risk scoring)"
+                label={t("polygon_label")}
               />
               {calculatedArea && (
                 <p className="text-xs text-green-400">
-                  Calculated area: {calculatedArea.hectares.toFixed(2)} hectares ({calculatedArea.manzanas.toFixed(2)} manzanas)
+                  {t("area_calculated", { hectares: calculatedArea.hectares.toFixed(2), manzanas: calculatedArea.manzanas.toFixed(2) })}
                 </p>
               )}
 
@@ -353,7 +353,7 @@ export default function CreateFarmPage() {
                   name="latitude"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-white/80">GPS Latitude</FormLabel>
+                      <FormLabel className="text-white/80">{t("gps_lat")}</FormLabel>
                       <FormControl>
                         <Input
                           type="number"
@@ -374,7 +374,7 @@ export default function CreateFarmPage() {
                   name="longitude"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-white/80">GPS Longitude</FormLabel>
+                      <FormLabel className="text-white/80">{t("gps_lng")}</FormLabel>
                       <FormControl>
                         <Input
                           type="number"
@@ -397,9 +397,7 @@ export default function CreateFarmPage() {
                 name="varieties"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-white/80">
-                      Coffee Varieties * (Select at least one)
-                    </FormLabel>
+                    <FormLabel className="text-white/80">{t("varieties")}</FormLabel>
                     <div className="grid grid-cols-2 gap-3 mt-3">
                       {COFFEE_VARIETIES.map((variety) => {
                         const selected = field.value?.includes(variety);
@@ -436,7 +434,7 @@ export default function CreateFarmPage() {
                 name="certifications"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-white/80">Certifications</FormLabel>
+                    <FormLabel className="text-white/80">{t("certifications")}</FormLabel>
                     <div className="grid grid-cols-2 gap-3 mt-3">
                       {CERTIFICATIONS.map((cert) => {
                         const selected = field.value?.includes(cert);
@@ -473,10 +471,10 @@ export default function CreateFarmPage() {
                 name="description"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-white/80">Description</FormLabel>
+                    <FormLabel className="text-white/80">{t("description")}</FormLabel>
                     <FormControl>
                       <Textarea
-                        placeholder="Tell us about your farm..."
+                        placeholder={t("description_placeholder")}
                         className="bg-black/20 border-white/10 text-white placeholder:text-gray-600"
                         {...field}
                       />
@@ -491,12 +489,10 @@ export default function CreateFarmPage() {
                 name="photoUrl"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-white/80">
-                      Farm Photo URL
-                    </FormLabel>
+                    <FormLabel className="text-white/80">{t("photo_url")}</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder="https://..."
+                        placeholder={t("photo_placeholder")}
                         className={inputClasses}
                         {...field}
                       />
@@ -516,7 +512,7 @@ export default function CreateFarmPage() {
                 ) : (
                   <CheckCircle className="w-4 h-4 mr-2" />
                 )}
-                {isSubmitting ? "Registering..." : "Register Farm"}
+                {isSubmitting ? t("registering") : t("register_btn")}
               </Button>
             </form>
           </Form>

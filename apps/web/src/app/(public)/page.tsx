@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { Route } from "next";
 import { motion } from "framer-motion";
+import { useTranslations } from "next-intl";
 import {
   Users,
   ArrowRight,
@@ -14,28 +15,6 @@ import {
 } from "lucide-react";
 import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
 import { Button } from "@harvverse-monorepo/ui/components/button";
-
-function PartnershipBadges({ types }: { types: string[] }) {
-  return (
-    <div className="flex gap-2 flex-wrap">
-      {types.includes("PHYSICAL") && (
-        <span className="text-xs px-2 py-1 rounded-full bg-[#93d832]/10 text-[#93d832] border border-[#93d832]/20">
-          🌿 Physical
-        </span>
-      )}
-      {types.includes("DIGITAL") && (
-        <span className="text-xs px-2 py-1 rounded-full bg-[#6766c4]/10 text-[#6766c4] border border-[#6766c4]/20">
-          💎 Digital
-        </span>
-      )}
-      {types.includes("PHYGITAL") && (
-        <span className="text-xs px-2 py-1 rounded-full bg-[#67b9c1]/10 text-[#67b9c1] border border-[#67b9c1]/20">
-          ✨ Phygital
-        </span>
-      )}
-    </div>
-  );
-}
 
 interface PublicFarm {
   id: number;
@@ -54,7 +33,31 @@ interface PublicFarm {
 
 const PUBLIC_FARMS: PublicFarm[] = [];
 
+function PartnershipBadges({ types }: { types: string[] }) {
+  const t = useTranslations("landing");
+  return (
+    <div className="flex gap-2 flex-wrap">
+      {types.includes("PHYSICAL") && (
+        <span className="text-xs px-2 py-1 rounded-full bg-[#93d832]/10 text-[#93d832] border border-[#93d832]/20">
+          🌿 {t("badge_physical")}
+        </span>
+      )}
+      {types.includes("DIGITAL") && (
+        <span className="text-xs px-2 py-1 rounded-full bg-[#6766c4]/10 text-[#6766c4] border border-[#6766c4]/20">
+          💎 {t("badge_digital")}
+        </span>
+      )}
+      {types.includes("PHYGITAL") && (
+        <span className="text-xs px-2 py-1 rounded-full bg-[#67b9c1]/10 text-[#67b9c1] border border-[#67b9c1]/20">
+          ✨ {t("badge_phygital")}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function FarmCard({ farm }: { farm: PublicFarm }) {
+  const t = useTranslations("landing");
   return (
     <Link href={`/farms/${farm.id}`}>
       <div
@@ -72,7 +75,7 @@ function FarmCard({ farm }: { farm: PublicFarm }) {
           />
           {farm.verified && (
             <span className="absolute top-3 right-3 text-xs px-2 py-1 rounded-full bg-[#93d832]/90 text-[#080E04] font-semibold">
-              Verified
+              {t("verified")}
             </span>
           )}
         </div>
@@ -91,14 +94,14 @@ function FarmCard({ farm }: { farm: PublicFarm }) {
             </div>
           )}
           <p className="text-sm text-[#93d832] font-medium">
-            {farm.availableLots} {farm.availableLots === 1 ? "lot" : "lots"} available
+            {t("lots_available", { count: farm.availableLots })}
           </p>
           <PartnershipBadges types={farm.partnershipTypes} />
           <Button
             variant="outline"
             className="w-full mt-2 border-[#93d832]/40 text-[#93d832] hover:bg-[#93d832]/10 hover:border-[#93d832] rounded-xl"
           >
-            View Details <ArrowRight className="w-4 h-4 ml-2" />
+            {t("view_details")} <ArrowRight className="w-4 h-4 ml-2" />
           </Button>
         </div>
       </div>
@@ -107,6 +110,8 @@ function FarmCard({ farm }: { farm: PublicFarm }) {
 }
 
 export default function LandingPage() {
+  const t = useTranslations("landing");
+  const tn = useTranslations("nav");
   const farms = PUBLIC_FARMS;
 
   const scrollToLots = () => {
@@ -157,14 +162,14 @@ export default function LandingPage() {
             className="text-white hover:text-[#93d832] hover:bg-white/5 text-sm rounded-xl"
             onClick={scrollToLots}
           >
-            Marketplace
+            {tn("marketplace")}
           </Button>
           <Link href="/login">
             <Button
               variant="outline"
               className="border-[#93d832]/50 text-[#93d832] hover:bg-[#93d832] hover:text-[#080E04] text-sm rounded-xl focus-visible:ring-[#93d832]/50"
             >
-              Login
+              {tn("login")}
             </Button>
           </Link>
         </div>
@@ -179,16 +184,16 @@ export default function LandingPage() {
             transition={{ duration: 0.6 }}
           >
             <span className="inline-block px-4 py-1.5 rounded-full border border-[#93d832]/30 bg-[#93d832]/10 text-[#93d832] text-sm font-medium mb-6 backdrop-blur-sm">
-              🏆 Most Innovative DeFi Startup 2025
+              {t("award_badge")}
             </span>
             <h1 className="text-4xl md:text-7xl font-bold text-white mb-6 leading-tight tracking-tight drop-shadow-2xl">
-              Where Investors Meet <br />
+              {t("hero_title_1")} <br />
               <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#93d832] via-[#67b9c1] to-white">
-                Farmers
+                {t("hero_title_2")}
               </span>
             </h1>
             <p className="text-lg md:text-xl text-gray-400 mb-10 max-w-2xl mx-auto leading-relaxed">
-              The Phygital Agricultural Ecosystem bridging the gap between digital capital and real-world yield. Secure, transparent, and profitable partnerships.
+              {t("hero_subtitle")}
             </p>
           </motion.div>
 
@@ -206,11 +211,11 @@ export default function LandingPage() {
                     <TrendingUp className="w-8 h-8 text-[#080E04]" />
                   </div>
                   <div className="text-center">
-                    <h3 className="text-2xl font-bold text-white mb-2">I&apos;m a Partner</h3>
-                    <p className="text-sm text-gray-400">Invest capital, earn yield, and track real-time crop performance.</p>
+                    <h3 className="text-2xl font-bold text-white mb-2">{t("partner_role")}</h3>
+                    <p className="text-sm text-gray-400">{t("partner_desc")}</p>
                   </div>
                   <Button className="w-full bg-[#93d832] hover:bg-[#93d832]/90 text-[#080E04] font-bold h-12 rounded-xl group-hover:shadow-[0_0_20px_rgba(147,216,50,0.4)] transition-all">
-                    Start Investing <ArrowRight className="w-4 h-4 ml-2" />
+                    {t("start_investing")} <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
                 </GlassCard>
               </div>
@@ -223,11 +228,11 @@ export default function LandingPage() {
                     <Users className="w-8 h-8 text-white" />
                   </div>
                   <div className="text-center">
-                    <h3 className="text-2xl font-bold text-white mb-2">I&apos;m a Farmer</h3>
-                    <p className="text-sm text-gray-400">Secure funding, access markets, and scale your agricultural output.</p>
+                    <h3 className="text-2xl font-bold text-white mb-2">{t("farmer_role")}</h3>
+                    <p className="text-sm text-gray-400">{t("farmer_desc")}</p>
                   </div>
                   <Button className="w-full bg-[#a37241] hover:bg-[#8f6336] text-white font-bold h-12 rounded-xl group-hover:shadow-[0_0_20px_rgba(163,114,65,0.4)] transition-all">
-                    Get Funded <ArrowRight className="w-4 h-4 ml-2" />
+                    {t("get_funded")} <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
                 </GlassCard>
               </div>
@@ -244,19 +249,19 @@ export default function LandingPage() {
         >
           <div className="flex items-center gap-2 text-white/80">
             <ShieldCheck className="w-5 h-5" />
-            <span className="text-xs font-mono">AUDITED BY CERTIK</span>
+            <span className="text-xs font-mono">{t("trust_certik")}</span>
           </div>
           <div className="h-4 w-[1px] bg-white/20 hidden md:block" />
           <div className="flex items-center gap-2 text-white/80">
-            <span className="text-xs font-mono">DUBAI PROTOTYPES FOR HUMANITY 2025</span>
+            <span className="text-xs font-mono">{t("trust_dubai")}</span>
           </div>
           <div className="h-4 w-[1px] bg-white/20 hidden md:block" />
           <div className="flex items-center gap-2 text-white/80">
-            <span className="text-xs font-mono">FINTECH AMERICAS 2025 — MOST INNOVATIVE DEFI</span>
+            <span className="text-xs font-mono">{t("trust_fintech")}</span>
           </div>
           <div className="h-4 w-[1px] bg-white/20 hidden md:block" />
           <div className="flex items-center gap-2 text-white/80">
-            <span className="text-xs font-mono">3,000+ FARMERS PRE-REGISTERED</span>
+            <span className="text-xs font-mono">{t("trust_farmers")}</span>
           </div>
         </motion.div>
 
@@ -270,10 +275,10 @@ export default function LandingPage() {
             className="text-center mb-12"
           >
             <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
-              Available Partnerships
+              {t("partnerships_title")}
             </h2>
             <p className="text-gray-400 text-lg max-w-xl mx-auto">
-              Browse real coffee lots from verified farms. No account needed to explore.
+              {t("partnerships_subtitle")}
             </p>
           </motion.div>
 
@@ -301,9 +306,9 @@ export default function LandingPage() {
               border: "1px solid rgba(255,255,255,0.04)",
             }}
           >
-            <h3 className="text-xl font-bold text-white mb-2">New to Harvverse?</h3>
+            <h3 className="text-xl font-bold text-white mb-2">{t("new_title")}</h3>
             <p style={{ color: "#7A8A6E" }} className="text-sm">
-              Learn how digital partnerships replace traditional agricultural debt →{" "}
+              {t("new_desc")}{" "}
               <a
                 href="https://harvverse.farm"
                 target="_blank"
@@ -329,70 +334,70 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-6 py-16">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-10 mb-12">
             <div>
-              <h4 className="text-white font-bold text-sm mb-4 uppercase tracking-wider">Platform</h4>
+              <h4 className="text-white font-bold text-sm mb-4 uppercase tracking-wider">{t("footer_platform")}</h4>
               <ul className="space-y-3">
                 <li>
                   <button
                     onClick={scrollToLots}
                     className="text-gray-400 hover:text-[#93d832] text-sm transition-colors"
                   >
-                    Available Lots
+                    {t("footer_available_lots")}
                   </button>
                 </li>
                 <li>
                   <span className="text-gray-400 hover:text-[#93d832] text-sm cursor-pointer transition-colors">
-                    Marketplace
+                    {tn("marketplace")}
                   </span>
                 </li>
                 <li>
                   <Link href="/login" className="text-gray-400 hover:text-[#93d832] text-sm transition-colors">
-                    Login / Register
+                    {t("footer_login_register")}
                   </Link>
                 </li>
               </ul>
             </div>
             <div>
-              <h4 className="text-white font-bold text-sm mb-4 uppercase tracking-wider">Company</h4>
+              <h4 className="text-white font-bold text-sm mb-4 uppercase tracking-wider">{t("footer_company")}</h4>
               <ul className="space-y-3">
                 <li>
                   <a href="https://harvverse.com" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-[#93d832] text-sm transition-colors">
-                    About Harvverse
+                    {t("footer_about")}
                   </a>
                 </li>
                 <li>
                   <a href="https://harvverse.com#invest" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-[#93d832] text-sm transition-colors">
-                    For Investors
+                    {t("footer_investors")}
                   </a>
                 </li>
                 <li>
                   <a href="https://harvverse.com#team" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-[#93d832] text-sm transition-colors">
-                    Team
+                    {t("footer_team")}
                   </a>
                 </li>
               </ul>
             </div>
             <div>
-              <h4 className="text-white font-bold text-sm mb-4 uppercase tracking-wider">Learn More</h4>
+              <h4 className="text-white font-bold text-sm mb-4 uppercase tracking-wider">{t("footer_learn")}</h4>
               <ul className="space-y-3">
                 <li>
                   <a href="https://harvverse.farm#howitworks" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-[#93d832] text-sm transition-colors">
-                    How It Works
+                    {t("footer_how")}
                   </a>
                 </li>
                 <li>
                   <a href="https://harvverse.farm#partnerships" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-[#93d832] text-sm transition-colors">
-                    Partnership Types
+                    {t("footer_partnership_types")}
                   </a>
                 </li>
                 <li>
                   <a href="https://harvverse.farm#tokens" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-[#93d832] text-sm transition-colors">
-                    Token Economy
+                    {t("footer_tokens")}
                   </a>
                 </li>
               </ul>
             </div>
             <div>
-              <h4 className="text-white font-bold text-sm mb-4 uppercase tracking-wider">Contact</h4>
+              <h4 className="text-white font-bold text-sm mb-4 uppercase tracking-wider">{t("footer_contact")}</h4>
               <ul className="space-y-3">
                 <li className="flex items-center gap-2">
                   <Mail className="w-3.5 h-3.5 text-gray-500" />
@@ -417,10 +422,10 @@ export default function LandingPage() {
           </div>
           <div className="pt-8" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
             <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-              <p className="text-gray-500 text-xs">© 2026 Harvverse Inc. A Delaware C-Corporation.</p>
+              <p className="text-gray-500 text-xs">{t("footer_copyright")}</p>
               <div className="flex gap-6">
-                <span className="text-gray-500 text-xs hover:text-gray-400 cursor-pointer transition-colors">Privacy Policy</span>
-                <span className="text-gray-500 text-xs hover:text-gray-400 cursor-pointer transition-colors">Terms of Service</span>
+                <span className="text-gray-500 text-xs hover:text-gray-400 cursor-pointer transition-colors">{t("footer_privacy")}</span>
+                <span className="text-gray-500 text-xs hover:text-gray-400 cursor-pointer transition-colors">{t("footer_terms")}</span>
               </div>
             </div>
           </div>

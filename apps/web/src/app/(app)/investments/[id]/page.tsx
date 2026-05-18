@@ -6,6 +6,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useTranslations } from "next-intl";
 import { AlertCircle, ArrowLeft, CheckCircle2, Clock, Copy, Plus, Loader2 } from "lucide-react";
 
 import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
@@ -34,12 +35,12 @@ import { queryClient, trpc } from "@/utils/trpc";
 import { useCurrentUser } from "@/hooks/use-auth";
 
 const MILESTONES = [
-  { number: 1, name: "Soil Preparation", icon: "🌱", capitalPct: 0.111 },
-  { number: 2, name: "Planting", icon: "🌿", capitalPct: 0.066 },
-  { number: 3, name: "Maintenance", icon: "🔧", capitalPct: 0.051 },
-  { number: 4, name: "Harvest", icon: "🌾", capitalPct: 0.061 },
-  { number: 5, name: "Processing", icon: "⚙️", capitalPct: 0.134 },
-  { number: 6, name: "Export / Delivery", icon: "🚢", capitalPct: 0.012 },
+  { number: 1, nameKey: "soil_prep", icon: "🌱", capitalPct: 0.111 },
+  { number: 2, nameKey: "planting", icon: "🌿", capitalPct: 0.066 },
+  { number: 3, nameKey: "maintenance", icon: "🔧", capitalPct: 0.051 },
+  { number: 4, nameKey: "harvest", icon: "🌾", capitalPct: 0.061 },
+  { number: 5, nameKey: "processing", icon: "⚙️", capitalPct: 0.134 },
+  { number: 6, nameKey: "export", icon: "🚢", capitalPct: 0.012 },
 ] as const;
 
 const evidenceSchema = z.object({
@@ -75,9 +76,15 @@ export default function InvestmentDetailPage() {
   const partnershipId = Number(params.id);
   const partnershipIdValid = Number.isFinite(partnershipId);
 
+  const tm = useTranslations("milestones");
+  const tp = useTranslations("partnership");
+  const ti = useTranslations("investments");
+  const tc = useTranslations("common");
+  const tl = useTranslations("lot");
+
   const fromFarmer = searchParams.get("from") === "farmer";
   const backPath = fromFarmer ? "/dashboard/farmer/investments" : "/my-investments";
-  const backLabel = fromFarmer ? "Back to Farm Investments" : "Back to My Investments";
+  const backLabel = fromFarmer ? ti("back_to_farm_investments") : ti("back_to_my_investments");
 
   const { data: user } = useCurrentUser();
 
@@ -140,7 +147,7 @@ export default function InvestmentDetailPage() {
       artifactHash,
       attesterUserId: user.id,
       attesterRole: user.role,
-      demoOnly: true,
+      demoOnly: false,
     });
   }
 
@@ -168,7 +175,7 @@ export default function InvestmentDetailPage() {
         <GlassCard className="p-8 border-red-500/20">
           <p className="flex items-center gap-2 text-red-400">
             <AlertCircle className="w-5 h-5 shrink-0" />
-            Failed to load partnership details. Please refresh and try again.
+            {tp("failed_load")}
           </p>
         </GlassCard>
       </div>
@@ -187,7 +194,7 @@ export default function InvestmentDetailPage() {
           {backLabel}
         </Button>
         <GlassCard className="p-12 text-center border-primary/20">
-          <p className="text-gray-400">Partnership not found.</p>
+          <p className="text-gray-400">{tp("not_found")}</p>
         </GlassCard>
       </div>
     );
@@ -221,9 +228,9 @@ export default function InvestmentDetailPage() {
           <div className="flex items-start gap-4 mb-6">
             <span className="text-4xl">✨</span>
             <div className="flex-1">
-              <h1 className="text-2xl font-bold uppercase">PHYGITAL Partnership</h1>
+              <h1 className="text-2xl font-bold uppercase">{tp("phygital_title")}</h1>
               <p className="text-primary font-semibold">
-                {lot.farmName} • {lot.code ?? `Lot #${lot.id}`}
+                {lot.farmName} • {lot.code ?? tl("lot_id", { id: lot.id })}
               </p>
             </div>
             <Badge
@@ -239,21 +246,21 @@ export default function InvestmentDetailPage() {
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-sm">
             <div>
-              <p className="text-gray-400">Lot</p>
+              <p className="text-gray-400">{tp("lot_label")}</p>
               <p className="text-lg font-bold">{lot.code ?? `#${lot.id}`}</p>
             </div>
             <div>
-              <p className="text-gray-400">Area</p>
+              <p className="text-gray-400">{tp("area_label")}</p>
               <p className="text-lg font-bold">{lot.areaManzanas ?? "—"} mz</p>
             </div>
             <div>
-              <p className="text-gray-400">Ticket</p>
+              <p className="text-gray-400">{tp("ticket_label")}</p>
               <p className="text-lg font-bold text-primary">
                 ${ticketUsd.toLocaleString()}
               </p>
             </div>
             <div>
-              <p className="text-gray-400">Location</p>
+              <p className="text-gray-400">{tp("location_label")}</p>
               <p className="text-lg font-bold">
                 {lot.region}, {lot.country}
               </p>
@@ -263,19 +270,19 @@ export default function InvestmentDetailPage() {
           {plan && (
             <div className="mt-6 pt-6 border-t border-white/10 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
               <div>
-                <p className="text-gray-400">Price/lb</p>
+                <p className="text-gray-400">{tp("price_lb")}</p>
                 <p className="font-bold">${(plan.priceCentsPerLb / 100).toFixed(2)}</p>
               </div>
               <div>
-                <p className="text-gray-400">Farmer split</p>
+                <p className="text-gray-400">{tp("farmer_split")}</p>
                 <p className="font-bold">{(plan.splitFarmerBps / 100).toFixed(0)}%</p>
               </div>
               <div>
-                <p className="text-gray-400">Proj. yield Y1</p>
+                <p className="text-gray-400">{tp("proj_yield")}</p>
                 <p className="font-bold">{(plan.projectedYieldY1TenthsQq / 10).toFixed(1)} qq</p>
               </div>
               <div>
-                <p className="text-gray-400">Plan status</p>
+                <p className="text-gray-400">{tp("plan_status")}</p>
                 <p className="font-bold capitalize">{plan.status.replace(/_/g, " ")}</p>
               </div>
             </div>
@@ -294,9 +301,9 @@ export default function InvestmentDetailPage() {
           return (
             <GlassCard className="p-6 border-primary/20 mb-4">
               <div className="flex justify-between items-center mb-3">
-                <h2 className="text-xl font-bold">Production Milestones</h2>
+                <h2 className="text-xl font-bold">{tm("title")}</h2>
                 <span className="text-sm text-gray-400">
-                  {completedCount} / {MILESTONES.length} complete
+                  {tm("complete_count", { completed: completedCount, total: MILESTONES.length })}
                 </span>
               </div>
               <Progress
@@ -306,15 +313,15 @@ export default function InvestmentDetailPage() {
               {plan && (
                 <div className="mt-4 grid grid-cols-3 gap-3 text-center text-sm border-t border-white/10 pt-4">
                   <div>
-                    <p className="text-xs text-gray-400">Total Escrow</p>
+                    <p className="text-xs text-gray-400">{tm("total_escrow")}</p>
                     <p className="font-bold text-primary">${Math.round(ticketUsd).toLocaleString()} USDC</p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-400">Released ({completedCount}/6)</p>
+                    <p className="text-xs text-gray-400">{tm("released", { completed: completedCount })}</p>
                     <p className="font-bold text-green-400">${Math.round(releasedUsd).toLocaleString()} USDC</p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-400">Remaining</p>
+                    <p className="text-xs text-gray-400">{tm("remaining")}</p>
                     <p className="font-bold text-white">${Math.round(ticketUsd - releasedUsd).toLocaleString()} USDC</p>
                   </div>
                 </div>
@@ -339,9 +346,9 @@ export default function InvestmentDetailPage() {
                     <span className="text-2xl">{ms.icon}</span>
                     <div>
                       <p className="text-xs text-gray-500">
-                        Milestone {ms.number}
+                        {tm("milestone_number", { number: ms.number })}
                       </p>
-                      <p className="font-bold">{ms.name}</p>
+                      <p className="font-bold">{tm(ms.nameKey)}</p>
                     </div>
                   </div>
                   {hasEvidence ? (
@@ -354,10 +361,10 @@ export default function InvestmentDetailPage() {
                 {plan && (
                   <div className="mb-3">
                     {hasEvidence ? (
-                      <span className="text-xs text-primary font-medium">Capital released ✓</span>
+                      <span className="text-xs text-primary font-medium">{tm("capital_released")}</span>
                     ) : (
                       <span className="text-xs text-gray-400">
-                        Capital: ${Math.round(ticketUsd * ms.capitalPct).toLocaleString()} USDC — pending verification
+                        {tm("capital_pending", { amount: Math.round(ticketUsd * ms.capitalPct).toLocaleString() })}
                       </span>
                     )}
                   </div>
@@ -420,7 +427,7 @@ export default function InvestmentDetailPage() {
                   }}
                 >
                   <Plus className="w-3 h-3 mr-1" />
-                  {latestRecord ? "Add More Evidence" : "Record Evidence"}
+                  {latestRecord ? tm("add_more_evidence") : tm("record_evidence")}
                 </Button>
               </GlassCard>
             );
@@ -433,10 +440,10 @@ export default function InvestmentDetailPage() {
           if (partnership.status === "settled") {
             return (
               <GlassCard className="p-6 border-emerald-500/20">
-                <h2 className="text-xl font-bold mb-4">Settlement</h2>
+                <h2 className="text-xl font-bold mb-4">{tm("settlement")}</h2>
                 <div className="text-emerald-400 flex items-center gap-2">
                   <CheckCircle2 className="w-5 h-5" />
-                  <span>This partnership has been settled.</span>
+                  <span>{tm("settlement_settled")}</span>
                 </div>
               </GlassCard>
             );
@@ -445,10 +452,9 @@ export default function InvestmentDetailPage() {
           if (!allRecorded) {
             return (
               <GlassCard className="p-6 border-white/10">
-                <h2 className="text-xl font-bold mb-4">Settlement</h2>
+                <h2 className="text-xl font-bold mb-4">{tm("settlement")}</h2>
                 <p className="text-gray-400 text-sm">
-                  Settlement will be available once evidence is recorded for all
-                  6 production milestones ({evidenceRecords.length}/6 recorded).
+                  {tm("settlement_not_ready", { recorded: evidenceRecords.length })}
                 </p>
               </GlassCard>
             );
@@ -476,40 +482,36 @@ export default function InvestmentDetailPage() {
             const displayStatus = s?.status ?? "intent_created";
             return (
               <GlassCard className="p-6 border-emerald-500/20">
-                <h2 className="text-xl font-bold mb-4">Settlement</h2>
+                <h2 className="text-xl font-bold mb-4">{tm("settlement")}</h2>
                 <div className="flex items-center gap-2 text-emerald-400 mb-1">
                   <CheckCircle2 className="w-5 h-5" />
-                  <span className="font-semibold">Settlement Requested ✓</span>
+                  <span className="font-semibold">{tm("settlement_requested")}</span>
                 </div>
                 <p className="text-sm text-gray-400 mb-6">
-                  Status:{" "}
-                  <span className="text-yellow-400 font-semibold capitalize">
-                    {displayStatus.replace(/_/g, " ")}
-                  </span>{" "}
-                  — Pending operator review
+                  {tm("pending_review", { status: displayStatus.replace(/_/g, " ") })}
                 </p>
                 <div className="space-y-2 text-sm border-t border-white/10 pt-4">
                   <div className="flex justify-between">
-                    <span className="text-gray-400">Gross Revenue</span>
+                    <span className="text-gray-400">{tm("gross_revenue")}</span>
                     <span className="font-semibold">{fmt(displayRevenue)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-400">Agronomic Cost</span>
+                    <span className="text-gray-400">{tm("agronomic_cost")}</span>
                     <span className="font-semibold text-red-400">−{fmt(displayCost)}</span>
                   </div>
                   <div className="flex justify-between border-t border-white/10 pt-2">
-                    <span className="text-gray-400">Net Profit</span>
+                    <span className="text-gray-400">{tm("net_profit")}</span>
                     <span className="font-bold text-emerald-400">{fmt(displayProfit)}</span>
                   </div>
                   <div className="flex justify-between pt-2">
                     <span className="text-gray-400">
-                      Your share ({(partnerBps / 100).toFixed(0)}%)
+                      {tm("your_share", { pct: (partnerBps / 100).toFixed(0) })}
                     </span>
                     <span className="font-bold text-primary">{fmt(displayPartnerCents)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-400">
-                      Farmer share ({(farmerBps / 100).toFixed(0)}%)
+                      {tm("farmer_share", { pct: (farmerBps / 100).toFixed(0) })}
                     </span>
                     <span className="font-semibold">{fmt(displayFarmerCents)}</span>
                   </div>
@@ -520,45 +522,45 @@ export default function InvestmentDetailPage() {
 
           return (
             <GlassCard className="p-6 border-primary/20">
-              <h2 className="text-xl font-bold mb-4">Settlement</h2>
+              <h2 className="text-xl font-bold mb-4">{tm("settlement")}</h2>
               <div className="flex items-center gap-2 text-emerald-400 mb-6">
                 <CheckCircle2 className="w-5 h-5" />
-                <span className="font-semibold">All 6 milestones recorded ✓</span>
+                <span className="font-semibold">{tm("all_recorded")}</span>
               </div>
 
               {plan ? (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6 text-sm">
                   <div className="bg-white/5 rounded-lg p-3">
-                    <p className="text-gray-400 text-xs">Revenue</p>
+                    <p className="text-gray-400 text-xs">{tm("revenue_label")}</p>
                     <p className="text-base font-bold">{fmt(revenueCents)}</p>
                     <p className="text-xs text-gray-500">
                       {yieldLbs.toLocaleString()} lbs × ${(plan.priceCentsPerLb / 100).toFixed(2)}
                     </p>
                   </div>
                   <div className="bg-white/5 rounded-lg p-3">
-                    <p className="text-gray-400 text-xs">Cost</p>
+                    <p className="text-gray-400 text-xs">{tm("cost_label")}</p>
                     <p className="text-base font-bold">{fmt(costCents)}</p>
-                    <p className="text-xs text-gray-500">Agronomic investment</p>
+                    <p className="text-xs text-gray-500">{tm("agronomic_investment")}</p>
                   </div>
                   <div className="bg-white/5 rounded-lg p-3">
-                    <p className="text-gray-400 text-xs">Profit</p>
+                    <p className="text-gray-400 text-xs">{tm("profit_label")}</p>
                     <p className="text-base font-bold text-emerald-400">{fmt(profitCents)}</p>
-                    <p className="text-xs text-gray-500">Revenue − Cost</p>
+                    <p className="text-xs text-gray-500">{tm("revenue_minus_cost")}</p>
                   </div>
                   <div className="bg-white/5 rounded-lg p-3">
-                    <p className="text-gray-400 text-xs">Farmer Share</p>
+                    <p className="text-gray-400 text-xs">{tm("farmer_share_label")}</p>
                     <p className="text-base font-bold text-primary">{fmt(farmerCents)}</p>
-                    <p className="text-xs text-gray-500">{(farmerBps / 100).toFixed(0)}% of profit</p>
+                    <p className="text-xs text-gray-500">{tm("pct_of_profit", { pct: (farmerBps / 100).toFixed(0) })}</p>
                   </div>
                   <div className="bg-white/5 rounded-lg p-3">
-                    <p className="text-gray-400 text-xs">Partner Share</p>
+                    <p className="text-gray-400 text-xs">{tm("partner_share_label")}</p>
                     <p className="text-base font-bold text-primary">{fmt(partnerCents)}</p>
-                    <p className="text-xs text-gray-500">{(partnerBps / 100).toFixed(0)}% of profit</p>
+                    <p className="text-xs text-gray-500">{tm("pct_of_profit", { pct: (partnerBps / 100).toFixed(0) })}</p>
                   </div>
                 </div>
               ) : (
                 <p className="text-gray-400 text-sm mb-6">
-                  No plan attached — financials unavailable.
+                  {tm("no_plan_financials")}
                 </p>
               )}
 
@@ -589,7 +591,7 @@ export default function InvestmentDetailPage() {
                 {requestSettlement.isPending ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
-                  "Request Settlement"
+                  tm("request_settlement")
                 )}
               </Button>
             </GlassCard>
@@ -605,10 +607,11 @@ export default function InvestmentDetailPage() {
         <DialogContent className="bg-[#1a1f3a] text-white border-primary/20">
           <DialogHeader>
             <DialogTitle>
-              Record Evidence — Milestone {recordingMilestone}
+              {tm("record_dialog_title", { number: recordingMilestone ?? 0 })}
             </DialogTitle>
             <DialogDescription className="text-gray-400">
-              {MILESTONES.find((m) => m.number === recordingMilestone)?.name}
+              {MILESTONES.find((m) => m.number === recordingMilestone) &&
+                tm(MILESTONES.find((m) => m.number === recordingMilestone)!.nameKey)}
             </DialogDescription>
           </DialogHeader>
 
@@ -622,19 +625,19 @@ export default function InvestmentDetailPage() {
                 name="evidenceType"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Evidence Type</FormLabel>
+                    <FormLabel>{tm("evidence_type")}</FormLabel>
                     <FormControl>
                       <select
                         {...field}
                         className="w-full bg-black/20 border border-white/10 text-white p-2 rounded"
                         style={{ colorScheme: "dark" }}
                       >
-                        <option value="demo_fixture">Demo Fixture</option>
-                        <option value="photo">Photo</option>
-                        <option value="sensor_snapshot">Sensor Snapshot</option>
-                        <option value="receipt">Receipt</option>
-                        <option value="agronomist_review">Agronomist Review</option>
-                        <option value="harvest_result">Harvest Result</option>
+                        <option value="demo_fixture">{tm("evidence_demo")}</option>
+                        <option value="photo">{tm("evidence_photo")}</option>
+                        <option value="sensor_snapshot">{tm("evidence_sensor")}</option>
+                        <option value="receipt">{tm("evidence_receipt")}</option>
+                        <option value="agronomist_review">{tm("evidence_agronomist")}</option>
+                        <option value="harvest_result">{tm("evidence_harvest")}</option>
                       </select>
                     </FormControl>
                     <FormMessage />
@@ -647,10 +650,10 @@ export default function InvestmentDetailPage() {
                 name="description"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Description (hashed as artifact fingerprint)</FormLabel>
+                    <FormLabel>{tm("description_label")}</FormLabel>
                     <FormControl>
                       <Textarea
-                        placeholder="Describe the evidence in detail..."
+                        placeholder={tm("description_placeholder")}
                         className="bg-black/20 border-white/10 text-white placeholder:text-gray-600"
                         {...field}
                       />
@@ -665,10 +668,10 @@ export default function InvestmentDetailPage() {
                 name="notes"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Notes (optional)</FormLabel>
+                    <FormLabel>{tm("notes_label")}</FormLabel>
                     <FormControl>
                       <Textarea
-                        placeholder="Additional notes..."
+                        placeholder={tm("notes_placeholder")}
                         className="bg-black/20 border-white/10 text-white placeholder:text-gray-600"
                         {...field}
                       />
@@ -685,7 +688,7 @@ export default function InvestmentDetailPage() {
                   className="flex-1 border-white/10 text-white/70"
                   onClick={() => setRecordingMilestone(null)}
                 >
-                  Cancel
+                  {tc("cancel")}
                 </Button>
                 <Button
                   type="submit"
@@ -695,7 +698,7 @@ export default function InvestmentDetailPage() {
                   {createEvidence.isPending ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
-                    "Save Evidence"
+                    tm("save_evidence")
                   )}
                 </Button>
               </div>

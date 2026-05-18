@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AlertCircle, BarChart3, Sprout, TrendingUp, ArrowRight } from "lucide-react";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 
 import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
 import { Button } from "@harvverse-monorepo/ui/components/button";
@@ -16,6 +17,7 @@ import { trpc } from "@/utils/trpc";
 export default function PlayerDashboardPage() {
   const { data: user, clerkUser, isLoading: userLoading } = useCurrentUser();
   const router = useRouter();
+  const t = useTranslations("dashboard");
 
   const {
     data: partnerships,
@@ -29,6 +31,11 @@ export default function PlayerDashboardPage() {
   );
 
   const isLoading = userLoading || partnershipLoading;
+
+  if (!userLoading && user && user.role !== "partner") {
+    router.replace("/dashboard/farmer");
+    return null;
+  }
 
   if (isLoading) {
     return (
@@ -68,10 +75,10 @@ export default function PlayerDashboardPage() {
     <div>
       <header className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-3xl font-bold">Welcome, {user?.displayName}!</h1>
+          <h1 className="text-3xl font-bold">{t("welcome", { name: user?.displayName ?? "" })}</h1>
           <p className="text-gray-400">
-            You are logged in as a{" "}
-            <span className="text-primary font-semibold">Partner</span>
+            {t("logged_as_farmer")}{" "}
+            <span className="text-primary font-semibold">{t("partner_role")}</span>
           </p>
         </div>
         <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-green-600 border border-white/10" />
@@ -81,7 +88,7 @@ export default function PlayerDashboardPage() {
         <GlassCard className="p-8 border-red-500/20 mb-8">
           <p className="flex items-center gap-2 text-red-400">
             <AlertCircle className="w-5 h-5 shrink-0" />
-            Failed to load your investments. Please refresh and try again.
+            {t("failed_load_investments")}
           </p>
         </GlassCard>
       ) : !partnerships || partnerships.length === 0 ? (
@@ -90,11 +97,10 @@ export default function PlayerDashboardPage() {
             <Sprout className="w-10 h-10 text-primary" />
           </div>
           <h2 className="text-2xl font-bold mb-3">
-            You haven&apos;t made any investments yet
+            {t("no_investments_title")}
           </h2>
           <p className="text-gray-400 max-w-md mx-auto mb-8">
-            Start investing in verified farms from Latin America. Build a
-            diversified portfolio and earn competitive returns.
+            {t("no_investments_subtitle")}
           </p>
           <Button
             className="bg-primary hover:bg-primary/90 text-[#0a0e27] font-bold"
@@ -102,7 +108,7 @@ export default function PlayerDashboardPage() {
               router.push("/dashboard/player/explore" as Route)
             }
           >
-            Explore Farms
+            {t("explore_farms")}
             <ArrowRight className="w-4 h-4 ml-2" />
           </Button>
         </GlassCard>
@@ -112,7 +118,7 @@ export default function PlayerDashboardPage() {
             <GlassCard className="p-6 border-primary/20">
               <div className="flex justify-between items-start">
                 <div>
-                  <p className="text-gray-400 text-sm">Total Invested</p>
+                  <p className="text-gray-400 text-sm">{t("total_invested")}</p>
                   <p className="text-3xl font-bold text-white mt-2">
                     {formatUsdFromCents(totalInvestedCents)}
                   </p>
@@ -126,7 +132,7 @@ export default function PlayerDashboardPage() {
             <GlassCard className="p-6 border-primary/20">
               <div className="flex justify-between items-start">
                 <div>
-                  <p className="text-gray-400 text-sm">Active Farms</p>
+                  <p className="text-gray-400 text-sm">{t("active_farms")}</p>
                   <p className="text-3xl font-bold text-white mt-2">
                     {activeFarmsCount}
                   </p>
@@ -140,7 +146,7 @@ export default function PlayerDashboardPage() {
             <GlassCard className="p-6 border-primary/20">
               <div className="flex justify-between items-start">
                 <div>
-                  <p className="text-gray-400 text-sm">Avg Partner Split</p>
+                  <p className="text-gray-400 text-sm">{t("avg_partner_split")}</p>
                   <p className="text-3xl font-bold text-white mt-2">
                     {avgSplitBps != null
                       ? `${(avgSplitBps / 100).toFixed(1)}%`
@@ -162,7 +168,7 @@ export default function PlayerDashboardPage() {
                 router.push("/my-investments" as Route)
               }
             >
-              View All Investments
+              {t("view_all_investments")}
               <ArrowRight className="w-4 h-4 ml-2" />
             </Button>
           </div>

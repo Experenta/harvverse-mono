@@ -3,6 +3,7 @@
 import type { Route } from "next";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { ArrowLeft, TrendingUp, AlertCircle } from "lucide-react";
 
 import { Badge } from "@harvverse-monorepo/ui/components/badge";
@@ -34,6 +35,10 @@ const STATUS_CLASSES: Record<string, string> = {
 export default function MyInvestmentsPage() {
   const router = useRouter();
   const { data: user, clerkUser, isLoading: userLoading } = useCurrentUser();
+  const t = useTranslations("investments");
+  const tp = useTranslations("partnership");
+  const tl = useTranslations("lot");
+  const tc = useTranslations("common");
 
   const {
     data: partnerships,
@@ -57,21 +62,19 @@ export default function MyInvestmentsPage() {
           onClick={() => router.push("/dashboard/player" as Route)}
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Dashboard
+          {tc("back_to_dashboard")}
         </Button>
 
         <header className="mb-8">
-          <h1 className="text-4xl font-bold mb-2">My Investments</h1>
-          <p className="text-gray-400">
-            Track your active partnerships and projected returns
-          </p>
+          <h1 className="text-4xl font-bold mb-2">{t("my_title")}</h1>
+          <p className="text-gray-400">{t("my_subtitle")}</p>
         </header>
 
         {isError ? (
           <GlassCard className="p-8 border-red-500/20">
             <p className="flex items-center gap-2 text-red-400">
               <AlertCircle className="w-5 h-5 shrink-0" />
-              Failed to load investments. Please refresh and try again.
+              {t("failed_load")}
             </p>
           </GlassCard>
         ) : isLoading ? (
@@ -82,16 +85,14 @@ export default function MyInvestmentsPage() {
         ) : !partnerships || partnerships.length === 0 ? (
           <GlassCard className="p-12 text-center border-white/10">
             <TrendingUp className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-400 mb-6">
-              You haven&apos;t made any investments yet
-            </p>
+            <p className="text-gray-400 mb-6">{t("no_investments")}</p>
             <Button
               className="bg-primary hover:bg-primary/90 text-[#0a0e27]"
               onClick={() =>
                 router.push("/dashboard/player/explore" as Route)
               }
             >
-              Explore Farms
+              {t("explore_farms")}
             </Button>
           </GlassCard>
         ) : (
@@ -121,7 +122,7 @@ export default function MyInvestmentsPage() {
                           {lot.farmName}
                         </h3>
                         <p className="text-sm text-gray-400">
-                          {lot.code ?? `Lot #${lot.id}`}
+                          {lot.code ?? tl("lot_id", { id: lot.id })}
                           {lot.areaManzanas
                             ? ` • ${lot.areaManzanas} manzanas`
                             : ""}
@@ -143,19 +144,17 @@ export default function MyInvestmentsPage() {
                   {plan && (
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-white/10 text-sm">
                       <div>
-                        <p className="text-xs text-gray-400">Plan</p>
+                        <p className="text-xs text-gray-400">{t("plan_label")}</p>
                         <p className="font-medium mt-1">{plan.planCode}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-gray-400">Price / lb</p>
+                        <p className="text-xs text-gray-400">{t("price_lb")}</p>
                         <p className="font-medium mt-1">
                           {formatUsdFromCents(plan.priceCentsPerLb)}
                         </p>
                       </div>
                       <div>
-                        <p className="text-xs text-gray-400">
-                          Partner split
-                        </p>
+                        <p className="text-xs text-gray-400">{t("partner_split")}</p>
                         <p className="font-medium mt-1">
                           {plan.splitPartnerBps
                             ? `${plan.splitPartnerBps / 100}%`
@@ -163,9 +162,7 @@ export default function MyInvestmentsPage() {
                         </p>
                       </div>
                       <div>
-                        <p className="text-xs text-gray-400">
-                          Projected yield Y1
-                        </p>
+                        <p className="text-xs text-gray-400">{t("proj_yield")}</p>
                         <p className="font-medium mt-1">
                           {(plan.projectedYieldY1TenthsQq / 10).toFixed(1)}{" "}
                           qq
@@ -176,7 +173,7 @@ export default function MyInvestmentsPage() {
 
                   <div className="flex justify-end mt-4">
                     <Button variant="link" className="text-primary p-0 h-auto">
-                      View Details →
+                      {tp("view_details")}
                     </Button>
                   </div>
                 </GlassCard>

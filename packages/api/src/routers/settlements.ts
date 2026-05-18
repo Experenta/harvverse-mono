@@ -7,12 +7,12 @@ import { TRPCError } from "@trpc/server";
 import { desc, eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { publicProcedure, router } from "../index";
+import { protectedProcedure, publicProcedure, router } from "../index";
 
 const settlementStatusSchema = z.enum(settlementStatusEnum.enumValues);
 
 export const settlementsRouter = router({
-  create: publicProcedure
+  create: protectedProcedure
     .input(insertSettlementSchema)
     .mutation(async ({ ctx, input }) => {
       const [settlement] = await ctx.db

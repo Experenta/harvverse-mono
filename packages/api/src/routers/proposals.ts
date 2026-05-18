@@ -8,13 +8,12 @@ import { TRPCError } from "@trpc/server";
 import { desc, eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { publicProcedure, router } from "../index";
+import { protectedProcedure, publicProcedure, router } from "../index";
 
 const proposalStatusSchema = z.enum(proposalStatusEnum.enumValues);
 
 export const proposalsRouter = router({
-  // Partner-only (auth middleware TBD).
-  create: publicProcedure
+  create: protectedProcedure
     .input(insertProposalSchema.extend({ expiresAt: z.coerce.date() }))
     .mutation(async ({ ctx, input }) => {
       const [proposal] = await ctx.db

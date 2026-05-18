@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import {
   BarChart3,
   TrendingUp,
@@ -12,6 +13,7 @@ import {
 
 import { Button } from "@harvverse-monorepo/ui/components/button";
 import { useLogout } from "@/hooks/use-auth";
+import { LanguageSwitcher } from "@/components/language-switcher";
 
 const ACTIVE_CLASSES =
   "w-full justify-start text-primary bg-primary/10 hover:bg-primary/20 hover:text-primary";
@@ -22,6 +24,7 @@ export default function PlayerSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const logout = useLogout();
+  const t = useTranslations("nav");
 
   const isActive = (match: string, exact = true) =>
     exact ? pathname === match : pathname.startsWith(match);
@@ -47,18 +50,7 @@ export default function PlayerSidebar() {
           onClick={() => router.push("/dashboard/player")}
         >
           <BarChart3 className="w-4 h-4 mr-3" />
-          Dashboard
-        </Button>
-
-        <Button
-          variant="ghost"
-          className={
-            isActive("/my-investments") ? ACTIVE_CLASSES : INACTIVE_CLASSES
-          }
-          onClick={() => router.push("/my-investments")}
-        >
-          <TrendingUp className="w-4 h-4 mr-3" />
-          My Investments
+          {t("dashboard")}
         </Button>
 
         <Button
@@ -71,7 +63,18 @@ export default function PlayerSidebar() {
           onClick={() => router.push("/dashboard/player/explore")}
         >
           <Sprout className="w-4 h-4 mr-3" />
-          Explore Farms
+          {t("explore")}
+        </Button>
+
+        <Button
+          variant="ghost"
+          className={
+            isActive("/my-investments") ? ACTIVE_CLASSES : INACTIVE_CLASSES
+          }
+          onClick={() => router.push("/my-investments")}
+        >
+          <TrendingUp className="w-4 h-4 mr-3" />
+          {t("my_investments")}
         </Button>
 
         <Button
@@ -82,11 +85,12 @@ export default function PlayerSidebar() {
           onClick={() => router.push("/settings")}
         >
           <Settings className="w-4 h-4 mr-3" />
-          Settings
+          {t("settings")}
         </Button>
       </nav>
 
-      <div className="p-4 border-t border-white/5">
+      <div className="p-4 border-t border-white/5 space-y-3">
+        <LanguageSwitcher />
         <Button
           variant="ghost"
           className="w-full justify-start text-red-400 hover:text-red-300 hover:bg-red-500/10"
@@ -98,7 +102,7 @@ export default function PlayerSidebar() {
           }
         >
           <LogOut className="w-4 h-4 mr-3" />
-          {logout.isPending ? "Logging out..." : "Logout"}
+          {logout.isPending ? t("signing_out") : t("sign_out")}
         </Button>
       </div>
     </aside>

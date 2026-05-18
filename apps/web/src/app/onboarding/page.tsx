@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -13,7 +14,7 @@ import { Button } from "@harvverse-monorepo/ui/components/button";
 import { trpc } from "@/utils/trpc";
 
 const schema = z.object({
-  displayName: z.string().trim().min(2, "Name must be at least 2 characters"),
+  displayName: z.string().trim().min(2),
   phone: z.string().optional(),
   country: z.string().optional(),
 });
@@ -27,6 +28,7 @@ export default function OnboardingPage() {
   const { user: clerkUser, isLoaded } = useUser();
   const queryClient = useQueryClient();
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
+  const t = useTranslations("auth");
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -73,10 +75,10 @@ export default function OnboardingPage() {
           </div>
 
           <h1 className="text-2xl font-bold text-white text-center mb-2">
-            Complete your profile
+            {t("complete_profile")}
           </h1>
           <p className="text-gray-400 text-center mb-8">
-            Tell us how you'll use Harvverse
+            {t("tell_us")}
           </p>
 
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -91,9 +93,9 @@ export default function OnboardingPage() {
                 }`}
               >
                 <div className="text-2xl mb-2">💎</div>
-                <p className="font-bold text-white">Partner</p>
+                <p className="font-bold text-white">{t("role_partner")}</p>
                 <p className="text-xs text-gray-400 mt-1">
-                  Invest in coffee lots
+                  {t("invest_lots")}
                 </p>
               </button>
               <button
@@ -106,9 +108,9 @@ export default function OnboardingPage() {
                 }`}
               >
                 <div className="text-2xl mb-2">🌿</div>
-                <p className="font-bold text-white">Farmer</p>
+                <p className="font-bold text-white">{t("role_farmer")}</p>
                 <p className="text-xs text-gray-400 mt-1">
-                  List your coffee lots
+                  {t("list_lots")}
                 </p>
               </button>
             </div>
@@ -116,16 +118,16 @@ export default function OnboardingPage() {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm text-gray-400 mb-1">
-                  Display name
+                  {t("display_name")}
                 </label>
                 <input
                   {...form.register("displayName")}
                   className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-[#a37241]"
-                  placeholder="Your name"
+                  placeholder={t("your_name")}
                 />
                 {form.formState.errors.displayName && (
                   <p className="text-red-400 text-xs mt-1">
-                    {form.formState.errors.displayName.message}
+                    {t("name_min_error")}
                   </p>
                 )}
               </div>
@@ -133,7 +135,7 @@ export default function OnboardingPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm text-gray-400 mb-1">
-                    Phone (optional)
+                    {t("phone_optional")}
                   </label>
                   <input
                     {...form.register("phone")}
@@ -143,7 +145,7 @@ export default function OnboardingPage() {
                 </div>
                 <div>
                   <label className="block text-sm text-gray-400 mb-1">
-                    Country (optional)
+                    {t("country_optional")}
                   </label>
                   <input
                     {...form.register("country")}
@@ -165,7 +167,7 @@ export default function OnboardingPage() {
               className="w-full bg-[#a37241] hover:bg-[#8f6336] text-white font-bold h-11"
               disabled={!selectedRole || upsert.isPending}
             >
-              {upsert.isPending ? "Saving…" : "Enter Harvverse →"}
+              {upsert.isPending ? t("saving") : t("enter_harvverse")}
             </Button>
           </form>
         </GlassCard>

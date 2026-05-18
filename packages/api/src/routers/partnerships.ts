@@ -8,13 +8,12 @@ import { TRPCError } from "@trpc/server";
 import { desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 
-import { publicProcedure, router } from "../index";
+import { protectedProcedure, publicProcedure, router } from "../index";
 
 const partnershipStatusSchema = z.enum(partnershipStatusEnum.enumValues);
 
 export const partnershipsRouter = router({
-  // Created from a signed proposal.
-  create: publicProcedure
+  create: protectedProcedure
     .input(insertPartnershipSchema)
     .mutation(async ({ ctx, input }) => {
       const [partnership] = await ctx.db

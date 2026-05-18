@@ -3,6 +3,7 @@
 import type { Route } from "next";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { ArrowLeft, DollarSign, AlertCircle } from "lucide-react";
 
 import { Badge } from "@harvverse-monorepo/ui/components/badge";
@@ -25,6 +26,9 @@ const STATUS_CLASSES: Record<string, string> = {
 export default function FarmerInvestmentsPage() {
   const router = useRouter();
   const { data: user, clerkUser, isLoading: userLoading } = useCurrentUser();
+  const t = useTranslations("investments");
+  const tp = useTranslations("partnership");
+  const tl = useTranslations("lot");
 
   const {
     data: partnerships,
@@ -52,11 +56,9 @@ export default function FarmerInvestmentsPage() {
         <div>
           <h1 className="flex items-center gap-3 text-3xl font-bold">
             <DollarSign className="w-8 h-8 text-[#a37241]" />
-            Investments in My Farms
+            {t("farmer_title")}
           </h1>
-          <p className="text-gray-400">
-            Track investments from Partners in your farm lots
-          </p>
+          <p className="text-gray-400">{t("farmer_subtitle")}</p>
         </div>
       </div>
 
@@ -64,7 +66,7 @@ export default function FarmerInvestmentsPage() {
         <GlassCard className="p-8 border-red-500/20">
           <p className="flex items-center gap-2 text-red-400">
             <AlertCircle className="w-5 h-5 shrink-0" />
-            Failed to load investments. Please refresh and try again.
+            {t("failed_load")}
           </p>
         </GlassCard>
       ) : isLoading ? (
@@ -75,10 +77,8 @@ export default function FarmerInvestmentsPage() {
       ) : !partnerships || partnerships.length === 0 ? (
         <GlassCard className="p-12 text-center border-[#a37241]/20">
           <DollarSign className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <p className="text-gray-400 text-lg mb-2">No active partnerships yet.</p>
-          <p className="text-gray-500 text-sm">
-            Investments from partners will appear here once they reserve a lot.
-          </p>
+          <p className="text-gray-400 text-lg mb-2">{t("no_partnerships")}</p>
+          <p className="text-gray-500 text-sm">{t("partnerships_appear")}</p>
         </GlassCard>
       ) : (
         <div className="grid grid-cols-1 gap-6">
@@ -100,11 +100,10 @@ export default function FarmerInvestmentsPage() {
                 <div className="flex justify-between items-start mb-4">
                   <div>
                     <h3 className="text-xl font-bold">
-                      {lot.farmName} — {lot.code ?? `Lot #${lot.id}`}
+                      {lot.farmName} — {lot.code ?? tl("lot_id", { id: lot.id })}
                     </h3>
                     <p className="text-sm text-gray-400">
-                      Partner: {p.partnerWallet.slice(0, 10)}…
-                      {p.partnerWallet.slice(-8)}
+                      {t("partner_wallet", { wallet: `${p.partnerWallet.slice(0, 10)}…${p.partnerWallet.slice(-8)}` })}
                     </p>
                   </div>
                   <div className="flex flex-col items-end gap-2">
@@ -122,19 +121,19 @@ export default function FarmerInvestmentsPage() {
                 {plan && (
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4 pt-4 border-t border-white/10 text-sm">
                     <div>
-                      <p className="text-xs text-gray-400">Farmer split</p>
+                      <p className="text-xs text-gray-400">{tp("farmer_split")}</p>
                       <p className="font-medium mt-1">
                         {(plan.splitFarmerBps / 100).toFixed(0)}%
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-400">Proj. yield Y1</p>
+                      <p className="text-xs text-gray-400">{tp("proj_yield")}</p>
                       <p className="font-medium mt-1">
                         {(plan.projectedYieldY1TenthsQq / 10).toFixed(1)} qq
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-400">Price / lb</p>
+                      <p className="text-xs text-gray-400">{t("price_lb")}</p>
                       <p className="font-medium mt-1">
                         {formatUsdFromCents(plan.priceCentsPerLb)}
                       </p>
@@ -144,7 +143,7 @@ export default function FarmerInvestmentsPage() {
 
                 <div className="flex justify-end mt-4">
                   <Button variant="link" className="text-[#a37241] p-0 h-auto">
-                    View Details →
+                    {tp("view_details")}
                   </Button>
                 </div>
               </GlassCard>

@@ -1,10 +1,12 @@
 import { createHash } from "node:crypto";
 
 import {
+  farms,
   insertLotSchema,
   lotStatusEnum,
   lots,
   plans,
+  users,
 } from "@harvverse-monorepo/db/schema";
 import type { Db } from "@harvverse-monorepo/db";
 import { env } from "@harvverse-monorepo/env/server";
@@ -12,7 +14,7 @@ import { TRPCError } from "@trpc/server";
 import { and, eq, type SQL } from "drizzle-orm";
 import { z } from "zod";
 
-import { publicProcedure, router } from "../index";
+import { protectedProcedure, publicProcedure, router } from "../index";
 import {
   computePolygonCentroid,
   computeRiskScore,
@@ -96,7 +98,6 @@ export const lotsRouter = router({
     )
     .query(({ ctx, input }) => {
       const filters: SQL[] = [];
-      // Default to "available" so the marketplace never shows reserved/settled lots
       const statusFilter = input?.status ?? "available";
       filters.push(eq(lots.status, statusFilter));
       if (input?.country) filters.push(eq(lots.country, input.country));
@@ -140,9 +141,26 @@ export const lotsRouter = router({
       return lot;
     }),
 
-  create: publicProcedure
+  create: protectedProcedure
     .input(insertLotSchema.extend({ plan: planInputSchema.optional() }))
     .mutation(async ({ ctx, input }) => {
+      const requestingUser = await ctx.db.query.users.findFirst({
+        where: eq(users.clerkId, ctx.clerkId),
+      });
+      if (!requestingUser) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "User not found" });
+      }
+
+      const farm = await ctx.db.query.farms.findFirst({
+        where: eq(farms.id, input.farmId),
+      });
+      if (!farm) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Farm not found" });
+      }
+      if (farm.farmerId !== requestingUser.id) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You do not own this farm" });
+      }
+
       const { plan: planInput, ...lotInput } = input;
 
       const lot = await ctx.db.transaction(async (tx) => {
@@ -200,7 +218,6 @@ export const lotsRouter = router({
         return created;
       });
 
-      // Best-effort risk score — skip if a pre-calculated score was provided
       if (lot.riskScore == null && (lot.gpsLat != null || lot.gpsLng != null)) {
         computeRiskScoreForLot(lot.id, ctx.db).catch((err) =>
           console.error("[lots.create] Risk score computation failed:", err),
@@ -210,7 +227,7 @@ export const lotsRouter = router({
       return lot;
     }),
 
-  updateStatus: publicProcedure
+  updateStatus: protectedProcedure
     .input(
       z.object({
         id: z.number().int().positive(),
@@ -229,7 +246,79 @@ export const lotsRouter = router({
       return lot;
     }),
 
-  computeRiskScore: publicProcedure
+  update: protectedProcedure
+    .input(
+      z.object({
+        lotId: z.number().int().positive(),
+        // Section B — marketing, locked when not available
+        variety: z.string().trim().max(100).optional(),
+        profile: z.string().trim().optional(),
+        summary: z.string().trim().optional(),
+        coverImages: z.array(z.string().url()).optional(),
+        scaScoreTenths: z.number().int().min(0).max(1000).optional(),
+        // Section C — agronomic, always editable
+        numTrees: z.number().int().min(0).optional(),
+        plantAgeYears: z.number().int().min(0).optional(),
+        areaManzanas: z.number().min(0).optional(),
+        harvestYear: z.number().int().min(2000).max(2100).optional(),
+        cycleNotes: z.string().trim().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const requestingUser = await ctx.db.query.users.findFirst({
+        where: eq(users.clerkId, ctx.clerkId),
+      });
+      if (!requestingUser) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "User not found" });
+      }
+
+      const lot = await ctx.db.query.lots.findFirst({
+        where: eq(lots.id, input.lotId),
+        with: { farm: true },
+      });
+      if (!lot) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Lot not found" });
+      }
+      if (lot.farm.farmerId !== requestingUser.id) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You do not own this lot" });
+      }
+
+      const { lotId, areaManzanas, ...rest } = input;
+
+      // Section B fields are silently dropped when lot is not available
+      const sectionBFields =
+        lot.status === "available"
+          ? {
+              variety: rest.variety,
+              profile: rest.profile,
+              summary: rest.summary,
+              coverImages: rest.coverImages,
+              scaScoreTenths: rest.scaScoreTenths,
+            }
+          : {};
+
+      const updateValues = {
+        ...sectionBFields,
+        numTrees: rest.numTrees,
+        plantAgeYears: rest.plantAgeYears,
+        areaManzanas: areaManzanas != null ? String(areaManzanas) : undefined,
+        harvestYear: rest.harvestYear,
+        cycleNotes: rest.cycleNotes,
+        updatedAt: new Date(),
+      };
+
+      const [updated] = await ctx.db
+        .update(lots)
+        .set(updateValues)
+        .where(eq(lots.id, lotId))
+        .returning();
+      if (!updated) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Lot not found" });
+      }
+      return updated;
+    }),
+
+  computeRiskScore: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
       const lot = await ctx.db.query.lots.findFirst({
@@ -324,7 +413,6 @@ export const lotsRouter = router({
       const clientId = env.SENTINEL_HUB_CLIENT_ID;
       const clientSecret = env.SENTINEL_HUB_CLIENT_SECRET;
 
-      // Try Sentinel Hub first if credentials are configured
       if (clientId && clientSecret) {
         try {
           const token = await getSentinelToken(clientId, clientSecret);
@@ -335,12 +423,11 @@ export const lotsRouter = router({
         }
       }
 
-      // Free fallback: Open-Meteo elevation API (Copernicus DEM GLO-90, no credentials needed)
       const altitudeMeters = await getAltitudeFromOpenMeteo(input.lat, input.lng);
       return { altitudeMeters };
     }),
 
-  updateRiskScore: publicProcedure
+  updateRiskScore: protectedProcedure
     .input(
       z.object({
         id: z.number().int().positive(),

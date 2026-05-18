@@ -8,7 +8,7 @@ import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { publicProcedure, router } from "../index";
+import { protectedProcedure, publicProcedure, router } from "../index";
 
 const roleSchema = z.enum(userRoleEnum.enumValues);
 const statusSchema = z.enum(userStatusEnum.enumValues);
@@ -65,8 +65,7 @@ export const usersRouter = router({
       return user;
     }),
 
-  // Admin-only (auth middleware TBD).
-  updateStatus: publicProcedure
+  updateStatus: protectedProcedure
     .input(
       z.object({
         id: z.number().int().positive(),
@@ -74,6 +73,13 @@ export const usersRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      const requestingUser = await ctx.db.query.users.findFirst({
+        where: eq(users.clerkId, ctx.clerkId),
+      });
+      if (!requestingUser || !["admin", "settlement_operator"].includes(requestingUser.role)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
+      }
+
       const [user] = await ctx.db
         .update(users)
         .set({ status: input.status, updatedAt: new Date() })

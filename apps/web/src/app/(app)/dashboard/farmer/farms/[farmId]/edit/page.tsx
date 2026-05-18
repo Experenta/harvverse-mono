@@ -8,6 +8,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 import { ArrowLeft, CheckCircle, Loader2 } from "lucide-react";
 
 import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
@@ -39,10 +40,10 @@ const CERTIFICATIONS = [
 ];
 
 const editFarmSchema = z.object({
-  name: z.string().min(2, "Farm name required"),
+  name: z.string().min(2, "Farm name required").max(100, "Max 100 characters"),
   country: z.string().min(1, "Country required"),
   region: z.string().min(2, "Region required"),
-  altitudeMasl: z.coerce.number().int().min(0).optional(),
+  altitudeMasl: z.coerce.number().int().min(0).max(4000, "Max 4000 m").optional(),
   totalArea: z.coerce.number().min(0.1).optional(),
   varieties: z.array(z.string()).min(1, "Select at least one variety"),
   certifications: z.array(z.string()).optional(),
@@ -61,6 +62,8 @@ export default function EditFarmPage() {
   const params = useParams<{ farmId: string }>();
   const farmId = Number(params.farmId);
   const farmIdValid = Number.isFinite(farmId);
+  const t = useTranslations("farm");
+  const tc = useTranslations("common");
 
   const { data: farm, isLoading: farmLoading } = useQuery(
     trpc.farms.byId.queryOptions({ id: farmId }, { enabled: farmIdValid }),
@@ -75,7 +78,7 @@ export default function EditFarmPage() {
         await queryClient.invalidateQueries({
           queryKey: trpc.farms.byId.queryKey({ id: farmId }),
         });
-        toast.success("Farm updated");
+        toast.success(t("updated"));
         router.push(`/dashboard/farmer/farms/${farmId}` as Route);
       },
     }),
@@ -140,7 +143,7 @@ export default function EditFarmPage() {
   if (!farm) {
     return (
       <GlassCard className="p-12 text-center border-primary/20">
-        <p className="text-gray-400">Farm not found.</p>
+        <p className="text-gray-400">{t("not_found")}</p>
       </GlassCard>
     );
   }
@@ -153,12 +156,12 @@ export default function EditFarmPage() {
         onClick={() => router.push(`/dashboard/farmer/farms/${farmId}` as Route)}
       >
         <ArrowLeft className="w-4 h-4 mr-2" />
-        Back
+        {tc("back")}
       </Button>
 
       <div className="max-w-2xl mx-auto">
         <GlassCard className="p-8 border-primary/20">
-          <h1 className="text-3xl font-bold mb-2">Edit Farm</h1>
+          <h1 className="text-3xl font-bold mb-2">{t("edit_title")}</h1>
           <p className="text-gray-400 mb-8">{farm.name}</p>
 
           <Form {...form}>
@@ -168,7 +171,7 @@ export default function EditFarmPage() {
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-white/80">Farm Name *</FormLabel>
+                    <FormLabel className="text-white/80">{t("name")}</FormLabel>
                     <FormControl>
                       <Input placeholder="e.g., Finca La Huerta" className={inputClasses} {...field} />
                     </FormControl>
@@ -183,7 +186,7 @@ export default function EditFarmPage() {
                   name="country"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-white/80">Country *</FormLabel>
+                      <FormLabel className="text-white/80">{t("country")}</FormLabel>
                       <FormControl>
                         <select
                           {...field}
@@ -205,7 +208,7 @@ export default function EditFarmPage() {
                   name="region"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-white/80">Region *</FormLabel>
+                      <FormLabel className="text-white/80">{t("region")}</FormLabel>
                       <FormControl>
                         <Input placeholder="e.g., Cielito Mountain" className={inputClasses} {...field} />
                       </FormControl>
@@ -221,7 +224,7 @@ export default function EditFarmPage() {
                   name="altitudeMasl"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-white/80">Altitude (MASL)</FormLabel>
+                      <FormLabel className="text-white/80">{t("altitude")}</FormLabel>
                       <FormControl>
                         <Input
                           type="number"
@@ -240,7 +243,7 @@ export default function EditFarmPage() {
                   name="totalArea"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-white/80">Total Area (ha)</FormLabel>
+                      <FormLabel className="text-white/80">{t("total_area")}</FormLabel>
                       <FormControl>
                         <Input
                           type="number"
@@ -261,9 +264,7 @@ export default function EditFarmPage() {
                 name="varieties"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-white/80">
-                      Coffee Varieties * (Select at least one)
-                    </FormLabel>
+                    <FormLabel className="text-white/80">{t("varieties")}</FormLabel>
                     <div className="grid grid-cols-2 gap-3 mt-3">
                       {COFFEE_VARIETIES.map((variety) => {
                         const selected = field.value?.includes(variety);
@@ -300,7 +301,7 @@ export default function EditFarmPage() {
                 name="certifications"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-white/80">Certifications</FormLabel>
+                    <FormLabel className="text-white/80">{t("certifications")}</FormLabel>
                     <div className="grid grid-cols-2 gap-3 mt-3">
                       {CERTIFICATIONS.map((cert) => {
                         const selected = field.value?.includes(cert);
@@ -337,10 +338,10 @@ export default function EditFarmPage() {
                 name="description"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-white/80">Description</FormLabel>
+                    <FormLabel className="text-white/80">{t("description")}</FormLabel>
                     <FormControl>
                       <Textarea
-                        placeholder="Tell us about your farm..."
+                        placeholder={t("description_placeholder")}
                         className="bg-black/20 border-white/10 text-white placeholder:text-gray-600"
                         {...field}
                       />
@@ -355,9 +356,9 @@ export default function EditFarmPage() {
                 name="photoUrl"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-white/80">Farm Photo URL</FormLabel>
+                    <FormLabel className="text-white/80">{t("photo_url")}</FormLabel>
                     <FormControl>
-                      <Input placeholder="https://..." className={inputClasses} {...field} />
+                      <Input placeholder={t("photo_placeholder")} className={inputClasses} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -374,7 +375,7 @@ export default function EditFarmPage() {
                 ) : (
                   <CheckCircle className="w-4 h-4 mr-2" />
                 )}
-                {updateFarm.isPending ? "Saving..." : "Save Changes"}
+                {updateFarm.isPending ? t("saving") : t("save_btn")}
               </Button>
             </form>
           </Form>

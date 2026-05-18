@@ -1,17 +1,36 @@
 import {
   evidenceRecords,
   insertEvidenceRecordSchema,
+  partnerships,
+  users,
 } from "@harvverse-monorepo/db/schema";
 import { TRPCError } from "@trpc/server";
 import { asc, eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { publicProcedure, router } from "../index";
+import { protectedProcedure, publicProcedure, router } from "../index";
 
 export const evidenceRouter = router({
-  create: publicProcedure
+  create: protectedProcedure
     .input(insertEvidenceRecordSchema)
     .mutation(async ({ ctx, input }) => {
+      const requestingUser = await ctx.db.query.users.findFirst({
+        where: eq(users.clerkId, ctx.clerkId),
+      });
+      if (!requestingUser) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "User not found" });
+      }
+
+      const partnership = await ctx.db.query.partnerships.findFirst({
+        where: eq(partnerships.id, input.partnershipId),
+      });
+      if (!partnership) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Partnership not found" });
+      }
+      if (partnership.partnerUserId !== requestingUser.id) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You do not own this partnership" });
+      }
+
       const [record] = await ctx.db
         .insert(evidenceRecords)
         .values(input)
