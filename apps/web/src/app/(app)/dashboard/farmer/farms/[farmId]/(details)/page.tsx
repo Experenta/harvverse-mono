@@ -4,14 +4,16 @@ import { useQuery } from "@tanstack/react-query";
 import type { Route } from "next";
 import { useRouter, useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Sprout, Plus, ArrowLeft } from "lucide-react";
+import { Plus, ArrowLeft, ExternalLink } from "lucide-react";
+import type { Polygon } from "geojson";
 
 import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
 import { Button } from "@harvverse-monorepo/ui/components/button";
-import { Badge } from "@harvverse-monorepo/ui/components/badge";
 import { Skeleton } from "@harvverse-monorepo/ui/components/skeleton";
 
 import { trpc } from "@/utils/trpc";
+import { useCurrentUser } from "@/hooks/use-auth";
+import { LotCard } from "@/components/lot-card";
 
 export default function FarmerFarmDetailPage() {
   const router = useRouter();
@@ -20,7 +22,7 @@ export default function FarmerFarmDetailPage() {
   const farmIdValid = Number.isFinite(farmId);
   const t = useTranslations("farm");
   const tl = useTranslations("lot");
-  const tc = useTranslations("common");
+  const { clerkUser } = useCurrentUser();
 
   const { data: farm, isLoading } = useQuery(
     trpc.farms.byId.queryOptions(
@@ -28,6 +30,19 @@ export default function FarmerFarmDetailPage() {
       { enabled: farmIdValid },
     ),
   );
+
+  const { data: proposals } = useQuery(
+    trpc.proposals.forFarmer.queryOptions(undefined, {
+      enabled: !!clerkUser?.id,
+    }),
+  );
+
+  const pendingByLot = proposals?.reduce<Record<number, number>>((acc, p) => {
+    if (p.status === "pending" || p.status === "submitted") {
+      acc[p.lotId] = (acc[p.lotId] ?? 0) + 1;
+    }
+    return acc;
+  }, {}) ?? {};
 
   return (
     <div>
@@ -60,6 +75,35 @@ export default function FarmerFarmDetailPage() {
                   📍 {farm.region}, {farm.country}
                   {farm.altitudeMasl ? ` • ⛰️ ${farm.altitudeMasl} MASL` : null}
                 </p>
+                {(() => {
+                  const mapsUrl = (() => {
+                    if (farm.latitude != null && farm.longitude != null) {
+                      return `https://www.google.com/maps?q=${farm.latitude},${farm.longitude}`;
+                    }
+                    const poly = farm.polygon != null ? (farm.polygon as Polygon) : null;
+                    if (poly) {
+                      const ring = poly.coordinates[0] ?? [];
+                      const pts = ring.slice(0, -1);
+                      if (pts.length > 0) {
+                        const lat = pts.reduce((s, c) => s + (c[1] ?? 0), 0) / pts.length;
+                        const lng = pts.reduce((s, c) => s + (c[0] ?? 0), 0) / pts.length;
+                        return `https://www.google.com/maps?q=${lat},${lng}`;
+                      }
+                    }
+                    return null;
+                  })();
+                  return mapsUrl ? (
+                    <a
+                      href={mapsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-xs text-[#67B9C1] hover:text-[#67B9C1]/80 transition-colors mt-2"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      {t("open_in_maps")}
+                    </a>
+                  ) : null;
+                })()}
               </div>
               <div className="text-sm bg-primary/20 text-primary px-3 py-1 rounded">
                 {farm.verified ? t("verified") : t("pending_verification")}
@@ -72,7 +116,7 @@ export default function FarmerFarmDetailPage() {
               {t("investment_lots", { count: farm.lots.length })}
             </h2>
             <Button
-              className="bg-primary hover:bg-primary/90 text-[#0a0e27]"
+              className="bg-primary hover:bg-primary/90 text-[#001020]"
               onClick={() =>
                 router.push(
                   `/dashboard/farmer/farms/${farm.id}/create-lot` as Route,
@@ -91,33 +135,12 @@ export default function FarmerFarmDetailPage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {farm.lots.map((lot) => (
-                <GlassCard
+                <LotCard
                   key={lot.id}
-                  className="p-6 border-primary/20 cursor-pointer hover:border-primary/40 transition-colors"
-                  onClick={() =>
-                    router.push(`/dashboard/farmer/lots/${lot.id}` as Route)
-                  }
-                >
-                  <div className="flex justify-between items-start mb-3">
-                    <div>
-                      <h3 className="text-xl font-bold">
-                        {lot.code ?? tl("lot_id", { id: lot.id })}
-                      </h3>
-                      <p className="text-gray-400 text-sm mt-1">
-                        <Sprout className="w-3 h-3 inline mr-1" />
-                        {lot.variety ?? tc("unknown")} • {lot.areaManzanas ?? "N/A"} manzanas
-                      </p>
-                    </div>
-                    <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 uppercase">
-                      {lot.status}
-                    </Badge>
-                  </div>
-                  {lot.harvestYear ? (
-                    <p className="text-sm text-gray-400">
-                      {t("harvest_year", { year: lot.harvestYear })}
-                    </p>
-                  ) : null}
-                </GlassCard>
+                  lot={{ ...lot, farmName: farm.name, region: farm.region, country: farm.country }}
+                  variant="farmer"
+                  pendingProposals={pendingByLot[lot.id] ?? 0}
+                />
               ))}
             </div>
           )}

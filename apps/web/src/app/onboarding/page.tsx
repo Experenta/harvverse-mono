@@ -67,7 +67,7 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-[#080E04]">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-[#001020]">
       <div className="w-full max-w-lg">
         <GlassCard className="p-8">
           <div className="flex justify-center mb-6">
@@ -88,7 +88,7 @@ export default function OnboardingPage() {
                 onClick={() => setSelectedRole("partner")}
                 className={`p-4 rounded-xl border-2 transition-all text-left ${
                   selectedRole === "partner"
-                    ? "border-[#a37241] bg-[#a37241]/10"
+                    ? "border-[#67B9C1] bg-[#67B9C1]/10"
                     : "border-white/10 hover:border-white/30 bg-white/5"
                 }`}
               >
@@ -103,7 +103,7 @@ export default function OnboardingPage() {
                 onClick={() => setSelectedRole("farmer")}
                 className={`p-4 rounded-xl border-2 transition-all text-left ${
                   selectedRole === "farmer"
-                    ? "border-[#a37241] bg-[#a37241]/10"
+                    ? "border-primary bg-primary/10"
                     : "border-white/10 hover:border-white/30 bg-white/5"
                 }`}
               >
@@ -122,7 +122,7 @@ export default function OnboardingPage() {
                 </label>
                 <input
                   {...form.register("displayName")}
-                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-[#a37241]"
+                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-primary"
                   placeholder={t("your_name")}
                 />
                 {form.formState.errors.displayName && (
@@ -139,7 +139,7 @@ export default function OnboardingPage() {
                   </label>
                   <input
                     {...form.register("phone")}
-                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-[#a37241]"
+                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-primary"
                     placeholder="+1 234 567 8900"
                   />
                 </div>
@@ -149,7 +149,7 @@ export default function OnboardingPage() {
                   </label>
                   <input
                     {...form.register("country")}
-                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-[#a37241]"
+                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-primary"
                     placeholder="Colombia"
                   />
                 </div>
@@ -164,7 +164,7 @@ export default function OnboardingPage() {
 
             <Button
               type="submit"
-              className="w-full bg-[#a37241] hover:bg-[#8f6336] text-white font-bold h-11"
+              className="w-full bg-primary hover:bg-primary/90 text-[#001020] font-bold h-11"
               disabled={!selectedRole || upsert.isPending}
             >
               {upsert.isPending ? t("saving") : t("enter_harvverse")}

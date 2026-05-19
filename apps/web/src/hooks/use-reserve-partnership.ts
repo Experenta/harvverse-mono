@@ -51,8 +51,10 @@ export function useReservePartnership(params: {
   lot: LotRef | null;
   activePlan: PlanRef | null;
   projections: Projections | null;
+  /** When provided, skips proposal creation and confirms an existing approved proposal */
+  existingProposalId?: number | null;
 }) {
-  const { lot, activePlan, projections } = params;
+  const { lot, activePlan, projections, existingProposalId } = params;
   const { address } = useAccount();
   const chainId = useChainId();
   const { data: user, clerkUser } = useCurrentUser();
@@ -64,6 +66,7 @@ export function useReservePartnership(params: {
   const { writeContractAsync } = useWriteContract();
 
   const createProposal = useMutation(trpc.proposals.create.mutationOptions());
+  const updateProposal = useMutation(trpc.proposals.updateStatus.mutationOptions());
   const createPartnership = useMutation(trpc.partnerships.create.mutationOptions());
   const updateLotStatus = useMutation(trpc.lots.updateStatus.mutationOptions());
 
@@ -132,29 +135,44 @@ export function useReservePartnership(params: {
       // 3 — Persist to DB: proposal → partnership → lot status
       setStep("saving");
 
-      const proposalHash = await sha256Hex(
-        JSON.stringify({ lotId: lot.id, planId: activePlan.id, userId: user.id, ts: Date.now() }),
-      );
-
       const chainKey = chainId === 31337 ? ("hardhat" as const) : ("celoSepolia" as const);
 
-      const proposal = await createProposal.mutateAsync({
-        lotId: lot.id,
-        planId: activePlan.id,
-        userId: user.id,
-        walletAddress: effectiveWallet,
-        partnershipType: "phygital",
-        status: "signed",
-        revenueCents: projections.revenueCents,
-        profitCents: projections.profitCents,
-        farmerCents: projections.farmerCents,
-        partnerCents: projections.partnerCents,
-        proposalHash,
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      });
+      let proposalId: number;
+
+      if (existingProposalId) {
+        // Confirm an already-approved proposal: attach wallet address
+        await updateProposal.mutateAsync({
+          id: existingProposalId,
+          status: "signed",
+          walletAddress: effectiveWallet,
+          submittedTxHash: investTx,
+        });
+        proposalId = existingProposalId;
+      } else {
+        // Legacy path: create proposal + partnership in one shot
+        const proposalHash = await sha256Hex(
+          JSON.stringify({ lotId: lot.id, planId: activePlan.id, userId: user.id, ts: Date.now() }),
+        );
+
+        const proposal = await createProposal.mutateAsync({
+          lotId: lot.id,
+          planId: activePlan.id,
+          userId: user.id,
+          walletAddress: effectiveWallet,
+          partnershipType: "phygital",
+          status: "signed",
+          revenueCents: projections.revenueCents,
+          profitCents: projections.profitCents,
+          farmerCents: projections.farmerCents,
+          partnerCents: projections.partnerCents,
+          proposalHash,
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        });
+        proposalId = proposal.id;
+      }
 
       await createPartnership.mutateAsync({
-        proposalId: proposal.id,
+        proposalId,
         lotId: lot.id,
         planId: activePlan.id,
         partnerUserId: user.id,
@@ -179,6 +197,11 @@ export function useReservePartnership(params: {
             clerkId: clerkUser?.id,
           }),
         }),
+        queryClient.invalidateQueries({
+          queryKey: trpc.proposals.myProposals.queryKey({
+            clerkId: clerkUser?.id,
+          }),
+        }),
       ]);
 
       setStep("done");
@@ -196,8 +219,10 @@ export function useReservePartnership(params: {
     partnershipContractAddress,
     effectiveWallet,
     chainId,
+    existingProposalId,
     writeContractAsync,
     createProposal,
+    updateProposal,
     createPartnership,
     updateLotStatus,
   ]);

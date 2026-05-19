@@ -447,7 +447,7 @@ export default function FarmerLotEditPage() {
               <Button
                 type="submit"
                 disabled={updateLot.isPending}
-                className="w-full bg-primary hover:bg-primary/90 text-[#0a0e27] font-bold h-11"
+                className="w-full bg-primary hover:bg-primary/90 text-[#001020] font-bold h-11"
               >
                 {updateLot.isPending ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />

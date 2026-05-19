@@ -894,7 +894,7 @@ export default function CreateLotPage() {
             <Button
               type="submit"
               disabled={isSubmitting || !farm}
-              className="w-full bg-primary hover:bg-primary/90 text-[#0a0e27] font-bold h-11"
+              className="w-full bg-primary hover:bg-primary/90 text-[#001020] font-bold h-11"
             >
               {isSubmitting ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />

@@ -3,13 +3,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { AlertCircle, MapPin, Plus, Sprout } from "lucide-react";
+import { AlertCircle, Plus, Sprout } from "lucide-react";
 
 import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
 import { Button } from "@harvverse-monorepo/ui/components/button";
 import { Skeleton } from "@harvverse-monorepo/ui/components/skeleton";
 import { useCurrentUser } from "@/hooks/use-auth";
 import { trpc } from "@/utils/trpc";
+import { FarmCard } from "@/components/farm-card";
 
 export default function FarmerDashboardPage() {
   const { data: user, isLoading: userLoading } = useCurrentUser();
@@ -57,11 +58,11 @@ export default function FarmerDashboardPage() {
           <h1 className="text-3xl font-bold">{t("welcome", { name: user?.displayName ?? "" })}</h1>
           <p className="text-gray-400">
             {t("logged_as_farmer")}{" "}
-            <span className="text-[#a37241] font-semibold">{t("farmer_role")}</span>
+            <span className="text-primary font-semibold">{t("farmer_role")}</span>
           </p>
         </div>
         <Button
-          className="bg-[#a37241] hover:bg-[#8f6336] text-white"
+          className="bg-primary hover:bg-primary/90 text-[#001020]"
           onClick={() => router.push("/dashboard/farmer/create-farm")}
         >
           <Plus className="w-4 h-4 mr-2" />
@@ -77,16 +78,16 @@ export default function FarmerDashboardPage() {
           </p>
         </GlassCard>
       ) : !farms || farms.length === 0 ? (
-        <GlassCard className="p-12 text-center border-[#a37241]/20 flex flex-col items-center">
-          <div className="w-20 h-20 bg-[#a37241]/10 rounded-full flex items-center justify-center mb-6">
-            <Sprout className="w-10 h-10 text-[#a37241]" />
+        <GlassCard className="p-12 text-center border-primary/20 flex flex-col items-center">
+          <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mb-6">
+            <Sprout className="w-10 h-10 text-primary" />
           </div>
           <h2 className="text-2xl font-bold mb-3">{tf("no_farms_yet")}</h2>
           <p className="text-gray-400 max-w-md mx-auto mb-8">
             {tf("no_farms_subtitle")}
           </p>
           <Button
-            className="bg-[#a37241] hover:bg-[#8f6336] text-white"
+            className="bg-primary hover:bg-primary/90 text-[#001020]"
             onClick={() => router.push("/dashboard/farmer/create-farm")}
           >
             <Plus className="w-4 h-4 mr-2" />
@@ -98,25 +99,7 @@ export default function FarmerDashboardPage() {
           <h2 className="text-2xl font-bold mb-4">{t("my_farms")}</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {farms.map((farm) => (
-              <GlassCard
-                key={farm.id}
-                className="p-6 border-[#a37241]/20 cursor-pointer hover:border-[#a37241]/40 transition-colors"
-                onClick={() =>
-                  router.push(`/dashboard/farmer/farms/${farm.id}`)
-                }
-              >
-                <h3 className="text-lg font-bold mb-2">{farm.name}</h3>
-                <p className="flex items-center gap-2 text-sm text-gray-400 mb-4">
-                  <MapPin className="w-4 h-4" />
-                  {farm.region}, {farm.country}
-                </p>
-                <Button
-                  size="sm"
-                  className="bg-[#a37241] hover:bg-[#8f6336] text-white"
-                >
-                  {t("manage")}
-                </Button>
-              </GlassCard>
+              <FarmCard key={farm.id} farm={farm} />
             ))}
           </div>
         </div>

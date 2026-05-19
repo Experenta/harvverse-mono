@@ -7,22 +7,23 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: hsl(231 38% 16%);
-  --foreground: hsl(0 0% 100%);
-  --card: hsl(231 38% 16%);
-  --card-foreground: hsl(0 0% 100%);
-  --popover: hsl(231 38% 16%);
-  --popover-foreground: hsl(0 0% 100%);
+  --background: hsl(210 100% 6%);
+  --foreground: hsl(0 0% 93%);
+  --card: hsl(210 100% 6%);
+  --card-foreground: hsl(0 0% 93%);
+  --popover: hsl(210 100% 6%);
+  --popover-foreground: hsl(0 0% 93%);
   --primary: hsl(85 68% 52%);
-  --primary-foreground: hsl(231 38% 16%);
+  --primary-foreground: hsl(210 100% 6%);
   --secondary: hsl(185 41% 58%);
-  --secondary-foreground: hsl(231 38% 16%);
+  --secondary-foreground: hsl(210 100% 6%);
+  --purple: hsl(241 44% 58%);
   --muted: hsl(229 38% 25%);
   --muted-foreground: hsl(215 16% 70%);
   --accent: hsl(229 38% 25%);
-  --accent-foreground: hsl(0 0% 100%);
+  --accent-foreground: hsl(0 0% 93%);
   --destructive: hsl(0 84% 60%);
-  --destructive-foreground: hsl(0 0% 100%);
+  --destructive-foreground: hsl(0 0% 93%);
   --border: hsl(229 38% 25%);
   --input: hsl(229 38% 25%);
   --ring: hsl(85 68% 52%);
@@ -34,49 +35,50 @@
   --radius: 0.75rem;
   --farmer-primary: hsl(30 43% 45%);
   --farmer-dark: hsl(28 52% 24%);
-  --sidebar: hsl(231 38% 16%);
-  --sidebar-foreground: hsl(0 0% 100%);
+  --sidebar: hsl(210 100% 6%);
+  --sidebar-foreground: hsl(0 0% 93%);
   --sidebar-primary: hsl(85 68% 52%);
-  --sidebar-primary-foreground: hsl(231 38% 16%);
+  --sidebar-primary-foreground: hsl(210 100% 6%);
   --sidebar-accent: hsl(229 38% 25%);
-  --sidebar-accent-foreground: hsl(0 0% 100%);
+  --sidebar-accent-foreground: hsl(0 0% 93%);
   --sidebar-border: hsl(229 38% 25%);
   --sidebar-ring: hsl(85 68% 52%);
 }
 
 .dark {
-  --background: hsl(231 38% 16%);
-  --foreground: hsl(0 0% 100%);
-  --card: hsl(231 38% 16%);
-  --card-foreground: hsl(0 0% 100%);
-  --popover: hsl(231 38% 16%);
-  --popover-foreground: hsl(0 0% 100%);
+  --background: hsl(210 100% 6%);
+  --foreground: hsl(0 0% 93%);
+  --card: hsl(210 100% 6%);
+  --card-foreground: hsl(0 0% 93%);
+  --popover: hsl(210 100% 6%);
+  --popover-foreground: hsl(0 0% 93%);
   --primary: hsl(85 68% 52%);
-  --primary-foreground: hsl(231 38% 16%);
+  --primary-foreground: hsl(210 100% 6%);
   --secondary: hsl(185 41% 58%);
-  --secondary-foreground: hsl(231 38% 16%);
+  --secondary-foreground: hsl(210 100% 6%);
+  --purple: hsl(241 44% 58%);
   --muted: hsl(229 38% 25%);
   --muted-foreground: hsl(215 16% 70%);
   --accent: hsl(229 38% 25%);
-  --accent-foreground: hsl(0 0% 100%);
+  --accent-foreground: hsl(0 0% 93%);
   --destructive: hsl(0 84% 60%);
-  --destructive-foreground: hsl(0 0% 100%);
+  --destructive-foreground: hsl(0 0% 93%);
   --border: hsl(229 38% 25%);
   --input: hsl(229 38% 25%);
   --ring: hsl(85 68% 52%);
-  --sidebar: hsl(231 38% 16%);
-  --sidebar-foreground: hsl(0 0% 100%);
+  --sidebar: hsl(210 100% 6%);
+  --sidebar-foreground: hsl(0 0% 93%);
   --sidebar-primary: hsl(85 68% 52%);
-  --sidebar-primary-foreground: hsl(231 38% 16%);
+  --sidebar-primary-foreground: hsl(210 100% 6%);
   --sidebar-accent: hsl(229 38% 25%);
-  --sidebar-accent-foreground: hsl(0 0% 100%);
+  --sidebar-accent-foreground: hsl(0 0% 93%);
   --sidebar-border: hsl(229 38% 25%);
   --sidebar-ring: hsl(85 68% 52%);
 }
 
 @theme inline {
-  --font-sans: var(--font-inter), "Inter", sans-serif;
-  --font-display: var(--font-space-grotesk), "Space Grotesk", sans-serif;
+  --font-sans: var(--font-trenda), sans-serif;
+  --font-display: var(--font-trenda), sans-serif;
   --color-farmer-primary: var(--farmer-primary);
   --color-farmer-dark: var(--farmer-dark);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -102,6 +104,7 @@
   --color-muted: var(--muted);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-secondary: var(--secondary);
+  --color-purple: var(--purple);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
   --color-popover-foreground: var(--popover-foreground);
@@ -125,7 +128,7 @@
   }
   body {
     @apply font-sans text-foreground antialiased;
-    background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 100%);
+    background: #001020;
     min-height: 100vh;
   }
   html {

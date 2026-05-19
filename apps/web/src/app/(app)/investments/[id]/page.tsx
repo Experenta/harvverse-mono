@@ -240,7 +240,7 @@ export default function InvestmentDetailPage() {
                   : "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
               }
             >
-              {partnership.status}
+              {tp(`status_${partnership.status}` as Parameters<typeof tp>[0]) ?? partnership.status}
             </Badge>
           </div>
 
@@ -565,7 +565,7 @@ export default function InvestmentDetailPage() {
               )}
 
               <Button
-                className="w-full bg-primary hover:bg-primary/90 text-[#0a0e27] font-bold h-11"
+                className="w-full bg-primary hover:bg-primary/90 text-[#001020] font-bold h-11"
                 disabled={requestSettlement.isPending || !user || !plan}
                 onClick={async () => {
                   if (!user || !plan) return;
@@ -598,13 +598,39 @@ export default function InvestmentDetailPage() {
           );
         })()}
 
+        {fromFarmer && (
+          <GlassCard className="mt-6 p-6 border-white/10">
+            <h3 className="text-lg font-bold mb-3">{tp("wallet_info_title")}</h3>
+            <p className="text-sm text-gray-400 mb-4">
+              {tp("wallet_info_desc", {
+                amount: plan
+                  ? `$${(plan.ticketCents / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+                  : "—",
+              })}
+            </p>
+            <div className="space-y-3">
+              <div className="bg-white/5 rounded-lg p-3 text-sm">
+                <p className="font-semibold text-white mb-0.5">MetaMask</p>
+                <p className="text-gray-400">{tp("wallet_metamask")}</p>
+              </div>
+              <div className="bg-white/5 rounded-lg p-3 text-sm">
+                <p className="font-semibold text-white mb-0.5">MiniPay</p>
+                <p className="text-gray-400">{tp("wallet_minipay")}</p>
+              </div>
+              <div className="bg-white/5 rounded-lg p-3 text-sm">
+                <p className="text-gray-400">{tp("wallet_help")}</p>
+              </div>
+            </div>
+          </GlassCard>
+        )}
+
       <Dialog
         open={recordingMilestone !== null}
         onOpenChange={(open) => {
           if (!open) setRecordingMilestone(null);
         }}
       >
-        <DialogContent className="bg-[#1a1f3a] text-white border-primary/20">
+        <DialogContent className="bg-[#001020] text-white border-primary/20">
           <DialogHeader>
             <DialogTitle>
               {tm("record_dialog_title", { number: recordingMilestone ?? 0 })}
@@ -693,7 +719,7 @@ export default function InvestmentDetailPage() {
                 <Button
                   type="submit"
                   disabled={createEvidence.isPending || !user}
-                  className="flex-1 bg-primary hover:bg-primary/90 text-[#0a0e27] font-bold"
+                  className="flex-1 bg-primary hover:bg-primary/90 text-[#001020] font-bold"
                 >
                   {createEvidence.isPending ? (
                     <Loader2 className="w-4 h-4 animate-spin" />

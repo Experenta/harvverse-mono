@@ -55,7 +55,7 @@ export default function FarmerInvestmentsPage() {
         </Button>
         <div>
           <h1 className="flex items-center gap-3 text-3xl font-bold">
-            <DollarSign className="w-8 h-8 text-[#a37241]" />
+            <DollarSign className="w-8 h-8 text-primary" />
             {t("farmer_title")}
           </h1>
           <p className="text-gray-400">{t("farmer_subtitle")}</p>
@@ -75,7 +75,7 @@ export default function FarmerInvestmentsPage() {
           <Skeleton className="h-40 w-full rounded-xl" />
         </div>
       ) : !partnerships || partnerships.length === 0 ? (
-        <GlassCard className="p-12 text-center border-[#a37241]/20">
+        <GlassCard className="p-12 text-center border-primary/20">
           <DollarSign className="w-12 h-12 text-gray-400 mx-auto mb-4" />
           <p className="text-gray-400 text-lg mb-2">{t("no_partnerships")}</p>
           <p className="text-gray-500 text-sm">{t("partnerships_appear")}</p>
@@ -92,7 +92,7 @@ export default function FarmerInvestmentsPage() {
             return (
               <GlassCard
                 key={p.id}
-                className="p-6 border-[#a37241]/20 cursor-pointer hover:border-[#a37241]/40 transition-colors"
+                className="p-6 border-primary/20 cursor-pointer hover:border-primary/40 transition-colors"
                 onClick={() =>
                   router.push(`/investments/${p.id}?from=farmer` as Route)
                 }
@@ -111,7 +111,7 @@ export default function FarmerInvestmentsPage() {
                       {p.status.replace(/_/g, " ")}
                     </Badge>
                     {plan && (
-                      <p className="text-xl font-bold text-[#a37241]">
+                      <p className="text-xl font-bold text-primary">
                         {formatUsdFromCents(plan.ticketCents)}
                       </p>
                     )}
@@ -142,7 +142,7 @@ export default function FarmerInvestmentsPage() {
                 )}
 
                 <div className="flex justify-end mt-4">
-                  <Button variant="link" className="text-[#a37241] p-0 h-auto">
+                  <Button variant="link" className="text-primary p-0 h-auto">
                     {tp("view_details")}
                   </Button>
                 </div>

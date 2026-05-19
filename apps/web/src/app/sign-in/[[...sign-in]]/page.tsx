@@ -2,16 +2,16 @@ import { SignIn } from "@clerk/nextjs";
 
 export default function SignInPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#080E04]">
+    <div className="min-h-screen flex items-center justify-center bg-[#001020]">
       <SignIn
         appearance={{
           variables: {
-            colorPrimary: "#a37241",
-            colorBackground: "#0f1a0a",
-            colorText: "#ffffff",
-            colorTextSecondary: "#9ca3af",
-            colorInputBackground: "#1a2e12",
-            colorInputText: "#ffffff",
+            colorPrimary: "#93D832",
+            colorBackground: "#001020",
+            colorForeground: "#ffffff",
+            colorMutedForeground: "#9ca3af",
+            colorInput: "#0a1a2e",
+            colorInputForeground: "#ffffff",
           },
         }}
         fallbackRedirectUrl="/dashboard"

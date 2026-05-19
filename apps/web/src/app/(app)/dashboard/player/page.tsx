@@ -103,7 +103,7 @@ export default function PlayerDashboardPage() {
             {t("no_investments_subtitle")}
           </p>
           <Button
-            className="bg-primary hover:bg-primary/90 text-[#0a0e27] font-bold"
+            className="bg-primary hover:bg-primary/90 text-[#001020] font-bold"
             onClick={() =>
               router.push("/dashboard/player/explore" as Route)
             }

@@ -6,8 +6,8 @@ import { Button } from "@harvverse-monorepo/ui/components/button";
 
 export default function NotFound() {
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-[#0a0e27] p-4">
-      <Card className="w-full max-w-md mx-4 bg-[#1a1f3a] border-white/10 shadow-xl">
+    <div className="min-h-screen w-full flex items-center justify-center bg-[#001020] p-4">
+      <Card className="w-full max-w-md mx-4 bg-[#0a1a2e] border-white/10 shadow-xl">
         <CardContent className="pt-6">
           <div className="flex mb-4 gap-2 items-center justify-center">
             <AlertCircle className="h-8 w-8 text-red-500" />
@@ -19,7 +19,7 @@ export default function NotFound() {
             The page you are looking for does not exist in the Harvverse.
           </p>
           <Link href="/">
-            <Button className="w-full bg-primary hover:bg-primary/90 text-[#0a0e27] font-bold">
+            <Button className="w-full bg-primary hover:bg-primary/90 text-[#001020] font-bold">
               Return Home
             </Button>
           </Link>

@@ -15,10 +15,12 @@
     "refresh": "Refresh",
     "manage": "Manage",
     "add_farm": "Add Farm",
+    "add_lot": "Add Lot",
     "all": "All",
     "unknown": "Unknown",
     "not_found": "Not found",
-    "please_refresh": "Please refresh and try again."
+    "please_refresh": "Please refresh and try again.",
+    "settings_placeholder": "Account settings will be available here."
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -27,7 +29,9 @@
     "create_lot": "Create Lot",
     "explore": "Explore Lots",
     "my_investments": "My Investments",
+    "my_proposals": "My Proposals",
     "investments": "Investments",
+    "proposals": "Proposals",
     "sign_out": "Sign Out",
     "signing_out": "Signing out...",
     "settings": "Settings",
@@ -72,7 +76,14 @@
     "description_placeholder": "Tell us about your farm...",
     "photo_url": "Farm Photo URL",
     "photo_placeholder": "https://...",
-    "polygon_label": "Farm Boundary (optional but recommended for risk scoring)",
+    "polygon_label": "Farm Boundary (recommended)",
+    "polygon_subtitle": "Improves Copernicus Risk Score precision. Without a polygon, GPS coordinates will be used.",
+    "polygon_guide_title": "How to create your farm boundary?",
+    "polygon_guide_step1": "Open Google My Maps on your phone",
+    "polygon_guide_step2": "Create a new map and trace your farm perimeter",
+    "polygon_guide_step3": "Export the KML file",
+    "polygon_guide_step4": "Upload it here using the 'Upload KML/GeoJSON file' button. Or draw directly on the map below.",
+    "open_in_maps": "Open in Google Maps ↗",
     "draw_tab": "Draw on map",
     "upload_tab": "Upload file",
     "gps_lat": "GPS Latitude",
@@ -95,7 +106,8 @@
     "register_btn": "Register Farm",
     "save_btn": "Save Changes",
     "sign_in_required": "Sign in as a farmer to register a farm",
-    "loading": "Loading farm..."
+    "loading": "Loading farm...",
+    "open_in_maps": "Open in Google Maps ↗"
   },
   "lot": {
     "create_title": "Create Investment Lot",
@@ -182,6 +194,8 @@
     "no_available_lots": "No available lots right now.",
     "variety_label": "Variety: {value}",
     "view_lot": "View Lot",
+    "manage_lot": "Manage Lot",
+    "active_lots_count": "{count} active lots",
     "available_lots": "Available Lots",
     "risk_na": "Risk: —",
     "risk_label": "Risk {score}",
@@ -288,7 +302,12 @@
     "proj_yield": "Proj. yield Y1",
     "plan_status": "Plan status",
     "view_details": "View Details →",
-    "partner_wallet": "Partner"
+    "partner_wallet": "Partner",
+    "status_active": "Active",
+    "status_milestones_attested": "Milestones Attested",
+    "status_awaiting_settlement": "Awaiting Settlement",
+    "status_settled": "Settled",
+    "status_cancelled": "Cancelled"
   },
   "milestones": {
     "title": "Production Milestones",
@@ -398,7 +417,12 @@
     "price_lb": "Price / lb",
     "partner_split": "Partner split",
     "proj_yield": "Projected yield Y1",
-    "partner_wallet": "Partner: {wallet}"
+    "partner_wallet": "Partner: {wallet}",
+    "wallet_info_title": "Wallet options for receiving payments",
+    "wallet_info_desc": "To receive your {amount} USDC payment, you will need to connect a compatible EVM wallet.",
+    "wallet_metamask": "For web users — available in Chrome, Brave, Firefox",
+    "wallet_minipay": "For mobile users in Honduras — built into Opera Mini, no seed phrase needed",
+    "wallet_help": "Contact Harvverse for assistance setting up your wallet"
   },
   "polygon": {
     "draw_tab": "Draw on map",
@@ -445,5 +469,41 @@
     "footer_privacy": "Privacy Policy",
     "footer_terms": "Terms of Service",
     "footer_copyright": "© 2026 Harvverse Inc. A Delaware C-Corporation."
+  },
+  "proposals": {
+    "title": "Partnership Proposals",
+    "subtitle": "Review and respond to partnership requests for your lots",
+    "send_request": "Request Partnership",
+    "request_sent": "Request sent",
+    "request_dialog_desc": "You are requesting a partnership for {lot}. The farmer will review your request and notify you of their decision.",
+    "pending": "Request pending — awaiting farmer approval",
+    "approved": "Request approved! Confirm with your wallet",
+    "rejected": "Request rejected",
+    "approve": "Approve",
+    "reject": "Reject",
+    "message_label": "Message to farmer (optional)",
+    "message_placeholder": "Introduce yourself and explain your interest in this lot...",
+    "confirm_title": "Your request was approved!",
+    "confirm_desc": "To confirm the partnership, connect your wallet and deposit {amount} USDC in escrow.",
+    "approved_banner_title": "Request approved!",
+    "confirm_wallet_cta": "Confirm with wallet",
+    "no_proposals": "No pending proposals",
+    "no_proposals_subtitle": "Partnership requests from partners will appear here.",
+    "no_my_proposals": "You haven't sent any proposals yet",
+    "no_my_proposals_subtitle": "Explore available lots and send your first partnership request.",
+    "explore_lots": "Explore Lots",
+    "my_proposals_title": "My Proposals",
+    "my_proposals_subtitle": "Track the status of your partnership requests",
+    "partner_label": "Partner",
+    "unknown_partner": "Unknown",
+    "ticket_label": "Ticket",
+    "partner_split_label": "Partner split",
+    "farmer_split_label": "Farmer split",
+    "partner_message": "Message from partner",
+    "status_pending": "Pending",
+    "status_submitted": "Submitted",
+    "status_signed": "Approved",
+    "status_failed": "Rejected",
+    "status_expired": "Expired"
   }
 }

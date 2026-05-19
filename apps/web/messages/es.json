@@ -15,10 +15,12 @@
     "refresh": "Actualizar",
     "manage": "Gestionar",
     "add_farm": "Agregar Finca",
+    "add_lot": "Agregar Lote",
     "all": "Todos",
     "unknown": "Desconocido",
     "not_found": "No encontrado",
-    "please_refresh": "Por favor actualiza e intenta de nuevo."
+    "please_refresh": "Por favor actualiza e intenta de nuevo.",
+    "settings_placeholder": "La configuración de la cuenta estará disponible aquí."
   },
   "nav": {
     "dashboard": "Panel Principal",
@@ -27,7 +29,9 @@
     "create_lot": "Crear Lote",
     "explore": "Explorar Lotes",
     "my_investments": "Mis Inversiones",
+    "my_proposals": "Mis Solicitudes",
     "investments": "Inversiones",
+    "proposals": "Solicitudes",
     "sign_out": "Cerrar Sesión",
     "signing_out": "Cerrando sesión...",
     "settings": "Configuración",
@@ -72,7 +76,14 @@
     "description_placeholder": "Cuéntanos sobre tu finca...",
     "photo_url": "URL de Foto de la Finca",
     "photo_placeholder": "https://...",
-    "polygon_label": "Límite de la Finca (opcional, recomendado para el score de riesgo)",
+    "polygon_label": "Polígono de la Finca (recomendado)",
+    "polygon_subtitle": "Mejora la precisión del Score de Riesgo Copernicus. Sin polígono se usarán las coordenadas GPS.",
+    "polygon_guide_title": "¿Cómo crear el polígono de tu finca?",
+    "polygon_guide_step1": "Abre Google My Maps en tu teléfono",
+    "polygon_guide_step2": "Crea un nuevo mapa y traza el perímetro de tu finca",
+    "polygon_guide_step3": "Exporta el archivo KML",
+    "polygon_guide_step4": "Súbelo aquí con el botón 'Subir archivo KML/GeoJSON'. O puedes dibujar directamente en el mapa de abajo.",
+    "open_in_maps": "Abrir en Google Maps ↗",
     "draw_tab": "Dibujar en mapa",
     "upload_tab": "Subir archivo",
     "gps_lat": "Latitud GPS",
@@ -95,7 +106,8 @@
     "register_btn": "Registrar Finca",
     "save_btn": "Guardar Cambios",
     "sign_in_required": "Inicia sesión como agricultor para registrar una finca",
-    "loading": "Cargando finca..."
+    "loading": "Cargando finca...",
+    "open_in_maps": "Abrir en Google Maps ↗"
   },
   "lot": {
     "create_title": "Crear Lote de Inversión",
@@ -182,6 +194,8 @@
     "no_available_lots": "No hay lotes disponibles en este momento.",
     "variety_label": "Variedad: {value}",
     "view_lot": "Ver Lote",
+    "manage_lot": "Gestionar Lote",
+    "active_lots_count": "{count} lotes activos",
     "available_lots": "Lotes Disponibles",
     "risk_na": "Riesgo: —",
     "risk_label": "Riesgo {score}",
@@ -288,7 +302,12 @@
     "proj_yield": "Rendimiento Proj. Y1",
     "plan_status": "Estado del plan",
     "view_details": "Ver Detalles →",
-    "partner_wallet": "Partner"
+    "partner_wallet": "Partner",
+    "status_active": "Activo",
+    "status_milestones_attested": "Hitos Atestados",
+    "status_awaiting_settlement": "En Liquidación",
+    "status_settled": "Liquidado",
+    "status_cancelled": "Cancelado"
   },
   "milestones": {
     "title": "Hitos de Producción",
@@ -398,7 +417,12 @@
     "price_lb": "Precio / lb",
     "partner_split": "Participación del partner",
     "proj_yield": "Rendimiento proyectado Y1",
-    "partner_wallet": "Partner: {wallet}"
+    "partner_wallet": "Partner: {wallet}",
+    "wallet_info_title": "Opciones de wallet para recibir pagos",
+    "wallet_info_desc": "Para recibir tu pago de {amount} USDC, necesitarás conectar una wallet compatible con EVM.",
+    "wallet_metamask": "Para usuarios web — disponible en Chrome, Brave, Firefox",
+    "wallet_minipay": "Para usuarios móviles en Honduras — integrado en Opera Mini, sin necesidad de seed phrase",
+    "wallet_help": "Contacta a Harvverse para asistencia con la configuración de tu wallet"
   },
   "polygon": {
     "draw_tab": "Dibujar en mapa",
@@ -445,5 +469,41 @@
     "footer_privacy": "Política de Privacidad",
     "footer_terms": "Términos de Servicio",
     "footer_copyright": "© 2026 Harvverse Inc. Corporación tipo C de Delaware."
+  },
+  "proposals": {
+    "title": "Solicitudes de Partnership",
+    "subtitle": "Revisa y responde a las solicitudes de partnership para tus lotes",
+    "send_request": "Solicitar Partnership",
+    "request_sent": "Solicitud enviada",
+    "request_dialog_desc": "Estás solicitando un partnership para {lot}. El agricultor revisará tu solicitud y te notificará su decisión.",
+    "pending": "Solicitud pendiente — esperando aprobación del agricultor",
+    "approved": "¡Solicitud aprobada! Confirma con tu wallet",
+    "rejected": "Solicitud rechazada",
+    "approve": "Aprobar",
+    "reject": "Rechazar",
+    "message_label": "Mensaje para el agricultor (opcional)",
+    "message_placeholder": "Preséntate y explica tu interés en este lote...",
+    "confirm_title": "¡Tu solicitud fue aprobada!",
+    "confirm_desc": "Para confirmar el partnership, conecta tu wallet y deposita {amount} USDC en escrow.",
+    "approved_banner_title": "¡Solicitud aprobada!",
+    "confirm_wallet_cta": "Confirmar con wallet",
+    "no_proposals": "Sin solicitudes pendientes",
+    "no_proposals_subtitle": "Las solicitudes de partnership de los partners aparecerán aquí.",
+    "no_my_proposals": "No has enviado ninguna solicitud",
+    "no_my_proposals_subtitle": "Explora lotes disponibles y envía tu primera solicitud de partnership.",
+    "explore_lots": "Explorar Lotes",
+    "my_proposals_title": "Mis Solicitudes",
+    "my_proposals_subtitle": "Rastrea el estado de tus solicitudes de partnership",
+    "partner_label": "Partner",
+    "unknown_partner": "Desconocido",
+    "ticket_label": "Ticket",
+    "partner_split_label": "Participación del partner",
+    "farmer_split_label": "Participación del agricultor",
+    "partner_message": "Mensaje del partner",
+    "status_pending": "Pendiente",
+    "status_submitted": "Enviada",
+    "status_signed": "Aprobada",
+    "status_failed": "Rechazada",
+    "status_expired": "Expirada"
   }
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Sprout, Plus, ArrowLeft, AlertCircle } from "lucide-react";
@@ -12,6 +11,7 @@ import { Skeleton } from "@harvverse-monorepo/ui/components/skeleton";
 
 import { useCurrentUser } from "@/hooks/use-auth";
 import { trpc } from "@/utils/trpc";
+import { FarmCard } from "@/components/farm-card";
 
 
 export default function MyFarmsPage() {
@@ -45,7 +45,7 @@ export default function MyFarmsPage() {
       <header className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold">{tn("my_farms")}</h1>
         <Button
-          className="bg-primary hover:bg-primary/90 text-[#0a0e27]"
+          className="bg-primary hover:bg-primary/90 text-[#001020]"
           onClick={() => router.push("/dashboard/farmer/create-farm")}
         >
           <Plus className="w-4 h-4 mr-2" />
@@ -79,7 +79,7 @@ export default function MyFarmsPage() {
           <h2 className="text-2xl font-bold mb-3">{t("no_farms_yet")}</h2>
           <p className="text-gray-400 mb-8">{t("no_farms_subtitle")}</p>
           <Button
-            className="bg-primary hover:bg-primary/90 text-[#0a0e27]"
+            className="bg-primary hover:bg-primary/90 text-[#001020]"
             onClick={() => router.push("/dashboard/farmer/create-farm")}
           >
             {t("register_first")}
@@ -88,43 +88,7 @@ export default function MyFarmsPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {farmsToShow.map((farm) => (
-            <GlassCard
-              key={farm.id}
-              className="p-6 border-primary/20 cursor-pointer"
-            >
-              <div className="h-40 rounded-lg mb-4 overflow-hidden">
-                <img
-                  src={farm.photoUrls?.[0] ?? "/logo-square.png"}
-                  alt={farm.name}
-                  className="h-full w-full object-cover transition-transform hover:scale-105"
-                />
-              </div>
-              <h3 className="text-xl font-bold mb-2">{farm.name}</h3>
-              <p className="text-gray-400 text-sm mb-4">
-                📍 {farm.region}, {farm.country}
-              </p>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() =>
-                    router.push(`/dashboard/farmer/farms/${farm.id}`)
-                  }
-                >
-                  {tn("manage_lots")}
-                </Button>
-                <Button
-                  size="sm"
-                  className="flex-1 bg-primary/20 hover:bg-primary/30"
-                  onClick={() =>
-                    router.push(`/dashboard/farmer/farms/${farm.id}/edit` as Route)
-                  }
-                >
-                  {tc("edit")}
-                </Button>
-              </div>
-            </GlassCard>
+            <FarmCard key={farm.id} farm={farm} />
           ))}
         </div>
       )}

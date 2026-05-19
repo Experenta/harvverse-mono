@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@clerk/nextjs": "^7.3.4",
+    "@clerk/ui": "^1.12.1",
     "@harvverse-monorepo/api": "workspace:*",
     "@harvverse-monorepo/contracts": "workspace:*",
     "@harvverse-monorepo/db": "workspace:*",

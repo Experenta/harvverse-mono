@@ -87,7 +87,7 @@ export default function MyInvestmentsPage() {
             <TrendingUp className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <p className="text-gray-400 mb-6">{t("no_investments")}</p>
             <Button
-              className="bg-primary hover:bg-primary/90 text-[#0a0e27]"
+              className="bg-primary hover:bg-primary/90 text-[#001020]"
               onClick={() =>
                 router.push("/dashboard/player/explore" as Route)
               }
@@ -131,7 +131,7 @@ export default function MyInvestmentsPage() {
                     </div>
                     <div className="flex flex-col items-end gap-2">
                       <Badge className={statusClass}>
-                        {p.status.replace(/_/g, " ")}
+                        {tp(`status_${p.status}` as Parameters<typeof tp>[0]) ?? p.status.replace(/_/g, " ")}
                       </Badge>
                       {plan && (
                         <p className="text-2xl font-bold text-primary">

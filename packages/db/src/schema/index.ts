@@ -420,6 +420,7 @@ export const proposals = pgTable(
 			.notNull()
 			.references(() => users.id),
 		walletAddress: text("wallet_address").notNull(),
+		message: text("message"),
 		partnershipType: varchar("partnership_type", { length: 20 })
 			.notNull()
 			.default("phygital"),

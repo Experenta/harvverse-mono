@@ -1,21 +1,29 @@
 import type { Metadata } from "next";
-import { Inter, Space_Grotesk } from "next/font/google";
+import localFont from "next/font/local";
 import { ClerkProvider } from "@clerk/nextjs";
+import { ui } from "@clerk/ui";
+import { esES } from "@clerk/localizations";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import "../index.css";
 import Providers from "@/components/providers";
 
-const inter = Inter({
-	variable: "--font-inter",
-	subsets: ["latin"],
-	weight: ["300", "400", "500", "600", "700", "800"],
-});
-
-const spaceGrotesk = Space_Grotesk({
-	variable: "--font-space-grotesk",
-	subsets: ["latin"],
-	weight: ["400", "500", "600", "700"],
+const trenda = localFont({
+	src: [
+		{ path: "../fonts/Trenda-Light.woff2", weight: "300", style: "normal" },
+		{ path: "../fonts/Trenda-LightIt.woff2", weight: "300", style: "italic" },
+		{ path: "../fonts/Trenda-Regular.woff2", weight: "400", style: "normal" },
+		{ path: "../fonts/Trenda-RegularIt.woff2", weight: "400", style: "italic" },
+		{ path: "../fonts/Trenda-Semibold.woff2", weight: "600", style: "normal" },
+		{ path: "../fonts/Trenda-SemiboldIt.woff2", weight: "600", style: "italic" },
+		{ path: "../fonts/Trenda-Bold.woff2", weight: "700", style: "normal" },
+		{ path: "../fonts/Trenda-BoldIt.woff2", weight: "700", style: "italic" },
+		{ path: "../fonts/Trenda-Heavy.woff2", weight: "800", style: "normal" },
+		{ path: "../fonts/Trenda-HeavyIt.woff2", weight: "800", style: "italic" },
+		{ path: "../fonts/Trenda-Black.woff2", weight: "900", style: "normal" },
+		{ path: "../fonts/Trenda-BlackIt.woff2", weight: "900", style: "italic" },
+	],
+	variable: "--font-trenda",
 });
 
 export const metadata: Metadata = {
@@ -32,11 +40,11 @@ export default async function RootLayout({
 	const messages = await getMessages();
 
 	return (
-		<ClerkProvider>
-			<html lang={locale} suppressHydrationWarning>
+		<ClerkProvider ui={ui} localization={esES}>
+			<html lang={locale} className={trenda.variable} suppressHydrationWarning>
 				<body
-					className={`${inter.variable} ${spaceGrotesk.variable} antialiased`}
-					style={{ background: "#080E04", minHeight: "100vh" }}
+					className="antialiased"
+					style={{ background: "#001020", minHeight: "100vh" }}
 					suppressHydrationWarning
 				>
 					<NextIntlClientProvider messages={messages}>

@@ -18,6 +18,7 @@ export const farmsRouter = router({
       const farmerId = input?.farmerId;
       return ctx.db.query.farms.findMany({
         where: farmerId ? eq(farms.farmerId, farmerId) : undefined,
+        with: { lots: { with: { plans: true } } },
       });
     }),
 
@@ -26,7 +27,7 @@ export const farmsRouter = router({
     .query(async ({ ctx, input }) => {
       const farm = await ctx.db.query.farms.findFirst({
         where: eq(farms.id, input.id),
-        with: { lots: true },
+        with: { lots: { with: { plans: true } } },
       });
       if (!farm) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Farm not found" });

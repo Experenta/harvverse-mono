@@ -335,12 +335,24 @@ export default function CreateFarmPage() {
                 />
               </div>
 
-              <PolygonInput
-                value={polygon}
-                onChange={handlePolygonChange}
-                onAreaCalculated={handleAreaCalculated}
-                label={t("polygon_label")}
-              />
+              <div>
+                <p className="text-sm text-white/80 mb-1">{t("polygon_label")}</p>
+                <p className="text-xs text-gray-400 mb-3">{t("polygon_subtitle")}</p>
+                <div className="border-l-2 border-[#67B9C1] bg-[#67B9C1]/5 rounded-r-lg px-4 py-3 mb-3">
+                  <p className="text-xs font-semibold text-[#67B9C1] mb-2">{t("polygon_guide_title")}</p>
+                  <ol className="text-xs text-white/70 space-y-1 list-decimal list-inside">
+                    <li>{t("polygon_guide_step1")}</li>
+                    <li>{t("polygon_guide_step2")}</li>
+                    <li>{t("polygon_guide_step3")}</li>
+                    <li>{t("polygon_guide_step4")}</li>
+                  </ol>
+                </div>
+                <PolygonInput
+                  value={polygon}
+                  onChange={handlePolygonChange}
+                  onAreaCalculated={handleAreaCalculated}
+                />
+              </div>
               {calculatedArea && (
                 <p className="text-xs text-green-400">
                   {t("area_calculated", { hectares: calculatedArea.hectares.toFixed(2), manzanas: calculatedArea.manzanas.toFixed(2) })}
@@ -505,7 +517,7 @@ export default function CreateFarmPage() {
               <Button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full bg-primary hover:bg-primary/90 text-[#0a0e27] font-bold h-11"
+                className="w-full bg-primary hover:bg-primary/90 text-[#001020] font-bold h-11"
               >
                 {isSubmitting ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />

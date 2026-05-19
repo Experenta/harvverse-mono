@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import type { Route } from "next";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import type { Polygon } from "geojson";
 import { useTranslations } from "next-intl";
 import {
@@ -12,6 +12,8 @@ import {
   CheckCircle2,
   ChevronDown,
   Circle,
+  Clock,
+  ExternalLink,
   HandCoins,
   Loader2,
   MapPin,
@@ -20,6 +22,7 @@ import {
   AlertCircle,
   ShieldCheck,
   Sprout,
+  XCircle,
 } from "lucide-react";
 
 import { Badge } from "@harvverse-monorepo/ui/components/badge";
@@ -43,7 +46,6 @@ import { useCurrentUser } from "@/hooks/use-auth";
 import { queryClient, trpc } from "@/utils/trpc";
 import { useReservePartnership, type ReserveStep } from "@/hooks/use-reserve-partnership";
 import { wagmiConfig } from "@/lib/wagmi";
-import { useState } from "react";
 
 const PolygonDisplayMap = dynamic(() => import("@/components/polygon-display-map"), {
   ssr: false,
@@ -104,6 +106,22 @@ function stepIndex(step: ReserveStep): number {
   return ["idle", "approving", "approved", "opening", "confirmed", "saving", "done", "error"].indexOf(step);
 }
 
+function polygonCentroid(coords: number[][]): [number, number] | null {
+  const pts = coords.slice(0, -1);
+  if (pts.length === 0) return null;
+  const lat = pts.reduce((s, c) => s + (c[1] ?? 0), 0) / pts.length;
+  const lng = pts.reduce((s, c) => s + (c[0] ?? 0), 0) / pts.length;
+  return [lat, lng];
+}
+
+async function sha256Hex(data: string): Promise<string> {
+  const encoded = new TextEncoder().encode(data);
+  const buf = await crypto.subtle.digest("SHA-256", encoded);
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 export default function LotDetailPage() {
   const router = useRouter();
   const params = useParams<{ lotId: string }>();
@@ -112,11 +130,14 @@ export default function LotDetailPage() {
   const tp = useTranslations("partnership");
   const trs = useTranslations("risk_score");
   const tc = useTranslations("common");
+  const tpr = useTranslations("proposals");
 
-  const { data: user } = useCurrentUser();
+  const { data: user, clerkUser } = useCurrentUser();
   const { address } = useAccount();
   const { connect, isPending: isConnecting } = useConnect();
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [requestDialogOpen, setRequestDialogOpen] = useState(false);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [partnerMessage, setPartnerMessage] = useState("");
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
   const { data: lot, isLoading, isError } = useQuery(
@@ -130,6 +151,17 @@ export default function LotDetailPage() {
     trpc.lots.computeRiskScore.mutationOptions(),
   );
 
+  const { data: myProposals } = useQuery(
+    trpc.proposals.myProposals.queryOptions(
+      { clerkId: clerkUser?.id },
+      { enabled: !!clerkUser?.id },
+    ),
+  );
+
+  const lotProposal = myProposals?.find((p) => p.lotId === lotId) ?? null;
+
+  const createProposal = useMutation(trpc.proposals.create.mutationOptions());
+
   const activePlan = lot?.plans.find((p) => p.status !== "revoked") ?? null;
   const projections = activePlan ? computeProjections(activePlan) : null;
 
@@ -137,26 +169,27 @@ export default function LotDetailPage() {
     lot: lot ?? null,
     activePlan: activePlan ?? null,
     projections,
+    existingProposalId: lotProposal?.status === "signed" ? lotProposal.id : null,
   });
 
-  // Navigate on successful reservation
+  // Navigate on successful confirmation
   useEffect(() => {
     if (reserve.step === "done") {
-      setDialogOpen(false);
+      setConfirmDialogOpen(false);
       router.push("/my-investments" as Route);
     }
   }, [reserve.step, router]);
 
-  // Reset hook state when dialog closes
   useEffect(() => {
-    if (!dialogOpen && reserve.step === "error") reserve.reset();
-  }, [dialogOpen, reserve]);
+    if (!confirmDialogOpen && reserve.step === "error") reserve.reset();
+  }, [confirmDialogOpen, reserve]);
 
-  const canReserve =
+  const isPartner = !!user && user.role === "partner";
+  const canRequest =
     !!activePlan &&
     lot?.status === "available" &&
-    !!user &&
-    user.role === "partner";
+    isPartner &&
+    !lotProposal;
 
   const si = stepIndex(reserve.step);
 
@@ -172,6 +205,117 @@ export default function LotDetailPage() {
       error: tp("step_error"),
     };
     return map[step];
+  }
+
+  async function handleSendRequest() {
+    if (!activePlan || !projections || !user) return;
+    const proposalHash = await sha256Hex(
+      JSON.stringify({ lotId, planId: activePlan.id, userId: user.id, ts: Date.now() }),
+    );
+    await createProposal.mutateAsync({
+      lotId,
+      planId: activePlan.id,
+      userId: user.id,
+      walletAddress: "",
+      partnershipType: "phygital",
+      status: "pending",
+      revenueCents: projections.revenueCents,
+      profitCents: projections.profitCents,
+      farmerCents: projections.farmerCents,
+      partnerCents: projections.partnerCents,
+      proposalHash,
+      message: partnerMessage || null,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    });
+    await queryClient.invalidateQueries({
+      queryKey: trpc.proposals.myProposals.queryKey({ clerkId: clerkUser?.id }),
+    });
+    setRequestDialogOpen(false);
+    setPartnerMessage("");
+  }
+
+  function renderProposalButton() {
+    if (!isPartner) {
+      return (
+        <Button
+          className="bg-primary hover:bg-primary/90 text-[#001020] font-bold py-6 px-8"
+          disabled
+        >
+          <HandCoins className="w-5 h-5 mr-2" />
+          {!user ? t("sign_in_invest") : t("partner_required")}
+        </Button>
+      );
+    }
+
+    if (!activePlan) {
+      return (
+        <Button className="bg-primary/50 text-[#001020] font-bold py-6 px-8" disabled>
+          <HandCoins className="w-5 h-5 mr-2" />
+          {t("no_plan_btn")}
+        </Button>
+      );
+    }
+
+    if (lot?.status !== "available") {
+      return (
+        <Button className="bg-primary/50 text-[#001020] font-bold py-6 px-8" disabled>
+          <HandCoins className="w-5 h-5 mr-2" />
+          {t("lot_status", { status: lot?.status ?? "" })}
+        </Button>
+      );
+    }
+
+    if (!lotProposal) {
+      return (
+        <Button
+          className="bg-primary hover:bg-primary/90 text-[#001020] font-bold py-6 px-8"
+          onClick={() => setRequestDialogOpen(true)}
+        >
+          <HandCoins className="w-5 h-5 mr-2" />
+          {tpr("send_request")}
+        </Button>
+      );
+    }
+
+    if (lotProposal.status === "pending" || lotProposal.status === "submitted") {
+      return (
+        <Button
+          className="bg-yellow-500/20 border border-yellow-500/40 text-yellow-300 font-bold py-6 px-8 cursor-default"
+          disabled
+        >
+          <Clock className="w-5 h-5 mr-2" />
+          {tpr("pending")}
+        </Button>
+      );
+    }
+
+    if (lotProposal.status === "signed") {
+      return (
+        <Button
+          className="bg-green-500/20 border border-green-500/40 text-green-300 font-bold py-6 px-8 hover:bg-green-500/30"
+          onClick={() => setConfirmDialogOpen(true)}
+        >
+          <CheckCircle2 className="w-5 h-5 mr-2" />
+          {tpr("approved")}
+        </Button>
+      );
+    }
+
+    if (lotProposal.status === "failed" || lotProposal.status === "expired") {
+      return (
+        <div className="space-y-2">
+          <Button
+            className="bg-red-500/20 border border-red-500/40 text-red-300 font-bold py-6 px-8 cursor-default"
+            disabled
+          >
+            <XCircle className="w-5 h-5 mr-2" />
+            {tpr("rejected")}
+          </Button>
+        </div>
+      );
+    }
+
+    return null;
   }
 
   return (
@@ -210,11 +354,38 @@ export default function LotDetailPage() {
               const farmPolygon = lot.farm?.polygon != null
                 ? (lot.farm.polygon as Polygon)
                 : null;
-              return farmPolygon ? (
-                <div className="h-[200px] rounded-lg overflow-hidden mb-4 border border-white/10">
-                  <PolygonDisplayMap polygon={farmPolygon} />
-                </div>
-              ) : null;
+              const mapsUrl = (() => {
+                if (lot.gpsLat != null && lot.gpsLng != null) {
+                  return `https://www.google.com/maps?q=${lot.gpsLat},${lot.gpsLng}`;
+                }
+                if (farmPolygon) {
+                  const centroid = polygonCentroid(farmPolygon.coordinates[0] ?? []);
+                  if (centroid) return `https://www.google.com/maps?q=${centroid[0]},${centroid[1]}`;
+                }
+                return null;
+              })();
+              return (
+                <>
+                  {farmPolygon ? (
+                    <div className="h-[200px] rounded-lg overflow-hidden mb-2 border border-white/10">
+                      <PolygonDisplayMap polygon={farmPolygon} />
+                    </div>
+                  ) : null}
+                  {mapsUrl ? (
+                    <div className="flex justify-end mb-4">
+                      <a
+                        href={mapsUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-xs text-[#67B9C1] hover:text-[#67B9C1]/80 transition-colors"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        {t("open_in_maps")}
+                      </a>
+                    </div>
+                  ) : null}
+                </>
+              );
             })()}
 
             <div className="flex items-start justify-between mb-3">
@@ -533,32 +704,97 @@ export default function LotDetailPage() {
             );
           })()}
 
-          <Button
-            className="bg-primary hover:bg-primary/90 text-[#0a0e27] font-bold py-6 px-8"
-            disabled={!canReserve}
-            onClick={() => setDialogOpen(true)}
-          >
-            <HandCoins className="w-5 h-5 mr-2" />
-            {lot.status !== "available"
-              ? t("lot_status", { status: lot.status })
-              : !activePlan
-                ? t("no_plan_btn")
-                : !user
-                  ? t("sign_in_invest")
-                  : user.role !== "partner"
-                    ? t("partner_required")
-                    : t("reserve_partnership")}
-          </Button>
+          {/* CTA button — proposal-based flow */}
+          {renderProposalButton()}
 
+          {/* Approved proposal confirmation banner */}
+          {lotProposal?.status === "signed" && activePlan && projections && (
+            <GlassCard className="mt-6 p-6 border-green-500/30 bg-green-500/5">
+              <h3 className="text-lg font-bold text-green-300 mb-2">
+                {tpr("confirm_title")}
+              </h3>
+              <p className="text-sm text-gray-300 mb-4">
+                {tpr("confirm_desc", { amount: formatUsdFromCents(activePlan.ticketCents) })}
+              </p>
+            </GlassCard>
+          )}
+
+          {/* Send request dialog — no wallet required */}
+          <Dialog open={requestDialogOpen} onOpenChange={setRequestDialogOpen}>
+            <DialogContent className="bg-[#001020] border border-white/10 text-white max-w-md">
+              <DialogHeader>
+                <DialogTitle className="text-xl font-bold text-white">
+                  {tpr("send_request")}
+                </DialogTitle>
+                <DialogDescription className="text-gray-400">
+                  {tpr("request_dialog_desc", {
+                    lot: lot.code ?? t("lot_id", { id: lot.id }),
+                  })}
+                </DialogDescription>
+              </DialogHeader>
+
+              {activePlan && projections && (
+                <div className="grid grid-cols-2 gap-3 text-sm my-2">
+                  <div className="bg-white/5 rounded-lg p-3">
+                    <p className="text-gray-400 text-xs mb-1">{tp("your_ticket")}</p>
+                    <p className="font-bold text-primary text-lg">
+                      {formatUsdFromCents(activePlan.ticketCents)}
+                    </p>
+                  </div>
+                  <div className="bg-white/5 rounded-lg p-3">
+                    <p className="text-gray-400 text-xs mb-1">{tp("projected_return")}</p>
+                    <p className="font-bold text-white text-lg">
+                      {formatUsdFromCents(activePlan.ticketCents + projections.partnerCents)}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <label className="text-sm text-gray-400">
+                  {tpr("message_label")}
+                </label>
+                <textarea
+                  value={partnerMessage}
+                  onChange={(e) => setPartnerMessage(e.target.value)}
+                  placeholder={tpr("message_placeholder")}
+                  rows={3}
+                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-primary text-sm resize-none"
+                />
+              </div>
+
+              {createProposal.error && (
+                <p className="text-xs text-red-400 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3 shrink-0" />
+                  {createProposal.error.message}
+                </p>
+              )}
+
+              <DialogFooter showCloseButton>
+                <Button
+                  className="bg-primary hover:bg-primary/90 text-[#001020] font-bold"
+                  disabled={createProposal.isPending}
+                  onClick={handleSendRequest}
+                >
+                  {createProposal.isPending && (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  )}
+                  {tpr("send_request")}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Wallet confirm dialog — shown after farmer approval */}
           {activePlan && projections && (
-            <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); }}>
-              <DialogContent className="bg-[#1a1f3a] border border-white/10 text-white max-w-md max-h-[90vh] overflow-y-auto">
+            <Dialog open={confirmDialogOpen} onOpenChange={(open) => { setConfirmDialogOpen(open); }}>
+              <DialogContent className="bg-[#001020] border border-white/10 text-white max-w-md max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle className="text-xl font-bold text-white">
-                    {tp("confirm_investment")}
+                    {tpr("confirm_title")}
                   </DialogTitle>
                   <DialogDescription className="text-gray-400">
-                    {tp("review_terms", { lot: lot.code ?? t("lot_id", { id: lot.id }) })}
+                    {tpr("confirm_desc", { amount: formatUsdFromCents(activePlan.ticketCents) })}
                   </DialogDescription>
                 </DialogHeader>
 
@@ -571,34 +807,13 @@ export default function LotDetailPage() {
                       </p>
                     </div>
                     <div className="bg-white/5 rounded-lg p-3">
-                      <p className="text-gray-400 text-xs mb-1">
-                        {tp("projected_return")}
-                      </p>
+                      <p className="text-gray-400 text-xs mb-1">{tp("projected_return")}</p>
                       <p className="font-bold text-white text-lg">
-                        {formatUsdFromCents(
-                          activePlan.ticketCents + projections.partnerCents,
-                        )}
-                      </p>
-                    </div>
-                    <div className="bg-white/5 rounded-lg p-3">
-                      <p className="text-gray-400 text-xs mb-1">
-                        {tp("projected_revenue")}
-                      </p>
-                      <p className="text-white">
-                        {formatUsdFromCents(projections.revenueCents)}
-                      </p>
-                    </div>
-                    <div className="bg-white/5 rounded-lg p-3">
-                      <p className="text-gray-400 text-xs mb-1">
-                        {tp("profit_share", { pct: activePlan.splitPartnerBps ? activePlan.splitPartnerBps / 100 : "—" })}
-                      </p>
-                      <p className="text-white">
-                        {formatUsdFromCents(projections.partnerCents)}
+                        {formatUsdFromCents(activePlan.ticketCents + projections.partnerCents)}
                       </p>
                     </div>
                   </div>
 
-                  {/* Transaction step tracker */}
                   {reserve.step !== "idle" && (
                     <div className="bg-white/5 rounded-lg p-3 space-y-2">
                       <StepRow
@@ -645,7 +860,7 @@ export default function LotDetailPage() {
                         {tp("connect_wallet_warning")}
                       </p>
                       <Button
-                        className="w-full bg-primary hover:bg-primary/90 text-[#0a0e27] font-bold"
+                        className="w-full bg-primary hover:bg-primary/90 text-[#001020] font-bold"
                         disabled={isConnecting}
                         onClick={() =>
                           connect({ connector: wagmiConfig.connectors[1]! })
@@ -659,7 +874,7 @@ export default function LotDetailPage() {
                     </div>
                   ) : (
                     <Button
-                      className="bg-primary hover:bg-primary/90 text-[#0a0e27] font-bold"
+                      className="bg-primary hover:bg-primary/90 text-[#001020] font-bold"
                       disabled={reserve.isLoading}
                       onClick={reserve.step === "error" ? reserve.reset : reserve.start}
                     >
