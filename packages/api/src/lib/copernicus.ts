@@ -13,6 +13,27 @@ export interface ClimateMonth {
   tempC: number;
 }
 
+export type EudrRiskStatus =
+  | "low_risk"
+  | "review_required"
+  | "high_risk"
+  | "unknown";
+
+export type EvidenceConfidence = "none" | "low" | "medium" | "high";
+
+export interface EudrScreening {
+  status: EudrRiskStatus;
+  score: number;
+  confidence: EvidenceConfidence;
+  manualCompliance: boolean | null;
+  source: "manual_verifier" | "sentinel_2_screening" | "unassessed";
+  reasons: string[];
+  limitations: string[];
+  cutoffDate: "2020-12-31";
+  ndviAverage: number | null;
+  validNdviMonths: number;
+}
+
 export interface ScoreBreakdown {
   ndviAvg: number | null;       // null when Sentinel Hub not configured
   ndviStability: number | null; // null when Sentinel Hub not configured
@@ -20,6 +41,7 @@ export interface ScoreBreakdown {
   rainDistrib: number;
   temperature: number;
   eudr: number;
+  eudrScreening: EudrScreening;
   total: number;
 }
 
@@ -30,6 +52,8 @@ export interface RiskScoreResult {
   ndviMonths: NdviMonth[];
   climateMonths: ClimateMonth[];
   hasSentinel: boolean;
+  eudrScreening: EudrScreening;
+  // Manual/verifier compliance value only. Satellite screening must not set this.
   eudrCompliant: boolean | null;
 }
 
@@ -437,10 +461,124 @@ function scoreTemperature(avgC: number): number {
   return 20;
 }
 
-function scoreEudr(eudrCompliant: boolean | null): number {
-  if (eudrCompliant === true) return 100;
-  if (eudrCompliant === false) return 0;
-  return 50; // unknown / not yet assessed
+function buildEudrScreening(params: {
+  manualCompliance: boolean | null;
+  hasSentinel: boolean;
+  validNdvi: number[];
+  ndviAverage: number | null;
+  ndviStabilityScore: number | null;
+}): EudrScreening {
+  const sharedLimitations = [
+    "Automatic screening is not a legal EUDR deforestation determination.",
+    "Stage 1 does not yet intersect JRC Global Forest Cover 2020 or post-2020 forest-loss layers.",
+  ];
+
+  if (params.manualCompliance === true) {
+    return {
+      status: "low_risk",
+      score: 100,
+      confidence: "high",
+      manualCompliance: true,
+      source: "manual_verifier",
+      reasons: ["A verifier or admin manually marked this farm EUDR compliant."],
+      limitations: sharedLimitations,
+      cutoffDate: "2020-12-31",
+      ndviAverage: params.ndviAverage,
+      validNdviMonths: params.validNdvi.length,
+    };
+  }
+
+  if (params.manualCompliance === false) {
+    return {
+      status: "high_risk",
+      score: 0,
+      confidence: "high",
+      manualCompliance: false,
+      source: "manual_verifier",
+      reasons: ["A verifier or admin manually marked this farm EUDR non-compliant."],
+      limitations: sharedLimitations,
+      cutoffDate: "2020-12-31",
+      ndviAverage: params.ndviAverage,
+      validNdviMonths: params.validNdvi.length,
+    };
+  }
+
+  if (!params.hasSentinel || params.validNdvi.length === 0) {
+    return {
+      status: "unknown",
+      score: 50,
+      confidence: "none",
+      manualCompliance: null,
+      source: "unassessed",
+      reasons: ["No usable Sentinel-2 NDVI observations were available for automated screening."],
+      limitations: sharedLimitations,
+      cutoffDate: "2020-12-31",
+      ndviAverage: params.ndviAverage,
+      validNdviMonths: params.validNdvi.length,
+    };
+  }
+
+  if (params.validNdvi.length < 6) {
+    return {
+      status: "review_required",
+      score: 45,
+      confidence: "low",
+      manualCompliance: null,
+      source: "sentinel_2_screening",
+      reasons: ["Sentinel-2 coverage is too sparse for a reliable EUDR screening signal."],
+      limitations: sharedLimitations,
+      cutoffDate: "2020-12-31",
+      ndviAverage: params.ndviAverage,
+      validNdviMonths: params.validNdvi.length,
+    };
+  }
+
+  const ndviAverage = params.ndviAverage ?? 0;
+  if (ndviAverage < 0.3) {
+    return {
+      status: "high_risk",
+      score: 20,
+      confidence: "medium",
+      manualCompliance: null,
+      source: "sentinel_2_screening",
+      reasons: ["Average Sentinel-2 NDVI is below the vegetation screening threshold."],
+      limitations: sharedLimitations,
+      cutoffDate: "2020-12-31",
+      ndviAverage: params.ndviAverage,
+      validNdviMonths: params.validNdvi.length,
+    };
+  }
+
+  if (params.ndviStabilityScore != null && params.ndviStabilityScore < 35) {
+    return {
+      status: "review_required",
+      score: 40,
+      confidence: "medium",
+      manualCompliance: null,
+      source: "sentinel_2_screening",
+      reasons: ["Sentinel-2 NDVI is unstable enough to require review."],
+      limitations: sharedLimitations,
+      cutoffDate: "2020-12-31",
+      ndviAverage: params.ndviAverage,
+      validNdviMonths: params.validNdvi.length,
+    };
+  }
+
+  return {
+    status: "review_required",
+    score: ndviAverage >= 0.5 ? 60 : 50,
+    confidence: "medium",
+    manualCompliance: null,
+    source: "sentinel_2_screening",
+    reasons:
+      ndviAverage >= 0.5
+        ? ["Sentinel-2 NDVI shows a persistent vegetation signal, but forest baseline review is still required."]
+        : ["Sentinel-2 NDVI does not show a clear low-vegetation signal, but review is still required."],
+    limitations: sharedLimitations,
+    cutoffDate: "2020-12-31",
+    ndviAverage: params.ndviAverage,
+    validNdviMonths: params.validNdvi.length,
+  };
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -502,7 +640,7 @@ export async function computeRiskScore(params: {
   const avgNdvi =
     validNdvi.length > 0
       ? validNdvi.reduce((a, b) => a + b, 0) / validNdvi.length
-      : 0;
+      : null;
 
   const annualPrecip =
     climateMonths.length > 0
@@ -515,15 +653,16 @@ export async function computeRiskScore(params: {
       ? climateMonths.reduce((s, m) => s + m.tempC, 0) / climateMonths.length
       : 0;
 
-  const ndviAvgScore = hasSentinel ? scoreNdviAvg(avgNdvi) : null;
+  const ndviAvgScore = hasSentinel && avgNdvi != null ? scoreNdviAvg(avgNdvi) : null;
   const ndviStabScore = hasSentinel ? scoreNdviStability(validNdvi) : null;
 
-  // Infer EUDR compliance from NDVI if not explicitly set and Sentinel data is available
-  let effectiveEudr = params.eudrCompliant;
-  if (effectiveEudr === null && hasSentinel && validNdvi.length > 0) {
-    if (avgNdvi >= 0.5) effectiveEudr = true;
-    else if (avgNdvi < 0.3) effectiveEudr = false;
-  }
+  const eudrScreening = buildEudrScreening({
+    manualCompliance: params.eudrCompliant,
+    hasSentinel,
+    validNdvi,
+    ndviAverage: avgNdvi,
+    ndviStabilityScore: ndviStabScore,
+  });
 
   const breakdown: ScoreBreakdown = {
     ndviAvg: ndviAvgScore,
@@ -531,7 +670,8 @@ export async function computeRiskScore(params: {
     annualPrecip: scoreAnnualPrecip(annualPrecip),
     rainDistrib: scoreRainDistrib(climateMonths),
     temperature: scoreTemperature(avgTemp),
-    eudr: scoreEudr(effectiveEudr),
+    eudr: eudrScreening.score,
+    eudrScreening,
     total: 0,
   };
 
@@ -542,10 +682,10 @@ export async function computeRiskScore(params: {
     { score: breakdown.temperature, weight: BASE_WEIGHTS.temperature },
     { score: breakdown.eudr, weight: BASE_WEIGHTS.eudr },
   ];
-  if (hasSentinel) {
+  if (ndviAvgScore != null && ndviStabScore != null) {
     components.push(
-      { score: ndviAvgScore!, weight: BASE_WEIGHTS.ndviAvg },
-      { score: ndviStabScore!, weight: BASE_WEIGHTS.ndviStability },
+      { score: ndviAvgScore, weight: BASE_WEIGHTS.ndviAvg },
+      { score: ndviStabScore, weight: BASE_WEIGHTS.ndviStability },
     );
   }
   const totalWeight = components.reduce((s, c) => s + c.weight, 0);
@@ -568,7 +708,18 @@ export async function computeRiskScore(params: {
       precipMm: Number(m.precipMm.toFixed(2)),
       tempC: Number(m.tempC.toFixed(2)),
     })),
-    eudrCompliant: effectiveEudr,
+    manualEudrCompliant: params.eudrCompliant,
+    eudrScreening: {
+      status: eudrScreening.status,
+      score: eudrScreening.score,
+      confidence: eudrScreening.confidence,
+      source: eudrScreening.source,
+      ndviAverage:
+        eudrScreening.ndviAverage != null
+          ? Number(eudrScreening.ndviAverage.toFixed(4))
+          : null,
+      validNdviMonths: eudrScreening.validNdviMonths,
+    },
   });
   const hash = createHash("sha256").update(hashInput).digest("hex");
 
@@ -579,6 +730,7 @@ export async function computeRiskScore(params: {
     ndviMonths,
     climateMonths,
     hasSentinel,
-    eudrCompliant: effectiveEudr,
+    eudrScreening,
+    eudrCompliant: params.eudrCompliant,
   };
 }

@@ -1,19 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter, useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { ArrowLeft, CheckCircle2, ExternalLink, MapPin, Mountain, Satellite, XCircle } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, Edit3, ExternalLink, HelpCircle, ImagePlus, Loader2, MapPin, Mountain, RotateCcw, Satellite, XCircle } from "lucide-react";
 import type { Polygon } from "geojson";
 
 import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
 import { Button } from "@harvverse-monorepo/ui/components/button";
 import { Skeleton } from "@harvverse-monorepo/ui/components/skeleton";
 
-import { trpc } from "@/utils/trpc";
+import { queryClient, trpc } from "@/utils/trpc";
 import RiskScorePreview, { type RiskScoreData } from "@/components/risk-score-preview";
+import { eudrTone, extractEudrScreening, type EudrRiskStatus } from "@/lib/eudr-screening";
 
 const PolygonDisplayMap = dynamic(() => import("@/components/polygon-display-map"), {
   ssr: false,
@@ -49,7 +50,15 @@ function riskScoreFromFarm(farm: {
     ndviMonths: stored.ndviMonths ?? [],
     climateMonths: stored.climateMonths ?? [],
     hasSentinel: stored.hasSentinel ?? false,
+    eudrScreening: extractEudrScreening(farm.scoreBreakdown),
   };
+}
+
+function eudrLabel(t: ReturnType<typeof useTranslations<"farm">>, status: EudrRiskStatus | null) {
+  if (status === "low_risk") return t("eudr_prelim_passed");
+  if (status === "review_required") return t("eudr_prelim_review");
+  if (status === "high_risk") return t("eudr_prelim_failed");
+  return t("eudr_prelim_inconclusive");
 }
 
 export default function FarmerFarmDetailPage() {
@@ -59,21 +68,55 @@ export default function FarmerFarmDetailPage() {
   const farmIdValid = Number.isFinite(farmId);
   const t = useTranslations("farm");
   const [expandedImage, setExpandedImage] = useState<string | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const attemptedAnalysisRef = useRef(false);
 
   const { data: farm, isLoading } = useQuery(
     trpc.farms.byId.queryOptions(
       { id: farmId },
-      {
-        enabled: farmIdValid,
-        refetchInterval: (query) => {
-          const data = query.state.data;
-          return data != null && (data.riskScore == null || data.eudrCompliant == null)
-            ? 5000
-            : false;
-        },
-      },
+      { enabled: farmIdValid },
     ),
   );
+
+  const runAnalysis = useMutation(
+    trpc.farms.runCopernicusAnalysis.mutationOptions({
+      onSuccess: async () => {
+        setAnalysisError(null);
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: trpc.farms.byId.queryKey({ id: farmId }),
+          }),
+          queryClient.invalidateQueries({
+            queryKey: trpc.farms.list.queryKey(),
+          }),
+        ]);
+      },
+      onError: (error) => {
+        setAnalysisError(error.message || t("score_retry_desc"));
+      },
+    }),
+  );
+
+  useEffect(() => {
+    if (
+      !farm ||
+      farm.riskScore != null ||
+      attemptedAnalysisRef.current ||
+      runAnalysis.isPending
+    ) {
+      return;
+    }
+    attemptedAnalysisRef.current = true;
+    setAnalysisError(null);
+    runAnalysis.mutate({ farmId: farm.id });
+  }, [farm?.id, farm?.riskScore]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function retryAnalysis() {
+    if (!farm) return;
+    attemptedAnalysisRef.current = true;
+    setAnalysisError(null);
+    runAnalysis.mutate({ farmId: farm.id });
+  }
 
   return (
     <div className="mx-auto max-w-7xl px-4 md:px-0 text-[#EEEEEE]">
@@ -150,17 +193,38 @@ export default function FarmerFarmDetailPage() {
                   ) : null;
                 })()}
               </div>
-              <div className="self-start rounded-full bg-primary/15 px-4 py-1.5 text-xs font-bold text-primary ring-1 ring-primary/25 backdrop-blur-md">
-                {farm.verified ? t("verified") : t("pending_verification")}
+              <div className="flex flex-wrap items-center gap-2 md:justify-end">
+                <div className="rounded-full bg-primary/15 px-4 py-1.5 text-xs font-bold text-primary ring-1 ring-primary/25 backdrop-blur-md">
+                  {farm.verified ? t("verified") : t("pending_verification")}
+                </div>
+                <Button
+                  type="button"
+                  className="h-9 bg-primary text-[#001020] hover:bg-primary/90"
+                  onClick={() => router.push(`/dashboard/farmer/farms/${farm.id}/edit`)}
+                >
+                  <Edit3 className="mr-2 size-4" />
+                  {t("edit_farm_cta")}
+                </Button>
               </div>
             </div>
           </GlassCard>
 
           {farm.images && farm.images.length > 0 ? (
             <GlassCard className="mb-6 border-primary/20 bg-white/[0.03] p-5">
-              <h2 className="section-title mb-4 text-xl md:text-2xl">
-                {t("images_title")}
-              </h2>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <h2 className="section-title text-xl md:text-2xl">
+                  {t("images_title")}
+                </h2>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-9 border-[#67B9C1]/40 text-[#67B9C1] hover:bg-[#67B9C1]/10"
+                  onClick={() => router.push(`/dashboard/farmer/farms/${farm.id}/edit#images`)}
+                >
+                  <ImagePlus className="mr-2 size-4" />
+                  {t("manage_photos_cta")}
+                </Button>
+              </div>
               <div className="grid gap-3 md:grid-cols-[1.4fr_1fr]">
                 {(() => {
                   const primary = farm.images.find((image) => image.isPrimary) ?? farm.images[0];
@@ -202,7 +266,68 @@ export default function FarmerFarmDetailPage() {
                 </div>
               </div>
             </GlassCard>
-          ) : null}
+          ) : (
+            <GlassCard className="mb-6 border-primary/20 bg-white/[0.03] p-5">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="font-trenda text-xl font-bold text-white">
+                    {t("photos_empty_title")}
+                  </h2>
+                  <p className="mt-1 text-sm text-white/55">
+                    {t("photos_empty_desc")}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  className="bg-primary font-black text-[#001020] hover:bg-primary/90"
+                  onClick={() => router.push(`/dashboard/farmer/farms/${farm.id}/edit#images`)}
+                >
+                  <ImagePlus className="mr-2 size-4" />
+                  {t("add_photos_cta")}
+                </Button>
+              </div>
+            </GlassCard>
+          )}
+
+          <GlassCard className="mb-6 border-primary/20 bg-white/[0.03] p-5">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="section-title text-xl md:text-2xl">
+                {t("farm_details_title")}
+              </h2>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-9 border-white/15 text-white/75 hover:bg-white/10 hover:text-white"
+                onClick={() => router.push(`/dashboard/farmer/farms/${farm.id}/edit`)}
+              >
+                <Edit3 className="mr-2 size-4" />
+                {t("edit_details_cta")}
+              </Button>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-xl border border-white/10 bg-white/[0.025] p-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/40">{t("varieties")}</p>
+                <p className="mt-1 text-sm font-bold text-white">{farm.varieties?.join(", ") || "—"}</p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-white/[0.025] p-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/40">{t("certifications")}</p>
+                <p className="mt-1 text-sm font-bold text-white">{farm.certifications?.join(", ") || "—"}</p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-white/[0.025] p-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/40">{t("total_area")}</p>
+                <p className="mt-1 text-sm font-bold text-primary">{farm.totalArea ? `${farm.totalArea} ha` : "—"}</p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-white/[0.025] p-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/40">{t("altitude")}</p>
+                <p className="mt-1 text-sm font-bold text-primary">{farm.altitudeMasl ? `${farm.altitudeMasl} m` : "—"}</p>
+              </div>
+            </div>
+            {farm.description ? (
+              <p className="mt-4 text-sm leading-relaxed text-white/65">
+                {farm.description}
+              </p>
+            ) : null}
+          </GlassCard>
 
           <GlassCard className="mb-6 border-primary/20 bg-white/[0.03] p-5">
             <h2 className="section-title mb-4 text-xl md:text-2xl">
@@ -226,46 +351,86 @@ export default function FarmerFarmDetailPage() {
                       <PolygonDisplayMap polygon={farm.polygon as Polygon} />
                     </div>
                   ) : null}
-                  <div
-                    className={
-                      farm.eudrCompliant === false
-                        ? "rounded-xl border border-red-500/25 bg-red-500/10 p-4"
-                        : farm.eudrCompliant === true
-                          ? "rounded-xl border border-green-500/25 bg-green-500/10 p-4"
-                          : "rounded-xl border border-yellow-500/25 bg-yellow-500/10 p-4"
-                    }
-                  >
-                    <div className="mb-2 flex items-center gap-2">
-                      {farm.eudrCompliant === false ? (
-                        <XCircle className="size-5 text-red-300" />
-                      ) : farm.eudrCompliant === true ? (
-                        <CheckCircle2 className="size-5 text-green-300" />
-                      ) : (
-                        <Satellite className="size-5 text-yellow-300" />
-                      )}
-                      <p className="font-trenda font-bold text-white">EUDR</p>
-                    </div>
-                    <p className="text-sm text-white/75">
-                      {farm.eudrCompliant === false
-                        ? t("eudr_non_compliant_msg")
-                        : farm.eudrCompliant === true
-                          ? t("eudr_compliant_msg")
-                          : t("eudr_pending_msg")}
-                    </p>
-                  </div>
+                  {(() => {
+                    const screening = extractEudrScreening(farm.scoreBreakdown);
+                    const status = screening?.status ?? "unknown";
+                    const tone = eudrTone(status);
+                    const EudrIcon =
+                      status === "low_risk"
+                        ? CheckCircle2
+                        : status === "high_risk"
+                          ? XCircle
+                          : status === "review_required"
+                            ? AlertTriangle
+                            : HelpCircle;
+                    return (
+                      <div className={`rounded-xl border p-4 ${tone.card}`}>
+                        <div className="mb-2 flex items-center gap-2">
+                          <EudrIcon className={`size-5 ${tone.text}`} />
+                          <p className="font-trenda font-bold text-white">
+                            {eudrLabel(t, status)}
+                          </p>
+                        </div>
+                        <p className="text-sm text-white/75">
+                          {t("eudr_prelim_helper")}
+                        </p>
+                        {screening?.confidence ? (
+                          <p className="mt-3 text-xs font-bold uppercase tracking-[0.12em] text-white/45">
+                            {t("eudr_confidence")}: {t(`eudr_confidence_${screening.confidence}`)}
+                          </p>
+                        ) : null}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             ) : (
-              <div className="animate-pulse rounded-xl border border-white/10 bg-white/[0.03] p-5">
+              <div
+                className={`rounded-xl border p-5 ${
+                  analysisError
+                    ? "border-yellow-400/25 bg-yellow-400/[0.04]"
+                    : "border-white/10 bg-white/[0.03]"
+                }`}
+              >
                 <div className="mb-3 flex items-center gap-3">
-                  <div className="flex size-10 items-center justify-center rounded-xl bg-[#67B9C1]/10">
-                    <Satellite className="size-5 text-[#67B9C1]" />
+                  <div className={`flex size-10 items-center justify-center rounded-xl ${
+                    analysisError ? "bg-yellow-400/10" : "bg-[#67B9C1]/10"
+                  }`}>
+                    {runAnalysis.isPending ? (
+                      <Loader2 className="size-5 animate-spin text-[#67B9C1]" />
+                    ) : analysisError ? (
+                      <AlertTriangle className="size-5 text-yellow-300" />
+                    ) : (
+                      <Satellite className="size-5 text-[#67B9C1]" />
+                    )}
                   </div>
                   <p className="font-trenda text-lg font-bold text-white">
-                    {t("score_analyzing")}
+                    {analysisError
+                      ? t("score_retry_title")
+                      : runAnalysis.isPending
+                        ? t("score_running")
+                        : t("score_analyzing")}
                   </p>
                 </div>
-                <p className="text-sm text-white/60">{t("score_analyzing_desc")}</p>
+                <p className="text-sm text-white/60">
+                  {analysisError
+                    ? analysisError
+                    : runAnalysis.isPending
+                      ? t("score_running_desc")
+                      : t("score_analyzing_desc")}
+                </p>
+                {analysisError ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="mt-4 border-yellow-300/30 text-yellow-100 hover:bg-yellow-300/10"
+                    onClick={retryAnalysis}
+                    disabled={runAnalysis.isPending}
+                  >
+                    <RotateCcw className="mr-2 size-4" />
+                    {t("score_retry_btn")}
+                  </Button>
+                ) : null}
               </div>
             )}
           </GlassCard>

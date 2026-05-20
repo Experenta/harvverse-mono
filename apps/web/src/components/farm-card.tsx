@@ -8,6 +8,7 @@ import { motion } from "framer-motion";
 import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
 import { Button } from "@harvverse-monorepo/ui/components/button";
 import { Badge } from "@harvverse-monorepo/ui/components/badge";
+import { eudrTone, extractEudrScreening } from "@/lib/eudr-screening";
 
 interface Lot {
   id: number;
@@ -30,6 +31,7 @@ interface Farm {
   verified?: boolean | null;
   riskScore?: number | null;
   eudrCompliant?: boolean | null;
+  scoreBreakdown?: unknown;
   primaryImageData?: string | null;
   primaryImageMimeType?: string | null;
   lots: Lot[];
@@ -63,6 +65,21 @@ export function FarmCard({ farm }: FarmCardProps) {
   const primaryImageSrc = farm.primaryImageData && farm.primaryImageMimeType
     ? `data:${farm.primaryImageMimeType};base64,${farm.primaryImageData}`
     : farm.photoUrls?.[0] ?? null;
+  const eudrScreening = extractEudrScreening(farm.scoreBreakdown);
+  const eudrStatus = eudrScreening?.status ?? null;
+  const eudrUi = eudrTone(eudrStatus);
+  const eudrLabel =
+    eudrStatus === "low_risk"
+      ? t("eudr_prelim_passed")
+      : eudrStatus === "review_required"
+        ? t("eudr_prelim_review")
+        : eudrStatus === "high_risk"
+          ? t("eudr_prelim_failed")
+          : eudrStatus === "unknown"
+            ? t("eudr_prelim_inconclusive")
+            : farm.riskScore != null
+              ? t("eudr_prelim_inconclusive")
+              : t("status_analyzing");
 
   return (
     <motion.div
@@ -86,23 +103,9 @@ export function FarmCard({ farm }: FarmCardProps) {
           <div className="absolute inset-0 bg-gradient-to-t from-[#001020] via-[#001020]/20 to-transparent" />
           
           <div className="absolute top-2 right-2 flex flex-col items-end gap-1.5">
-            {farm.eudrCompliant === true ? (
-              <Badge className="rounded-full border border-green-500/30 bg-green-500/20 px-2 py-0 text-[9px] font-bold text-green-300 backdrop-blur-md">
-                EUDR ✓
-              </Badge>
-            ) : farm.eudrCompliant === false ? (
-              <Badge className="rounded-full border border-red-500/30 bg-red-500/20 px-2 py-0 text-[9px] font-bold text-red-300 backdrop-blur-md">
-                EUDR ✗
-              </Badge>
-            ) : farm.riskScore != null ? (
-              <Badge className="rounded-full border border-yellow-500/30 bg-yellow-500/15 px-2 py-0 text-[9px] font-bold text-yellow-300 backdrop-blur-md">
-                {t("eudr_pending_badge")}
-              </Badge>
-            ) : (
-              <Badge className="rounded-full border border-white/15 bg-white/10 px-2 py-0 text-[9px] font-bold text-white/55 backdrop-blur-md">
-                {t("status_analyzing")}
-              </Badge>
-            )}
+            <Badge className={`max-w-44 rounded-full border px-2 py-0 text-[9px] font-bold backdrop-blur-md ${farm.riskScore == null ? "border-white/15 bg-white/10 text-white/55" : eudrUi.badge}`}>
+              <span className="truncate">{eudrLabel}</span>
+            </Badge>
             {scoreBadge ? (
               <Badge className={`rounded-full px-2 py-0 text-[9px] font-bold backdrop-blur-md ${scoreBadge.className}`}>
                 {scoreBadge.label}

@@ -7,13 +7,14 @@ import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import type { Polygon } from "geojson";
-import { ArrowLeft, CheckCircle2, MapPin, Mountain, Satellite, XCircle } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, HelpCircle, MapPin, Mountain, Satellite, XCircle } from "lucide-react";
 
 import { Button } from "@harvverse-monorepo/ui/components/button";
 import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
 import { Skeleton } from "@harvverse-monorepo/ui/components/skeleton";
 import RiskScorePreview, { type RiskScoreData } from "@/components/risk-score-preview";
 import { trpc } from "@/utils/trpc";
+import { eudrTone, extractEudrScreening, type EudrRiskStatus } from "@/lib/eudr-screening";
 
 const PolygonDisplayMap = dynamic(() => import("@/components/polygon-display-map"), {
   ssr: false,
@@ -38,7 +39,15 @@ function riskScoreFromFarm(farm: {
     ndviMonths: stored.ndviMonths ?? [],
     climateMonths: stored.climateMonths ?? [],
     hasSentinel: stored.hasSentinel ?? false,
+    eudrScreening: extractEudrScreening(farm.scoreBreakdown),
   };
+}
+
+function eudrLabel(t: ReturnType<typeof useTranslations<"farm">>, status: EudrRiskStatus | null) {
+  if (status === "low_risk") return t("eudr_prelim_passed");
+  if (status === "review_required") return t("eudr_prelim_review");
+  if (status === "high_risk") return t("eudr_prelim_failed");
+  return t("eudr_prelim_inconclusive");
 }
 
 export default function PublicFarmDetailPage() {
@@ -161,33 +170,32 @@ export default function PublicFarmDetailPage() {
 
               <div className="space-y-5">
                 {riskData ? <RiskScorePreview data={riskData} /> : null}
-                <GlassCard
-                  className={
-                    farm.eudrCompliant === false
-                      ? "border-red-500/25 bg-red-500/10 p-5"
-                      : farm.eudrCompliant === true
-                        ? "border-green-500/25 bg-green-500/10 p-5"
-                        : "border-yellow-500/25 bg-yellow-500/10 p-5"
-                  }
-                >
-                  <div className="mb-2 flex items-center gap-2">
-                    {farm.eudrCompliant === false ? (
-                      <XCircle className="size-5 text-red-300" />
-                    ) : farm.eudrCompliant === true ? (
-                      <CheckCircle2 className="size-5 text-green-300" />
-                    ) : (
-                      <Satellite className="size-5 text-yellow-300" />
-                    )}
-                    <p className="font-trenda text-lg font-bold text-white">EUDR</p>
-                  </div>
-                  <p className="text-sm text-white/75">
-                    {farm.eudrCompliant === false
-                      ? t("eudr_non_compliant_msg")
-                      : farm.eudrCompliant === true
-                        ? t("eudr_compliant_msg")
-                        : t("eudr_pending_msg")}
-                  </p>
-                </GlassCard>
+                {(() => {
+                  const screening = extractEudrScreening(farm.scoreBreakdown);
+                  const status = screening?.status ?? "unknown";
+                  const tone = eudrTone(status);
+                  const EudrIcon =
+                    status === "low_risk"
+                      ? CheckCircle2
+                      : status === "high_risk"
+                        ? XCircle
+                        : status === "review_required"
+                          ? AlertTriangle
+                          : HelpCircle;
+                  return (
+                    <GlassCard className={`border p-5 ${tone.card}`}>
+                      <div className="mb-2 flex items-center gap-2">
+                        <EudrIcon className={`size-5 ${tone.text}`} />
+                        <p className="font-trenda text-lg font-bold text-white">
+                          {eudrLabel(t, status)}
+                        </p>
+                      </div>
+                      <p className="text-sm text-white/75">
+                        {t("eudr_prelim_helper")}
+                      </p>
+                    </GlassCard>
+                  );
+                })()}
               </div>
             </div>
 

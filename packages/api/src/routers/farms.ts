@@ -1,5 +1,15 @@
+import { createHash } from "crypto";
 import type { Db } from "@harvverse-monorepo/db";
-import { farmImages, farms, insertFarmSchema, users } from "@harvverse-monorepo/db/schema";
+import {
+  copernicusAlerts,
+  copernicusObservations,
+  copernicusRuns,
+  eudrAssessments,
+  farmImages,
+  farms,
+  insertFarmSchema,
+  users,
+} from "@harvverse-monorepo/db/schema";
 import { env } from "@harvverse-monorepo/env/server";
 import { TRPCError } from "@trpc/server";
 import { and, eq, isNotNull } from "drizzle-orm";
@@ -31,6 +41,19 @@ function withPrimaryImage<T extends { images?: FarmImageRecord[] }>(farm: T) {
     null;
   return {
     ...farm,
+    primaryImageData: primary?.data ?? null,
+    primaryImageMimeType: primary?.mimeType ?? null,
+  };
+}
+
+function withPublicPrimaryImage<T extends { images?: FarmImageRecord[] }>(farm: T) {
+  const { images: _images, ...rest } = farm;
+  const primary =
+    farm.images?.find((image) => image.isPrimary) ??
+    farm.images?.[0] ??
+    null;
+  return {
+    ...rest,
     primaryImageData: primary?.data ?? null,
     primaryImageMimeType: primary?.mimeType ?? null,
   };
@@ -96,19 +119,181 @@ function farmRiskPayload(result: Awaited<ReturnType<typeof computeRiskScore>>) {
       ndviMonths: result.ndviMonths,
       climateMonths: result.climateMonths,
       hasSentinel: result.hasSentinel,
+      eudrScreening: result.eudrScreening,
     },
     updatedAt: new Date(),
   };
 }
 
-export async function computeRiskScoreForFarm(
+function stableHash(value: unknown) {
+  return createHash("sha256").update(JSON.stringify(value)).digest("hex");
+}
+
+function monthDate(value: string) {
+  const date = new Date(`${value}-01T00:00:00Z`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+async function recordCopernicusEvidence(params: {
+  db: Db;
+  farmId: number;
+  polygon: FarmPolygon | null;
+  result: Awaited<ReturnType<typeof computeRiskScore>>;
+}) {
+  const { db, farmId, polygon, result } = params;
+  const now = new Date();
+  const start = new Date(now);
+  start.setMonth(start.getMonth() - 24);
+
+  const providerName = result.hasSentinel
+    ? "sentinel_hub_cdse+open_meteo"
+    : "open_meteo_fallback";
+  const collectionId = result.hasSentinel
+    ? "sentinel-2-l2a;open-meteo-archive"
+    : "open-meteo-archive";
+  const polygonHash = stableHash(polygon ?? { type: "point_or_missing" });
+  const generatedReportHash = stableHash({
+    farmId,
+    providerName,
+    collectionId,
+    score: result.score,
+    resultHash: result.hash,
+    eudrScreening: result.eudrScreening,
+  });
+
+  const [run] = await db
+    .insert(copernicusRuns)
+    .values({
+      farmId,
+      providerName,
+      providerVersion: "trustworthy-v1-stage1",
+      collectionId,
+      timeRangeStart: start,
+      timeRangeEnd: now,
+      polygonHash,
+      rawResponseHash: result.hash,
+      derivedMetrics: {
+        score: result.score,
+        breakdown: result.breakdown,
+        hasSentinel: result.hasSentinel,
+        ndviMonths: result.ndviMonths,
+        climateMonths: result.climateMonths,
+      },
+      confidence: result.eudrScreening.confidence,
+      generatedReportHash,
+      status: "complete",
+    })
+    .returning();
+
+  if (!run) return null;
+
+  const observationRows = [
+    ...result.ndviMonths.map((month) => ({
+      runId: run.id,
+      farmId,
+      providerName: "sentinel_hub_cdse",
+      collectionId: "sentinel-2-l2a",
+      observedAt: monthDate(month.date),
+      metricType: "ndvi_monthly",
+      metrics: month,
+      confidence: month.mean == null ? "low" : "medium",
+    })),
+    ...result.climateMonths.map((month) => ({
+      runId: run.id,
+      farmId,
+      providerName: "open_meteo",
+      collectionId: "open-meteo-archive",
+      observedAt: monthDate(month.date),
+      metricType: "climate_monthly",
+      metrics: month,
+      confidence: "medium",
+    })),
+  ];
+
+  if (observationRows.length > 0) {
+    await db.insert(copernicusObservations).values(observationRows);
+  }
+
+  const assessmentHash = stableHash({
+    farmId,
+    runId: run.id,
+    eudrScreening: result.eudrScreening,
+  });
+  const [assessment] = await db.insert(eudrAssessments).values({
+    farmId,
+    runId: run.id,
+    status: result.eudrScreening.status,
+    score: result.eudrScreening.score,
+    confidence: result.eudrScreening.confidence,
+    source: result.eudrScreening.source,
+    cutoffDate: result.eudrScreening.cutoffDate,
+    reasons: result.eudrScreening.reasons,
+    limitations: result.eudrScreening.limitations,
+    assessmentHash,
+  }).returning();
+
+  let alert: typeof copernicusAlerts.$inferSelect | null = null;
+
+  if (
+    result.eudrScreening.status === "review_required" ||
+    result.eudrScreening.status === "high_risk" ||
+    result.eudrScreening.status === "unknown"
+  ) {
+    const alertPayload = {
+      runId: run.id,
+      severity: result.eudrScreening.status === "high_risk" ? "high" : "medium",
+      message: result.eudrScreening.reasons[0] ?? "EUDR screening requires review.",
+      metrics: {
+        status: result.eudrScreening.status,
+        score: result.eudrScreening.score,
+        confidence: result.eudrScreening.confidence,
+      },
+    };
+    const existingOpenAlert = await db.query.copernicusAlerts.findFirst({
+      where: and(
+        eq(copernicusAlerts.farmId, farmId),
+        eq(copernicusAlerts.type, "eudr_review_trigger"),
+        eq(copernicusAlerts.status, "open"),
+      ),
+    });
+
+    if (existingOpenAlert) {
+      const [updatedAlert] = await db
+        .update(copernicusAlerts)
+        .set(alertPayload)
+        .where(eq(copernicusAlerts.id, existingOpenAlert.id))
+        .returning();
+      alert = updatedAlert ?? null;
+    } else {
+      const [createdAlert] = await db
+        .insert(copernicusAlerts)
+        .values({
+          farmId,
+          type: "eudr_review_trigger",
+          ...alertPayload,
+        })
+        .returning();
+      alert = createdAlert ?? null;
+    }
+  }
+
+  return { run, assessment: assessment ?? null, alert };
+}
+
+async function runCopernicusAnalysisForFarm(
   farmId: number,
   db: Db,
-): Promise<void> {
+): Promise<{
+  farm: typeof farms.$inferSelect;
+  run: typeof copernicusRuns.$inferSelect | null;
+  eudrAssessment: typeof eudrAssessments.$inferSelect | null;
+  alert: typeof copernicusAlerts.$inferSelect | null;
+  generatedReportHash: string | null;
+} | null> {
   const farm = await db.query.farms.findFirst({
     where: eq(farms.id, farmId),
   });
-  if (!farm) return;
+  if (!farm) return null;
 
   const polygon =
     farm.polygon != null ? (farm.polygon as FarmPolygon) : null;
@@ -124,7 +309,7 @@ export async function computeRiskScoreForFarm(
       ? Number(farm.longitude)
       : null);
 
-  if (lat == null || lng == null) return;
+  if (lat == null || lng == null) return null;
 
   const [result, altitude] = await Promise.all([
     computeRiskScore({
@@ -138,13 +323,34 @@ export async function computeRiskScoreForFarm(
     farm.altitudeMasl == null ? getAltitudeFromOpenMeteo(lat, lng) : null,
   ]);
 
-  await db
+  const [updatedFarm] = await db
     .update(farms)
     .set({
       ...farmRiskPayload(result),
       ...(altitude != null && { altitudeMasl: altitude }),
     })
-    .where(eq(farms.id, farmId));
+    .where(eq(farms.id, farmId))
+    .returning();
+
+  const evidence = await recordCopernicusEvidence({ db, farmId, polygon, result });
+
+  if (!updatedFarm) return null;
+
+  return {
+    farm: updatedFarm,
+    run: evidence?.run ?? null,
+    eudrAssessment: evidence?.assessment ?? null,
+    alert: evidence?.alert ?? null,
+    generatedReportHash: evidence?.run.generatedReportHash ?? null,
+  };
+}
+
+export async function computeRiskScoreForFarm(
+  farmId: number,
+  db: Db,
+): Promise<typeof farms.$inferSelect | null> {
+  const analysis = await runCopernicusAnalysisForFarm(farmId, db);
+  return analysis?.farm ?? null;
 }
 
 export const farmsRouter = router({
@@ -213,7 +419,7 @@ export const farmsRouter = router({
         },
       },
       orderBy: (table, { desc }) => [desc(table.scoreUpdatedAt)],
-    }).then((items) => items.map(withPrimaryImage));
+    }).then((items) => items.map(withPublicPrimaryImage));
   }),
 
   byIdPublic: publicProcedure
@@ -383,65 +589,58 @@ export const farmsRouter = router({
   computeRiskScore: protectedProcedure
     .input(z.object({ farmId: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
-      const requestingUser = await ctx.db.query.users.findFirst({
-        where: eq(users.clerkId, ctx.clerkId),
-      });
-      if (!requestingUser) {
-        throw new TRPCError({ code: "UNAUTHORIZED", message: "User not found" });
-      }
-
-      const farm = await ctx.db.query.farms.findFirst({
-        where: eq(farms.id, input.farmId),
-      });
-      if (!farm) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Farm not found" });
-      }
-      if (farm.farmerId !== requestingUser.id) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "You do not own this farm" });
-      }
-
-      const polygon =
-        farm.polygon != null ? (farm.polygon as FarmPolygon) : null;
-      const centroid = polygon ? computePolygonCentroid(polygon) : null;
-      const lat =
-        centroid?.lat ??
-        (farm.latitude != null && !Number.isNaN(Number(farm.latitude))
-          ? Number(farm.latitude)
-          : null);
-      const lng =
-        centroid?.lng ??
-        (farm.longitude != null && !Number.isNaN(Number(farm.longitude))
-          ? Number(farm.longitude)
-          : null);
-
-      if (lat == null || lng == null) {
+      await assertOwnsFarm(ctx.db, ctx.clerkId, input.farmId);
+      const updatedFarm = await computeRiskScoreForFarm(input.farmId, ctx.db);
+      if (!updatedFarm) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "La finca necesita un polígono o coordenadas GPS",
         });
       }
-
-      const result = await computeRiskScore({
-        lat,
-        lng,
-        eudrCompliant: farm.eudrCompliant ?? null,
-        sentinelClientId: env.SENTINEL_HUB_CLIENT_ID,
-        sentinelClientSecret: env.SENTINEL_HUB_CLIENT_SECRET,
-        polygon,
-      });
-      const altitude =
-        farm.altitudeMasl == null ? await getAltitudeFromOpenMeteo(lat, lng) : null;
-
-      const [updatedFarm] = await ctx.db
-        .update(farms)
-        .set({
-          ...farmRiskPayload(result),
-          ...(altitude != null && { altitudeMasl: altitude }),
-        })
-        .where(eq(farms.id, farm.id))
-        .returning();
-
       return updatedFarm;
+    }),
+
+  runCopernicusAnalysis: protectedProcedure
+    .input(z.object({ farmId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      await assertOwnsFarm(ctx.db, ctx.clerkId, input.farmId);
+      const analysis = await runCopernicusAnalysisForFarm(input.farmId, ctx.db);
+      if (!analysis) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "La finca necesita un polígono o coordenadas GPS",
+        });
+      }
+      return analysis;
+    }),
+
+  copernicusHistory: protectedProcedure
+    .input(z.object({ farmId: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      await assertOwnsFarm(ctx.db, ctx.clerkId, input.farmId);
+      return ctx.db.query.copernicusRuns.findMany({
+        where: eq(copernicusRuns.farmId, input.farmId),
+        with: {
+          observations: true,
+          eudrAssessments: true,
+          alerts: true,
+        },
+        orderBy: (table, { desc }) => [desc(table.createdAt)],
+        limit: 10,
+      });
+    }),
+
+  eudrAssessment: protectedProcedure
+    .input(z.object({ farmId: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      await assertOwnsFarm(ctx.db, ctx.clerkId, input.farmId);
+      return ctx.db.query.eudrAssessments.findFirst({
+        where: eq(eudrAssessments.farmId, input.farmId),
+        with: {
+          run: true,
+        },
+        orderBy: (table, { desc }) => [desc(table.createdAt)],
+      });
     }),
 
   update: protectedProcedure

@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { ChevronDown, ChevronUp, CheckCircle, XCircle } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronUp, CheckCircle, HelpCircle, XCircle } from "lucide-react";
 import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
+import { eudrTone, type EudrScreening } from "@/lib/eudr-screening";
 
 interface ScoreBreakdown {
   ndviAvg: number | null;
@@ -12,6 +13,7 @@ interface ScoreBreakdown {
   rainDistrib: number;
   temperature: number;
   eudr: number;
+  eudrScreening?: EudrScreening | null;
   total: number;
 }
 
@@ -33,6 +35,7 @@ export interface RiskScoreData {
   ndviMonths?: NdviMonth[];
   climateMonths?: ClimateMonth[];
   hasSentinel?: boolean;
+  eudrScreening?: EudrScreening | null;
   eudrCompliant: boolean | null;
 }
 
@@ -86,6 +89,25 @@ export default function RiskScorePreview({ data }: { data: RiskScoreData }) {
       ? ndviMonths.filter((m) => m.mean !== null).reduce((s, m) => s + (m.mean ?? 0), 0) /
         (ndviMonths.filter((m) => m.mean !== null).length || 1)
       : null;
+  const eudrScreening = data.eudrScreening ?? data.breakdown?.eudrScreening ?? null;
+  const eudrStatus = eudrScreening?.status ?? "unknown";
+  const eudrUi = eudrTone(eudrStatus);
+  const eudrLabel =
+    eudrStatus === "low_risk"
+      ? t("eudr_prelim_passed")
+      : eudrStatus === "review_required"
+        ? t("eudr_prelim_review")
+        : eudrStatus === "high_risk"
+          ? t("eudr_prelim_failed")
+          : t("eudr_prelim_inconclusive");
+  const EudrIcon =
+    eudrStatus === "low_risk"
+      ? CheckCircle
+      : eudrStatus === "high_risk"
+        ? XCircle
+        : eudrStatus === "review_required"
+          ? AlertTriangle
+          : HelpCircle;
 
   const rows = [
     { key: "ndvi_avg", label: t("ndvi_avg"), desc: t("ndvi_avg_desc"), value: data.breakdown?.ndviAvg ?? null, max: 20 },
@@ -93,7 +115,7 @@ export default function RiskScorePreview({ data }: { data: RiskScoreData }) {
     { key: "annual_precip", label: t("annual_precip"), desc: t("annual_precip_desc"), value: data.breakdown?.annualPrecip ?? null, max: 20 },
     { key: "rain_distrib", label: t("rain_distrib"), desc: t("rain_distrib_desc"), value: data.breakdown?.rainDistrib ?? null, max: 15 },
     { key: "temperature", label: t("temperature"), desc: t("temperature_desc"), value: data.breakdown?.temperature ?? null, max: 20 },
-    { key: "eudr_compliance", label: t("eudr_compliance"), desc: t("eudr_compliance_desc"), value: data.breakdown?.eudr ?? null, max: 10 },
+    { key: "eudr_compliance", label: t("eudr_screening"), desc: t("eudr_screening_desc"), value: data.breakdown?.eudr ?? null, max: 10 },
   ];
 
   return (
@@ -110,19 +132,13 @@ export default function RiskScorePreview({ data }: { data: RiskScoreData }) {
         </div>
         <div className="text-right">
           <p className="text-xs text-gray-400 mb-1">{t("eudr_label")}</p>
-          {data.eudrCompliant === true ? (
-            <div className="flex items-center gap-1 text-primary">
-              <CheckCircle className="w-4 h-4" />
-              <span className="text-sm font-semibold">{t("compliant")}</span>
-            </div>
-          ) : data.eudrCompliant === false ? (
-            <div className="flex items-center gap-1 text-red-400">
-              <XCircle className="w-4 h-4" />
-              <span className="text-sm font-semibold">{t("non_compliant")}</span>
-            </div>
-          ) : (
-            <span className="text-xs text-gray-500">{t("unknown")}</span>
-          )}
+          <div className={`inline-flex max-w-56 items-center justify-end gap-1.5 text-right ${eudrUi.text}`}>
+            <EudrIcon className="h-4 w-4 shrink-0" />
+            <span className="text-sm font-semibold leading-tight">{eudrLabel}</span>
+          </div>
+          <p className="mt-1 max-w-56 text-xs leading-snug text-white/45">
+            {t("eudr_prelim_helper")}
+          </p>
         </div>
       </div>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
@@ -14,7 +14,6 @@ import {
   ArrowLeft,
   ChevronDown,
   CheckCircle,
-  Check,
   ExternalLink,
   FileUp,
   Loader2,
@@ -109,44 +108,57 @@ function MultiSelectDropdown({
   onChange: (value: string[]) => void;
 }) {
   const selected = value ?? [];
-  const label =
-    selected.length > 0 ? selected.join(", ") : placeholder;
+  const label = selected.length > 0 ? selected.join(", ") : placeholder;
 
   return (
-    <details className="group relative">
-      <summary className="harv-input flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 text-sm [&::-webkit-details-marker]:hidden">
-        <span className={selected.length > 0 ? "truncate text-white" : "truncate text-white/35"}>
-          {label}
-        </span>
-        <ChevronDown className="h-4 w-4 shrink-0 text-white/35 transition-transform group-open:rotate-180" />
-      </summary>
-      <div className="absolute z-30 mt-2 max-h-64 w-full overflow-auto rounded-xl border border-white/10 bg-[#001020] p-2 shadow-2xl shadow-black/40">
-        {options.map((option) => {
-          const isSelected = selected.includes(option);
-          return (
-            <button
-              key={option}
-              type="button"
-              onClick={() => {
-                onChange(
-                  isSelected
-                    ? selected.filter((item) => item !== option)
-                    : [...selected, option],
-                );
-              }}
-              className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm text-white/70 transition-colors hover:bg-white/5 hover:text-white"
-            >
-              <span>{option}</span>
-              {isSelected ? (
-                <span className={`flex h-5 w-5 items-center justify-center rounded-full ${accentClassName}`}>
-                  <Check className="h-3 w-3" />
-                </span>
-              ) : null}
-            </button>
+    <div className="space-y-2">
+      <Select
+        value=""
+        onValueChange={(option) => {
+          if (!option) return;
+          onChange(
+            selected.includes(option)
+              ? selected.filter((item) => item !== option)
+              : [...selected, option],
           );
-        })}
-      </div>
-    </details>
+        }}
+      >
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder={label} />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((option) => {
+            const isSelected = selected.includes(option);
+            return (
+              <SelectItem key={option} value={option}>
+                <span className="flex w-full items-center justify-between gap-3">
+                  <span>{option}</span>
+                  {isSelected ? (
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${accentClassName}`}>
+                      OK
+                    </span>
+                  ) : null}
+                </span>
+              </SelectItem>
+            );
+          })}
+        </SelectContent>
+      </Select>
+      {selected.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {selected.map((item) => (
+            <button
+              key={item}
+              type="button"
+              className={`rounded-full px-3 py-1 text-xs font-bold transition-opacity hover:opacity-80 ${accentClassName}`}
+              onClick={() => onChange(selected.filter((value) => value !== item))}
+            >
+              {item} ×
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -162,19 +174,25 @@ export default function CreateFarmPage() {
   const [showPolygonGuide, setShowPolygonGuide] = useState(true);
   const [createdFarm, setCreatedFarm] = useState<{ id: number; name: string } | null>(null);
   const [uploadedImageIds, setUploadedImageIds] = useState<number[]>([]);
+  const altitudeRequestKeyRef = useRef<string | null>(null);
 
   function handlePolygonChange(p: Polygon | null) {
     setPolygon(p);
     setAltitudeStatus(null);
     setDetectedAltitude(null);
     form.setValue("altitudeMasl", undefined);
-    if (p) {
-      const ring = (p.coordinates[0] ?? []).slice(0, -1);
-      if (ring.length > 0) {
-        const lat = ring.reduce((s: number, c: number[]) => s + (c[1] ?? 0), 0) / ring.length;
-        const lng = ring.reduce((s: number, c: number[]) => s + (c[0] ?? 0), 0) / ring.length;
-        detectAltitude.mutate({ lat, lng });
-      }
+    if (!p) {
+      altitudeRequestKeyRef.current = null;
+      return;
+    }
+    const ring = (p.coordinates[0] ?? []).slice(0, -1);
+    if (ring.length > 0) {
+      const lat = ring.reduce((s: number, c: number[]) => s + (c[1] ?? 0), 0) / ring.length;
+      const lng = ring.reduce((s: number, c: number[]) => s + (c[0] ?? 0), 0) / ring.length;
+      const requestKey = `${lat.toFixed(5)},${lng.toFixed(5)}`;
+      if (altitudeRequestKeyRef.current === requestKey) return;
+      altitudeRequestKeyRef.current = requestKey;
+      detectAltitude.mutate({ lat, lng });
     }
   }
 
@@ -415,61 +433,6 @@ export default function CreateFarmPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <FormField
-                    control={form.control}
-                    name="altitudeMasl"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-white/80 flex items-center gap-2">
-                          {t("altitude")}
-                          {detectAltitude.isPending && <Loader2 className="w-3 h-3 animate-spin" />}
-                        </FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            className={inputClasses}
-                            {...field}
-                            value={typeof field.value === "number" ? field.value : ""}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  {altitudeStatus && (
-                    <p className={`text-[10px] ${altitudeStatus === "detected" ? "text-green-400" : "text-yellow-400"}`}>
-                      {altitudeStatus === "detected" && detectedAltitude != null
-                        ? t("altitude_detected", { value: detectedAltitude })
-                        : t("altitude_error")}
-                    </p>
-                  )}
-                </div>
-
-                <FormField
-                  control={form.control}
-                  name="totalArea"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-white/80">
-                        {t("total_area")}
-                      </FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          step="0.1"
-                          className={inputClasses}
-                          {...field}
-                          value={typeof field.value === "number" ? field.value : ""}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
               <div>
                 <div className="mb-4 border-b border-white/10 pb-2">
                   <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/40">
@@ -560,6 +523,68 @@ export default function CreateFarmPage() {
                   {t("area_calculated", { hectares: calculatedArea.hectares.toFixed(2), manzanas: calculatedArea.manzanas.toFixed(2) })}
                 </p>
               )}
+
+              <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-4">
+                <div className="mb-4 border-b border-white/10 pb-2">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/40">
+                    {t("measurements_section")}
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <FormField
+                      control={form.control}
+                      name="altitudeMasl"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-white/80 flex items-center gap-2">
+                            {t("altitude")}
+                            {detectAltitude.isPending && <Loader2 className="w-3 h-3 animate-spin" />}
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              className={inputClasses}
+                              {...field}
+                              value={typeof field.value === "number" ? field.value : ""}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    {altitudeStatus && (
+                      <p className={`text-[10px] ${altitudeStatus === "detected" ? "text-green-400" : "text-yellow-400"}`}>
+                        {altitudeStatus === "detected" && detectedAltitude != null
+                          ? t("altitude_detected", { value: detectedAltitude })
+                          : t("altitude_error")}
+                      </p>
+                    )}
+                  </div>
+
+                  <FormField
+                    control={form.control}
+                    name="totalArea"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-white/80">
+                          {t("total_area")}
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            step="0.1"
+                            className={inputClasses}
+                            {...field}
+                            value={typeof field.value === "number" ? field.value : ""}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField

@@ -79,6 +79,10 @@ export const evidenceTypeEnum = pgEnum("evidence_type", [
 	"agronomist_review",
 	"harvest_result",
 	"demo_fixture",
+	"satellite_report",
+	"eudr_screening",
+	"ndvi_milestone_check",
+	"sar_milestone_check",
 ]);
 
 export const evidenceStatusEnum = pgEnum("evidence_status", [
@@ -270,6 +274,119 @@ export const waitlistEntries = pgTable("waitlist_entries", {
 	howHeard: text("how_heard"),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+export const copernicusRuns = pgTable(
+	"copernicus_runs",
+	{
+		id: serial("id").primaryKey(),
+		farmId: integer("farm_id")
+			.notNull()
+			.references(() => farms.id),
+		providerName: text("provider_name").notNull(),
+		providerVersion: text("provider_version"),
+		collectionId: text("collection_id"),
+		timeRangeStart: timestamp("time_range_start"),
+		timeRangeEnd: timestamp("time_range_end"),
+		polygonHash: varchar("polygon_hash", { length: 64 }).notNull(),
+		rawResponseHash: varchar("raw_response_hash", { length: 64 }),
+		derivedMetrics: jsonb("derived_metrics"),
+		confidence: varchar("confidence", { length: 20 }).notNull().default("unknown"),
+		generatedReportHash: varchar("generated_report_hash", { length: 64 }).notNull(),
+		status: varchar("status", { length: 30 }).notNull().default("complete"),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(table) => ({
+		farmCreatedIdx: index("copernicus_runs_farm_created_idx").on(
+			table.farmId,
+			table.createdAt,
+		),
+		reportHashIdx: index("copernicus_runs_report_hash_idx").on(
+			table.generatedReportHash,
+		),
+	}),
+);
+
+export const copernicusObservations = pgTable(
+	"copernicus_observations",
+	{
+		id: serial("id").primaryKey(),
+		runId: integer("run_id")
+			.notNull()
+			.references(() => copernicusRuns.id),
+		farmId: integer("farm_id")
+			.notNull()
+			.references(() => farms.id),
+		providerName: text("provider_name").notNull(),
+		collectionId: text("collection_id"),
+		observedAt: timestamp("observed_at"),
+		metricType: varchar("metric_type", { length: 60 }).notNull(),
+		metrics: jsonb("metrics").notNull(),
+		confidence: varchar("confidence", { length: 20 }).notNull().default("unknown"),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(table) => ({
+		runIdx: index("copernicus_observations_run_idx").on(table.runId),
+		farmMetricIdx: index("copernicus_observations_farm_metric_idx").on(
+			table.farmId,
+			table.metricType,
+		),
+	}),
+);
+
+export const eudrAssessments = pgTable(
+	"eudr_assessments",
+	{
+		id: serial("id").primaryKey(),
+		farmId: integer("farm_id")
+			.notNull()
+			.references(() => farms.id),
+		runId: integer("run_id").references(() => copernicusRuns.id),
+		status: varchar("status", { length: 32 }).notNull(),
+		score: integer("score"),
+		confidence: varchar("confidence", { length: 20 }).notNull().default("unknown"),
+		source: varchar("source", { length: 60 }).notNull().default("unassessed"),
+		cutoffDate: varchar("cutoff_date", { length: 10 }).notNull().default("2020-12-31"),
+		reasons: text("reasons").array(),
+		limitations: text("limitations").array(),
+		assessmentHash: varchar("assessment_hash", { length: 64 }).notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(table) => ({
+		farmCreatedIdx: index("eudr_assessments_farm_created_idx").on(
+			table.farmId,
+			table.createdAt,
+		),
+		runIdx: index("eudr_assessments_run_idx").on(table.runId),
+		assessmentHashIdx: index("eudr_assessments_hash_idx").on(
+			table.assessmentHash,
+		),
+	}),
+);
+
+export const copernicusAlerts = pgTable(
+	"copernicus_alerts",
+	{
+		id: serial("id").primaryKey(),
+		farmId: integer("farm_id")
+			.notNull()
+			.references(() => farms.id),
+		runId: integer("run_id").references(() => copernicusRuns.id),
+		type: varchar("type", { length: 60 }).notNull(),
+		severity: varchar("severity", { length: 20 }).notNull(),
+		status: varchar("status", { length: 20 }).notNull().default("open"),
+		message: text("message").notNull(),
+		metrics: jsonb("metrics"),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		resolvedAt: timestamp("resolved_at"),
+	},
+	(table) => ({
+		farmStatusIdx: index("copernicus_alerts_farm_status_idx").on(
+			table.farmId,
+			table.status,
+		),
+		runIdx: index("copernicus_alerts_run_idx").on(table.runId),
+	}),
+);
 
 export const lots = pgTable(
 	"lots",
@@ -747,12 +864,64 @@ export const farmsRelations = relations(farms, ({ one, many }) => ({
 	}),
 	lots: many(lots),
 	images: many(farmImages),
+	copernicusRuns: many(copernicusRuns),
+	eudrAssessments: many(eudrAssessments),
+	copernicusAlerts: many(copernicusAlerts),
 }));
 
 export const farmImagesRelations = relations(farmImages, ({ one }) => ({
 	farm: one(farms, {
 		fields: [farmImages.farmId],
 		references: [farms.id],
+	}),
+}));
+
+export const copernicusRunsRelations = relations(
+	copernicusRuns,
+	({ one, many }) => ({
+		farm: one(farms, {
+			fields: [copernicusRuns.farmId],
+			references: [farms.id],
+		}),
+		observations: many(copernicusObservations),
+		eudrAssessments: many(eudrAssessments),
+		alerts: many(copernicusAlerts),
+	}),
+);
+
+export const copernicusObservationsRelations = relations(
+	copernicusObservations,
+	({ one }) => ({
+		run: one(copernicusRuns, {
+			fields: [copernicusObservations.runId],
+			references: [copernicusRuns.id],
+		}),
+		farm: one(farms, {
+			fields: [copernicusObservations.farmId],
+			references: [farms.id],
+		}),
+	}),
+);
+
+export const eudrAssessmentsRelations = relations(eudrAssessments, ({ one }) => ({
+	farm: one(farms, {
+		fields: [eudrAssessments.farmId],
+		references: [farms.id],
+	}),
+	run: one(copernicusRuns, {
+		fields: [eudrAssessments.runId],
+		references: [copernicusRuns.id],
+	}),
+}));
+
+export const copernicusAlertsRelations = relations(copernicusAlerts, ({ one }) => ({
+	farm: one(farms, {
+		fields: [copernicusAlerts.farmId],
+		references: [farms.id],
+	}),
+	run: one(copernicusRuns, {
+		fields: [copernicusAlerts.runId],
+		references: [copernicusRuns.id],
 	}),
 }));
 
@@ -946,6 +1115,43 @@ export const insertWaitlistEntrySchema = createInsertSchema(waitlistEntries).omi
 export const selectWaitlistEntrySchema = createSelectSchema(waitlistEntries);
 export type WaitlistEntry = typeof waitlistEntries.$inferSelect;
 export type InsertWaitlistEntry = z.infer<typeof insertWaitlistEntrySchema>;
+
+export const insertCopernicusRunSchema = createInsertSchema(copernicusRuns).omit({
+	id: true,
+	createdAt: true,
+});
+export const selectCopernicusRunSchema = createSelectSchema(copernicusRuns);
+export type CopernicusRun = typeof copernicusRuns.$inferSelect;
+export type InsertCopernicusRun = z.infer<typeof insertCopernicusRunSchema>;
+
+export const insertCopernicusObservationSchema = createInsertSchema(
+	copernicusObservations,
+).omit({
+	id: true,
+	createdAt: true,
+});
+export const selectCopernicusObservationSchema =
+	createSelectSchema(copernicusObservations);
+export type CopernicusObservation = typeof copernicusObservations.$inferSelect;
+export type InsertCopernicusObservation = z.infer<
+	typeof insertCopernicusObservationSchema
+>;
+
+export const insertEudrAssessmentSchema = createInsertSchema(eudrAssessments).omit({
+	id: true,
+	createdAt: true,
+});
+export const selectEudrAssessmentSchema = createSelectSchema(eudrAssessments);
+export type EudrAssessment = typeof eudrAssessments.$inferSelect;
+export type InsertEudrAssessment = z.infer<typeof insertEudrAssessmentSchema>;
+
+export const insertCopernicusAlertSchema = createInsertSchema(copernicusAlerts).omit({
+	id: true,
+	createdAt: true,
+});
+export const selectCopernicusAlertSchema = createSelectSchema(copernicusAlerts);
+export type CopernicusAlert = typeof copernicusAlerts.$inferSelect;
+export type InsertCopernicusAlert = z.infer<typeof insertCopernicusAlertSchema>;
 
 export const insertLotSchema = createInsertSchema(lots).omit({
 	id: true,

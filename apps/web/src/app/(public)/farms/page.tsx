@@ -10,6 +10,7 @@ import { Badge } from "@harvverse-monorepo/ui/components/badge";
 import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
 import { Skeleton } from "@harvverse-monorepo/ui/components/skeleton";
 import { trpc } from "@/utils/trpc";
+import { eudrTone, extractEudrScreening } from "@/lib/eudr-screening";
 
 function scoreBadge(score: number) {
   if (score >= 80) return "border-green-500/30 bg-green-500/15 text-green-300";
@@ -69,21 +70,23 @@ export default function PublicFarmsPage() {
                       <Badge className={`rounded-full border px-2 py-0 text-[10px] font-bold ${scoreBadge(farm.riskScore ?? 0)}`}>
                         ● {farm.riskScore}
                       </Badge>
-                      <Badge
-                        className={
-                          farm.eudrCompliant === true
-                            ? "rounded-full border border-green-500/30 bg-green-500/20 px-2 py-0 text-[10px] font-bold text-green-300"
-                            : farm.eudrCompliant === false
-                              ? "rounded-full border border-red-500/30 bg-red-500/20 px-2 py-0 text-[10px] font-bold text-red-300"
-                              : "rounded-full border border-yellow-500/30 bg-yellow-500/15 px-2 py-0 text-[10px] font-bold text-yellow-300"
-                        }
-                      >
-                        {farm.eudrCompliant === true
-                          ? "EUDR ✓"
-                          : farm.eudrCompliant === false
-                            ? "EUDR ✗"
-                            : t("eudr_pending_badge")}
-                      </Badge>
+                      {(() => {
+                        const status = extractEudrScreening(farm.scoreBreakdown)?.status ?? "unknown";
+                        const tone = eudrTone(status);
+                        const label =
+                          status === "low_risk"
+                            ? t("eudr_prelim_passed")
+                            : status === "review_required"
+                              ? t("eudr_prelim_review")
+                              : status === "high_risk"
+                                ? t("eudr_prelim_failed")
+                                : t("eudr_prelim_inconclusive");
+                        return (
+                          <Badge className={`max-w-44 rounded-full border px-2 py-0 text-[10px] font-bold ${tone.badge}`}>
+                            <span className="truncate">{label}</span>
+                          </Badge>
+                        );
+                      })()}
                     </div>
                     <Sprout className="absolute bottom-3 left-3 size-8 text-primary" />
                   </div>

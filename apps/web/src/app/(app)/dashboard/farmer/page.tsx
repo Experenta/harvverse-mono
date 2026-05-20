@@ -46,9 +46,7 @@ export default function FarmerDashboardPage() {
         enabled: !!user,
         refetchInterval: (query) => {
           const data = query.state.data;
-          return data?.some(
-            (farm) => farm.riskScore == null || farm.eudrCompliant == null,
-          )
+          return data?.some((farm) => farm.riskScore == null)
             ? 5000
             : false;
         },

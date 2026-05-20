@@ -57,7 +57,75 @@ type EditFarmInput = z.input<typeof editFarmSchema>;
 type EditFarmValues = z.output<typeof editFarmSchema>;
 
 const inputClasses =
-  "bg-black/20 border-white/10 text-white placeholder:text-gray-600";
+  "harv-input";
+
+function MultiSelectDropdown({
+  value,
+  options,
+  placeholder,
+  accentClassName,
+  onChange,
+}: {
+  value: string[] | undefined;
+  options: string[];
+  placeholder: string;
+  accentClassName: string;
+  onChange: (value: string[]) => void;
+}) {
+  const selected = value ?? [];
+  const label = selected.length > 0 ? selected.join(", ") : placeholder;
+
+  return (
+    <div className="space-y-2">
+      <Select
+        value=""
+        onValueChange={(option) => {
+          if (!option) return;
+          onChange(
+            selected.includes(option)
+              ? selected.filter((item) => item !== option)
+              : [...selected, option],
+          );
+        }}
+      >
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder={label} />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((option) => {
+            const isSelected = selected.includes(option);
+            return (
+              <SelectItem key={option} value={option}>
+                <span className="flex w-full items-center justify-between gap-3">
+                  <span>{option}</span>
+                  {isSelected ? (
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${accentClassName}`}>
+                      OK
+                    </span>
+                  ) : null}
+                </span>
+              </SelectItem>
+            );
+          })}
+        </SelectContent>
+      </Select>
+      {selected.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {selected.map((item) => (
+            <button
+              key={item}
+              type="button"
+              className={`rounded-full px-3 py-1 text-xs font-bold transition-opacity hover:opacity-80 ${accentClassName}`}
+              onClick={() => onChange(selected.filter((value) => value !== item))}
+            >
+              {item} ×
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 export default function EditFarmPage() {
   const router = useRouter();
@@ -276,32 +344,15 @@ export default function EditFarmPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="text-white/80">{t("varieties")}</FormLabel>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-3">
-                      {COFFEE_VARIETIES.map((variety) => {
-                        const selected = field.value?.includes(variety);
-                        return (
-                          <button
-                            key={variety}
-                            type="button"
-                            onClick={() => {
-                              const current = field.value ?? [];
-                              field.onChange(
-                                selected
-                                  ? current.filter((v) => v !== variety)
-                                  : [...current, variety],
-                              );
-                            }}
-                            className={
-                              selected
-                                ? "p-2.5 rounded-lg text-xs font-bold transition-all bg-primary/20 border border-primary/40 text-primary"
-                                : "p-2.5 rounded-lg text-xs transition-all bg-black/20 border border-white/10 text-white/50 hover:border-white/20 hover:text-white"
-                            }
-                          >
-                            {variety}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    <FormControl>
+                      <MultiSelectDropdown
+                        value={field.value}
+                        options={COFFEE_VARIETIES}
+                        placeholder={t("select_varieties_placeholder")}
+                        accentClassName="bg-primary/20 text-primary"
+                        onChange={field.onChange}
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -313,32 +364,15 @@ export default function EditFarmPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="text-white/80">{t("certifications")}</FormLabel>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-3">
-                      {CERTIFICATIONS.map((cert) => {
-                        const selected = field.value?.includes(cert);
-                        return (
-                          <button
-                            key={cert}
-                            type="button"
-                            onClick={() => {
-                              const current = field.value ?? [];
-                              field.onChange(
-                                selected
-                                  ? current.filter((c) => c !== cert)
-                                  : [...current, cert],
-                              );
-                            }}
-                            className={
-                              selected
-                                ? "p-2.5 rounded-lg text-xs font-bold transition-all bg-[#67B9C1]/20 border border-[#67B9C1]/40 text-[#67B9C1]"
-                                : "p-2.5 rounded-lg text-xs transition-all bg-black/20 border border-white/10 text-white/50 hover:border-white/20 hover:text-white"
-                            }
-                          >
-                            {cert}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    <FormControl>
+                      <MultiSelectDropdown
+                        value={field.value}
+                        options={CERTIFICATIONS}
+                        placeholder={t("select_certifications_placeholder")}
+                        accentClassName="bg-[#67B9C1]/20 text-[#67B9C1]"
+                        onChange={field.onChange}
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -391,7 +425,7 @@ export default function EditFarmPage() {
             </form>
           </Form>
         </GlassCard>
-        <GlassCard className="mt-6 p-6 md:p-8 border-primary/20 bg-white/[0.03]">
+        <GlassCard id="images" className="mt-6 p-6 md:p-8 border-primary/20 bg-white/[0.03]">
           <h2 className="font-trenda text-xl font-bold text-white mb-1">
             {t("images_title")}
           </h2>
