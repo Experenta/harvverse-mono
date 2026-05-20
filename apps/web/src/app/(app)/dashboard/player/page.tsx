@@ -14,6 +14,23 @@ import { formatUsdFromCents } from "@/lib/format";
 import { useCurrentUser } from "@/hooks/use-auth";
 import { trpc } from "@/utils/trpc";
 
+import { motion } from "framer-motion";
+
+const container = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1
+    }
+  }
+};
+
+const item = {
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0 }
+};
+
 export default function PlayerDashboardPage() {
   const { data: user, clerkUser, isLoading: userLoading } = useCurrentUser();
   const router = useRouter();
@@ -39,7 +56,7 @@ export default function PlayerDashboardPage() {
 
   if (isLoading) {
     return (
-      <div>
+      <div className="mx-auto max-w-7xl">
         <header className="mb-8">
           <Skeleton className="h-9 w-64 mb-2" />
           <Skeleton className="h-5 w-40" />
@@ -49,7 +66,7 @@ export default function PlayerDashboardPage() {
           <Skeleton className="h-24 w-full" />
           <Skeleton className="h-24 w-full" />
         </div>
-        <Skeleton className="h-48 w-full" />
+        <Skeleton className="h-48 w-full rounded-xl" />
       </div>
     );
   }
@@ -72,16 +89,24 @@ export default function PlayerDashboardPage() {
       : null;
 
   return (
-    <div>
-      <header className="flex justify-between items-center mb-8">
+    <div className="mx-auto max-w-7xl px-4 md:px-0 text-[#EEEEEE]">
+      <header className="mb-8 flex flex-col justify-between gap-6 md:flex-row md:items-center">
         <div>
-          <h1 className="text-3xl font-bold">{t("welcome", { name: user?.displayName ?? "" })}</h1>
-          <p className="text-gray-400">
+          <h1 className="font-trenda text-2xl md:text-3xl font-bold text-white">
+            {t("welcome", { name: user?.displayName ?? "" })}
+          </h1>
+          <p className="mt-1 md:mt-2 text-sm md:text-base text-white/70">
             {t("logged_as_farmer")}{" "}
             <span className="text-primary font-semibold">{t("partner_role")}</span>
           </p>
         </div>
-        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-green-600 border border-white/10" />
+        <Button
+          className="bg-primary text-[#001020] hover:bg-primary/90 w-full md:w-auto"
+          onClick={() => router.push("/dashboard/player/explore" as Route)}
+        >
+          {t("explore_farms")}
+          <ArrowRight className="ml-2 size-4" />
+        </Button>
       </header>
 
       {isError ? (
@@ -92,18 +117,18 @@ export default function PlayerDashboardPage() {
           </p>
         </GlassCard>
       ) : !partnerships || partnerships.length === 0 ? (
-        <GlassCard className="p-12 text-center border-primary/20 flex flex-col items-center">
-          <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mb-6">
-            <Sprout className="w-10 h-10 text-primary" />
+        <GlassCard className="p-8 md:p-12 text-center border-primary/20 flex flex-col items-center">
+          <div className="w-16 h-16 md:w-20 md:h-20 bg-primary/10 rounded-full flex items-center justify-center mb-6">
+            <Sprout className="w-8 h-8 md:w-10 md:h-10 text-primary" />
           </div>
-          <h2 className="text-2xl font-bold mb-3">
+          <h2 className="text-xl md:text-2xl font-bold mb-3">
             {t("no_investments_title")}
           </h2>
-          <p className="text-gray-400 max-w-md mx-auto mb-8">
+          <p className="text-white/60 max-w-md mx-auto mb-8 text-sm md:text-base">
             {t("no_investments_subtitle")}
           </p>
           <Button
-            className="bg-primary hover:bg-primary/90 text-[#001020] font-bold"
+            className="bg-primary hover:bg-primary/90 text-[#001020] font-bold w-full md:w-auto"
             onClick={() =>
               router.push("/dashboard/player/explore" as Route)
             }
@@ -114,51 +139,50 @@ export default function PlayerDashboardPage() {
         </GlassCard>
       ) : (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-            <GlassCard className="p-6 border-primary/20">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-gray-400 text-sm">{t("total_invested")}</p>
-                  <p className="text-3xl font-bold text-white mt-2">
-                    {formatUsdFromCents(totalInvestedCents)}
-                  </p>
+          <motion.div 
+            variants={container}
+            initial="hidden"
+            animate="show"
+            className="grid grid-cols-2 sm:grid-cols-3 gap-3 md:gap-4 mb-8"
+          >
+            <motion.div variants={item}>
+              <GlassCard className="border-primary/20 bg-white/[0.03] p-3 md:p-6 flex flex-col items-center text-center group hover:border-primary/40 transition-colors h-full">
+                <div className="w-8 h-8 md:w-12 md:h-12 bg-primary/10 rounded-lg md:rounded-xl flex items-center justify-center mb-2 md:mb-4 group-hover:scale-110 transition-transform">
+                  <BarChart3 className="w-4 h-4 md:w-6 md:h-6 text-primary" />
                 </div>
-                <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                  <BarChart3 className="w-5 h-5 text-primary" />
-                </div>
-              </div>
-            </GlassCard>
+                <p className="stat-label mb-0.5 md:mb-1 text-[9px] md:text-xs">{t("total_invested")}</p>
+                <p className="stat-value text-xl md:text-3xl">
+                  {formatUsdFromCents(totalInvestedCents)}
+                </p>
+              </GlassCard>
+            </motion.div>
 
-            <GlassCard className="p-6 border-primary/20">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-gray-400 text-sm">{t("active_farms")}</p>
-                  <p className="text-3xl font-bold text-white mt-2">
-                    {activeFarmsCount}
-                  </p>
+            <motion.div variants={item}>
+              <GlassCard className="border-primary/20 bg-white/[0.03] p-3 md:p-6 flex flex-col items-center text-center group hover:border-primary/40 transition-colors h-full">
+                <div className="w-8 h-8 md:w-12 md:h-12 bg-primary/10 rounded-lg md:rounded-xl flex items-center justify-center mb-2 md:mb-4 group-hover:scale-110 transition-transform">
+                  <Sprout className="w-4 h-4 md:w-6 md:h-6 text-primary" />
                 </div>
-                <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                  <Sprout className="w-5 h-5 text-primary" />
-                </div>
-              </div>
-            </GlassCard>
+                <p className="stat-label mb-0.5 md:mb-1 text-[9px] md:text-xs">{t("active_farms")}</p>
+                <p className="stat-value text-xl md:text-3xl">
+                  {activeFarmsCount}
+                </p>
+              </GlassCard>
+            </motion.div>
 
-            <GlassCard className="p-6 border-primary/20">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-gray-400 text-sm">{t("avg_partner_split")}</p>
-                  <p className="text-3xl font-bold text-white mt-2">
-                    {avgSplitBps != null
-                      ? `${(avgSplitBps / 100).toFixed(1)}%`
-                      : "--"}
-                  </p>
+            <motion.div variants={item} className="col-span-2 sm:col-span-1">
+              <GlassCard className="border-primary/20 bg-white/[0.03] p-3 md:p-6 flex flex-col items-center text-center group hover:border-primary/40 transition-colors h-full">
+                <div className="w-8 h-8 md:w-12 md:h-12 bg-primary/10 rounded-lg md:rounded-xl flex items-center justify-center mb-2 md:mb-4 group-hover:scale-110 transition-transform">
+                  <TrendingUp className="w-4 h-4 md:w-6 md:h-6 text-primary" />
                 </div>
-                <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                  <TrendingUp className="w-5 h-5 text-primary" />
-                </div>
-              </div>
-            </GlassCard>
-          </div>
+                <p className="stat-label mb-0.5 md:mb-1 text-[9px] md:text-xs">{t("avg_partner_split")}</p>
+                <p className="stat-value text-xl md:text-3xl">
+                  {avgSplitBps != null
+                    ? `${(avgSplitBps / 100).toFixed(1)}%`
+                    : "--"}
+                </p>
+              </GlassCard>
+            </motion.div>
+          </motion.div>
 
           <div className="flex justify-end">
             <Button

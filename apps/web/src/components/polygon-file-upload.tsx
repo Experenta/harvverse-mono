@@ -10,7 +10,7 @@ interface Props {
   className?: string;
 }
 
-function extractPolygon(fc: FeatureCollection): Polygon | null {
+export function extractPolygon(fc: FeatureCollection): Polygon | null {
   for (const feature of fc.features) {
     if (!feature.geometry) continue;
     if (feature.geometry.type === "Polygon") return feature.geometry as Polygon;
@@ -20,6 +20,67 @@ function extractPolygon(fc: FeatureCollection): Polygon | null {
     }
   }
   return null;
+}
+
+function polygonPointCount(polygon: Polygon) {
+  const outerRing = polygon.coordinates[0] ?? [];
+  return Math.max(0, outerRing.length - 1);
+}
+
+export function parsePolygonText(text: string, format: "auto" | "kml" | "json" = "auto") {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    throw new Error("empty");
+  }
+  if (trimmed.length > 1_000_000) {
+    throw new Error("too_large");
+  }
+
+  const looksLikeXml = trimmed.startsWith("<");
+  const shouldParseKml = format === "kml" || (format === "auto" && looksLikeXml);
+  let polygon: Polygon | null = null;
+
+  if (shouldParseKml) {
+    const doc = new DOMParser().parseFromString(trimmed, "text/xml");
+    if (doc.querySelector("parsererror")) {
+      throw new Error("invalid_kml");
+    }
+    const fc = kml(doc) as FeatureCollection;
+    polygon = extractPolygon(fc);
+  } else {
+    const json = JSON.parse(trimmed) as unknown;
+    if (
+      json !== null &&
+      typeof json === "object" &&
+      "type" in json
+    ) {
+      const typed = json as { type: string; features?: unknown[]; geometry?: unknown; coordinates?: unknown };
+      if (typed.type === "FeatureCollection") {
+        polygon = extractPolygon(json as FeatureCollection);
+      } else if (typed.type === "Feature" && typed.geometry) {
+        const geom = typed.geometry as { type: string; coordinates: unknown };
+        if (geom.type === "Polygon") polygon = geom as unknown as Polygon;
+        else if (geom.type === "MultiPolygon") {
+          const mp = geom as unknown as MultiPolygon;
+          polygon = { type: "Polygon", coordinates: mp.coordinates[0] };
+        }
+      } else if (typed.type === "Polygon") {
+        polygon = json as unknown as Polygon;
+      } else if (typed.type === "MultiPolygon") {
+        const mp = json as unknown as MultiPolygon;
+        polygon = { type: "Polygon", coordinates: mp.coordinates[0] };
+      }
+    }
+  }
+
+  if (!polygon) {
+    throw new Error("no_polygon");
+  }
+  const uniquePoints = polygonPointCount(polygon);
+  if (uniquePoints < 3) {
+    throw new Error("too_few_points");
+  }
+  return { polygon, uniquePoints };
 }
 
 export default function PolygonFileUpload({
@@ -40,48 +101,20 @@ export default function PolygonFileUpload({
     try {
       const text = await file.text();
       let polygon: Polygon | null = null;
+      let uniquePoints = 0;
 
       if (file.name.toLowerCase().endsWith(".kml")) {
-        const doc = new DOMParser().parseFromString(text, "text/xml");
-        const fc = kml(doc) as FeatureCollection;
-        polygon = extractPolygon(fc);
+        const result = parsePolygonText(text, "kml");
+        polygon = result.polygon;
+        uniquePoints = result.uniquePoints;
       } else {
-        const json = JSON.parse(text) as unknown;
-        if (
-          json !== null &&
-          typeof json === "object" &&
-          "type" in json
-        ) {
-          const typed = json as { type: string; features?: unknown[]; geometry?: unknown; coordinates?: unknown };
-          if (typed.type === "FeatureCollection") {
-            polygon = extractPolygon(json as FeatureCollection);
-          } else if (typed.type === "Feature" && typed.geometry) {
-            const geom = typed.geometry as { type: string; coordinates: unknown };
-            if (geom.type === "Polygon") polygon = geom as unknown as Polygon;
-            else if (geom.type === "MultiPolygon") {
-              const mp = geom as unknown as MultiPolygon;
-              polygon = { type: "Polygon", coordinates: mp.coordinates[0] };
-            }
-          } else if (typed.type === "Polygon") {
-            polygon = json as unknown as Polygon;
-          } else if (typed.type === "MultiPolygon") {
-            const mp = json as unknown as MultiPolygon;
-            polygon = { type: "Polygon", coordinates: mp.coordinates[0] };
-          }
-        }
+        const result = parsePolygonText(text, "json");
+        polygon = result.polygon;
+        uniquePoints = result.uniquePoints;
       }
 
       if (!polygon) {
         setError("No polygon found in this file.");
-        onPolygonChange(null);
-        return;
-      }
-
-      const outerRing = polygon.coordinates[0];
-      // GeoJSON closed ring: first === last, so unique points = length - 1
-      const uniquePoints = outerRing.length - 1;
-      if (uniquePoints < 3) {
-        setError("Polygon must have at least 3 points.");
         onPolygonChange(null);
         return;
       }

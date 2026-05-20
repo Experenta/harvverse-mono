@@ -9,6 +9,8 @@ import type { LatLngBoundsExpression, LatLngExpression } from "leaflet";
 interface Props {
   polygon: Polygon;
   className?: string;
+  color?: string;
+  fillOpacity?: number;
 }
 
 function geoToLeaflet(coords: number[][]): LatLngExpression[] {
@@ -25,7 +27,12 @@ function FitBounds({ positions }: { positions: LatLngExpression[] }) {
   return null;
 }
 
-export default function PolygonDisplayMap({ polygon, className }: Props) {
+export default function PolygonDisplayMap({
+  polygon,
+  className,
+  color = "#93d832",
+  fillOpacity = 0.3,
+}: Props) {
   const outerRing = polygon.coordinates[0] ?? [];
   const positions = geoToLeaflet(outerRing);
 
@@ -47,9 +54,9 @@ export default function PolygonDisplayMap({ polygon, className }: Props) {
         <LeafletPolygon
           positions={positions}
           pathOptions={{
-            color: "#93d832",
-            fillColor: "#93d832",
-            fillOpacity: 0.3,
+            color,
+            fillColor: color,
+            fillOpacity,
             weight: 2,
           }}
         />

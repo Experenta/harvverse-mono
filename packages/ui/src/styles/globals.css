@@ -146,4 +146,109 @@
   .text-glow {
     text-shadow: 0 0 20px rgba(147, 216, 50, 0.3);
   }
+  .stat-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 20px 24px;
+  }
+  .stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #93d832;
+    font-family: var(--font-trenda);
+  }
+  .stat-label {
+    font-size: 0.875rem;
+    color: rgba(238, 238, 238, 0.6);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .section-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #eeeeee;
+    font-family: var(--font-trenda);
+  }
+  .green-gradient-text {
+    background: linear-gradient(180deg, #93d832 0%, #001020 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .card-dark {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+  }
+  .harv-input {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.1);
+    color: #eeeeee;
+  }
+  .harv-input::placeholder {
+    color: rgba(238, 238, 238, 0.35);
+  }
+  .harv-input:focus {
+    border-color: #93d832;
+    box-shadow: 0 0 0 1px rgba(147, 216, 50, 0.45);
+    outline: none;
+  }
+
+  /* Techno-Organic Aesthetics */
+  .glass-shimmer {
+    position: relative;
+    overflow: hidden;
+  }
+  .glass-shimmer::after {
+    content: "";
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: linear-gradient(
+      45deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.03) 30%,
+      rgba(255, 255, 255, 0.08) 50%,
+      rgba(255, 255, 255, 0.03) 70%,
+      transparent 100%
+    );
+    transform: rotate(25deg);
+    transition: transform 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+    pointer-events: none;
+  }
+  .glass-shimmer:hover::after {
+    transform: rotate(25deg) translate(15%, 15%);
+  }
+
+  .card-highlight {
+    background: linear-gradient(
+      135deg,
+      rgba(147, 216, 50, 0.1) 0%,
+      transparent 50%
+    );
+    border-top: 1px solid rgba(147, 216, 50, 0.2);
+    border-left: 1px solid rgba(147, 216, 50, 0.2);
+  }
+
+  .text-sprout {
+    color: #93d832;
+    text-shadow: 0 0 10px rgba(147, 216, 50, 0.4);
+  }
+
+  .atmosphere-blob {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(120px);
+    z-index: -1;
+    opacity: 0.15;
+    pointer-events: none;
+    animation: pulse-slow 20s infinite alternate ease-in-out;
+  }
+
+  @keyframes pulse-slow {
+    0% { transform: scale(1) translate(0, 0); }
+    100% { transform: scale(1.2) translate(5%, 5%); }
+  }
 }

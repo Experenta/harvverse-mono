@@ -16,6 +16,7 @@ import { Button } from "@harvverse-monorepo/ui/components/button";
 import { Input } from "@harvverse-monorepo/ui/components/input";
 import { Textarea } from "@harvverse-monorepo/ui/components/textarea";
 import { Skeleton } from "@harvverse-monorepo/ui/components/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@harvverse-monorepo/ui/components/select";
 import {
   Form,
   FormControl,
@@ -26,6 +27,7 @@ import {
 } from "@harvverse-monorepo/ui/components/form";
 
 import { queryClient, trpc } from "@/utils/trpc";
+import FarmImageUpload from "@/components/farm-image-upload";
 
 const COFFEE_VARIETIES = [
   "Geisha", "Bourbon", "Catuai", "Pacamara", "Typica", "Caturra", "Parainema", "Other",
@@ -67,6 +69,9 @@ export default function EditFarmPage() {
 
   const { data: farm, isLoading: farmLoading } = useQuery(
     trpc.farms.byId.queryOptions({ id: farmId }, { enabled: farmIdValid }),
+  );
+  const { data: farmImages = [] } = useQuery(
+    trpc.farms.getImages.queryOptions({ farmId }, { enabled: farmIdValid }),
   );
 
   const updateFarm = useMutation(
@@ -149,10 +154,10 @@ export default function EditFarmPage() {
   }
 
   return (
-    <div>
+    <div className="px-4 md:px-0">
       <Button
         variant="ghost"
-        className="mb-6 text-white/70"
+        className="mb-6 text-white/70 px-0 md:px-4"
         onClick={() => router.push(`/dashboard/farmer/farms/${farmId}` as Route)}
       >
         <ArrowLeft className="w-4 h-4 mr-2" />
@@ -160,12 +165,12 @@ export default function EditFarmPage() {
       </Button>
 
       <div className="max-w-2xl mx-auto">
-        <GlassCard className="p-8 border-primary/20">
-          <h1 className="text-3xl font-bold mb-2">{t("edit_title")}</h1>
-          <p className="text-gray-400 mb-8">{farm.name}</p>
+        <GlassCard className="p-6 md:p-8 border-primary/20 bg-white/[0.03]">
+          <h1 className="font-trenda text-2xl md:text-3xl font-bold text-white mb-1">{t("edit_title")}</h1>
+          <p className="text-white/40 text-sm mb-8">{farm.name}</p>
 
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <FormField
                 control={form.control}
                 name="name"
@@ -180,7 +185,7 @@ export default function EditFarmPage() {
                 )}
               />
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
                   name="country"
@@ -188,15 +193,21 @@ export default function EditFarmPage() {
                     <FormItem>
                       <FormLabel className="text-white/80">{t("country")}</FormLabel>
                       <FormControl>
-                        <select
-                          {...field}
-                          className="w-full bg-black/20 border border-white/10 text-white p-2 rounded hover:border-white/20"
-                          style={{ colorScheme: "dark" }}
+                        <Select
+                          value={field.value}
+                          onValueChange={field.onChange}
                         >
-                          {COUNTRIES.map((c) => (
-                            <option key={c} value={c}>{c}</option>
-                          ))}
-                        </select>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder={t("country")} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {COUNTRIES.map((c) => (
+                              <SelectItem key={c} value={c}>
+                                {c}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -218,7 +229,7 @@ export default function EditFarmPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
                   name="altitudeMasl"
@@ -265,7 +276,7 @@ export default function EditFarmPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="text-white/80">{t("varieties")}</FormLabel>
-                    <div className="grid grid-cols-2 gap-3 mt-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-3">
                       {COFFEE_VARIETIES.map((variety) => {
                         const selected = field.value?.includes(variety);
                         return (
@@ -282,8 +293,8 @@ export default function EditFarmPage() {
                             }}
                             className={
                               selected
-                                ? "p-3 rounded-lg text-sm transition-colors bg-primary/30 border border-primary/50 text-white"
-                                : "p-3 rounded-lg text-sm transition-colors bg-black/20 border border-white/10 text-gray-400 hover:border-white/20 hover:text-white"
+                                ? "p-2.5 rounded-lg text-xs font-bold transition-all bg-primary/20 border border-primary/40 text-primary"
+                                : "p-2.5 rounded-lg text-xs transition-all bg-black/20 border border-white/10 text-white/50 hover:border-white/20 hover:text-white"
                             }
                           >
                             {variety}
@@ -302,7 +313,7 @@ export default function EditFarmPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="text-white/80">{t("certifications")}</FormLabel>
-                    <div className="grid grid-cols-2 gap-3 mt-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-3">
                       {CERTIFICATIONS.map((cert) => {
                         const selected = field.value?.includes(cert);
                         return (
@@ -319,8 +330,8 @@ export default function EditFarmPage() {
                             }}
                             className={
                               selected
-                                ? "p-3 rounded-lg text-sm transition-colors bg-primary/30 border border-primary/50 text-white"
-                                : "p-3 rounded-lg text-sm transition-colors bg-black/20 border border-white/10 text-gray-400 hover:border-white/20 hover:text-white"
+                                ? "p-2.5 rounded-lg text-xs font-bold transition-all bg-[#67B9C1]/20 border border-[#67B9C1]/40 text-[#67B9C1]"
+                                : "p-2.5 rounded-lg text-xs transition-all bg-black/20 border border-white/10 text-white/50 hover:border-white/20 hover:text-white"
                             }
                           >
                             {cert}
@@ -342,7 +353,7 @@ export default function EditFarmPage() {
                     <FormControl>
                       <Textarea
                         placeholder={t("description_placeholder")}
-                        className="bg-black/20 border-white/10 text-white placeholder:text-gray-600"
+                        className="bg-black/20 border-white/10 text-white placeholder:text-white/20 min-h-[100px] text-sm"
                         {...field}
                       />
                     </FormControl>
@@ -368,7 +379,7 @@ export default function EditFarmPage() {
               <Button
                 type="submit"
                 disabled={updateFarm.isPending}
-                className="w-full bg-primary hover:bg-primary/90 text-[#001020] font-bold h-11"
+                className="w-full bg-primary hover:bg-primary/90 text-[#001020] font-black uppercase tracking-widest h-12 transition-all shadow-lg shadow-primary/5"
               >
                 {updateFarm.isPending ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -379,6 +390,23 @@ export default function EditFarmPage() {
               </Button>
             </form>
           </Form>
+        </GlassCard>
+        <GlassCard className="mt-6 p-6 md:p-8 border-primary/20 bg-white/[0.03]">
+          <h2 className="font-trenda text-xl font-bold text-white mb-1">
+            {t("images_title")}
+          </h2>
+          <p className="mb-5 text-sm text-white/50">
+            {t("images_manage_desc")}
+          </p>
+          <FarmImageUpload
+            farmId={farmId}
+            existingImages={farmImages}
+            onUploadComplete={() => {
+              void queryClient.invalidateQueries({
+                queryKey: trpc.farms.getImages.queryKey({ farmId }),
+              });
+            }}
+          />
         </GlassCard>
       </div>
     </div>

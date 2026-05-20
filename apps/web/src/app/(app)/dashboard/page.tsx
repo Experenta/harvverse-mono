@@ -7,7 +7,7 @@ import { useCurrentUser } from "@/hooks/use-auth";
 import { Skeleton } from "@harvverse-monorepo/ui/components/skeleton";
 
 export default function DashboardPage() {
-  const { data: user, isLoading } = useCurrentUser();
+  const { data: user, isLoading, isSignedIn } = useCurrentUser();
   const router = useRouter();
 
   useEffect(() => {
@@ -16,10 +16,12 @@ export default function DashboardPage() {
       router.replace("/dashboard/farmer" as Route);
     } else if (user) {
       router.replace("/dashboard/player" as Route);
+    } else if (isSignedIn) {
+      router.replace("/onboarding" as Route);
     } else {
       router.replace("/sign-in" as Route);
     }
-  }, [user, isLoading, router]);
+  }, [user, isLoading, isSignedIn, router]);
 
   return (
     <div className="p-8">

@@ -28,11 +28,11 @@ interface ClimateMonth {
 
 export interface RiskScoreData {
   score: number;
-  breakdown: ScoreBreakdown;
-  hash: string;
-  ndviMonths: NdviMonth[];
-  climateMonths: ClimateMonth[];
-  hasSentinel: boolean;
+  breakdown?: ScoreBreakdown | null;
+  hash?: string | null;
+  ndviMonths?: NdviMonth[];
+  climateMonths?: ClimateMonth[];
+  hasSentinel?: boolean;
   eudrCompliant: boolean | null;
 }
 
@@ -72,25 +72,28 @@ export default function RiskScorePreview({ data }: { data: RiskScoreData }) {
     high_risk: t("high_risk"),
   });
 
+  const climateMonths = data.climateMonths ?? [];
+  const ndviMonths = data.ndviMonths ?? [];
+  const hasBreakdown = !!data.breakdown;
   const annualPrecipMm =
-    data.climateMonths.reduce((s, m) => s + m.precipMm, 0);
+    climateMonths.reduce((s, m) => s + m.precipMm, 0);
   const avgTempC =
-    data.climateMonths.length > 0
-      ? data.climateMonths.reduce((s, m) => s + m.tempC, 0) / data.climateMonths.length
+    climateMonths.length > 0
+      ? climateMonths.reduce((s, m) => s + m.tempC, 0) / climateMonths.length
       : null;
   const ndviAvgRaw =
-    data.ndviMonths.length > 0
-      ? data.ndviMonths.filter((m) => m.mean !== null).reduce((s, m) => s + (m.mean ?? 0), 0) /
-        (data.ndviMonths.filter((m) => m.mean !== null).length || 1)
+    ndviMonths.length > 0
+      ? ndviMonths.filter((m) => m.mean !== null).reduce((s, m) => s + (m.mean ?? 0), 0) /
+        (ndviMonths.filter((m) => m.mean !== null).length || 1)
       : null;
 
   const rows = [
-    { key: "ndvi_avg", label: t("ndvi_avg"), desc: t("ndvi_avg_desc"), value: data.breakdown.ndviAvg, max: 20 },
-    { key: "ndvi_stability", label: t("ndvi_stability"), desc: t("ndvi_stability_desc"), value: data.breakdown.ndviStability, max: 15 },
-    { key: "annual_precip", label: t("annual_precip"), desc: t("annual_precip_desc"), value: data.breakdown.annualPrecip, max: 20 },
-    { key: "rain_distrib", label: t("rain_distrib"), desc: t("rain_distrib_desc"), value: data.breakdown.rainDistrib, max: 15 },
-    { key: "temperature", label: t("temperature"), desc: t("temperature_desc"), value: data.breakdown.temperature, max: 20 },
-    { key: "eudr_compliance", label: t("eudr_compliance"), desc: t("eudr_compliance_desc"), value: data.breakdown.eudr, max: 10 },
+    { key: "ndvi_avg", label: t("ndvi_avg"), desc: t("ndvi_avg_desc"), value: data.breakdown?.ndviAvg ?? null, max: 20 },
+    { key: "ndvi_stability", label: t("ndvi_stability"), desc: t("ndvi_stability_desc"), value: data.breakdown?.ndviStability ?? null, max: 15 },
+    { key: "annual_precip", label: t("annual_precip"), desc: t("annual_precip_desc"), value: data.breakdown?.annualPrecip ?? null, max: 20 },
+    { key: "rain_distrib", label: t("rain_distrib"), desc: t("rain_distrib_desc"), value: data.breakdown?.rainDistrib ?? null, max: 15 },
+    { key: "temperature", label: t("temperature"), desc: t("temperature_desc"), value: data.breakdown?.temperature ?? null, max: 20 },
+    { key: "eudr_compliance", label: t("eudr_compliance"), desc: t("eudr_compliance_desc"), value: data.breakdown?.eudr ?? null, max: 10 },
   ];
 
   return (
@@ -123,16 +126,18 @@ export default function RiskScorePreview({ data }: { data: RiskScoreData }) {
         </div>
       </div>
 
-      <button
-        type="button"
-        onClick={() => setExpanded((v) => !v)}
-        className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
-      >
-        {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-        {expanded ? t("hide_breakdown") : t("show_breakdown")}
-      </button>
+      {hasBreakdown && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
+        >
+          {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+          {expanded ? t("hide_breakdown") : t("show_breakdown")}
+        </button>
+      )}
 
-      {expanded && (
+      {expanded && hasBreakdown && (
         <div className="mt-4 space-y-3">
           <div className="grid grid-cols-1 gap-2">
             {rows.map(({ key, label, desc, value, max }) => (
@@ -172,6 +177,11 @@ export default function RiskScorePreview({ data }: { data: RiskScoreData }) {
           )}
         </div>
       )}
+      {!hasBreakdown && data.hash ? (
+        <p className="mt-3 truncate border-t border-white/10 pt-3 font-mono text-xs text-white/45">
+          Hash: {data.hash}
+        </p>
+      ) : null}
     </GlassCard>
   );
 }

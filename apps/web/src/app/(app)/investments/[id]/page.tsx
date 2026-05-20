@@ -7,7 +7,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useTranslations } from "next-intl";
-import { AlertCircle, ArrowLeft, CheckCircle2, Clock, Copy, Plus, Loader2 } from "lucide-react";
+import { AlertCircle, ArrowLeft, CheckCircle2, Clock, Copy, Plus, Loader2, TrendingUp } from "lucide-react";
+import { motion } from "framer-motion";
 
 import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
 import { Button } from "@harvverse-monorepo/ui/components/button";
@@ -33,14 +34,21 @@ import { Textarea } from "@harvverse-monorepo/ui/components/textarea";
 
 import { queryClient, trpc } from "@/utils/trpc";
 import { useCurrentUser } from "@/hooks/use-auth";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@harvverse-monorepo/ui/components/select";
 
 const MILESTONES = [
-  { number: 1, nameKey: "soil_prep", icon: "🌱", capitalPct: 0.111 },
-  { number: 2, nameKey: "planting", icon: "🌿", capitalPct: 0.066 },
-  { number: 3, nameKey: "maintenance", icon: "🔧", capitalPct: 0.051 },
-  { number: 4, nameKey: "harvest", icon: "🌾", capitalPct: 0.061 },
-  { number: 5, nameKey: "processing", icon: "⚙️", capitalPct: 0.134 },
-  { number: 6, nameKey: "export", icon: "🚢", capitalPct: 0.012 },
+  { number: 1, nameKey: "soil_prep", capitalPct: 0.111 },
+  { number: 2, nameKey: "planting", capitalPct: 0.066 },
+  { number: 3, nameKey: "maintenance", capitalPct: 0.051 },
+  { number: 4, nameKey: "harvest", capitalPct: 0.061 },
+  { number: 5, nameKey: "processing", capitalPct: 0.134 },
+  { number: 6, nameKey: "export", capitalPct: 0.012 },
 ] as const;
 
 const evidenceSchema = z.object({
@@ -58,6 +66,21 @@ const evidenceSchema = z.object({
 
 type EvidenceInput = z.input<typeof evidenceSchema>;
 type EvidenceValues = z.output<typeof evidenceSchema>;
+
+const container = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.05
+    }
+  }
+};
+
+const item = {
+  hidden: { opacity: 0, y: 10 },
+  show: { opacity: 1, y: 0 }
+};
 
 async function sha256Hex(text: string): Promise<string> {
   const buf = await crypto.subtle.digest(
@@ -194,7 +217,7 @@ export default function InvestmentDetailPage() {
           {backLabel}
         </Button>
         <GlassCard className="p-12 text-center border-primary/20">
-          <p className="text-gray-400">{tp("not_found")}</p>
+          <p className="text-white/60">{tp("not_found")}</p>
         </GlassCard>
       </div>
     );
@@ -214,80 +237,94 @@ export default function InvestmentDetailPage() {
   const ticketUsd = plan ? plan.ticketCents / 100 : 0;
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-5xl mx-auto px-4 md:px-0 text-[#EEEEEE]">
         <Button
           variant="ghost"
-          className="mb-8 text-white/70"
+          className="mb-4 md:mb-8 text-white/70 px-0 md:px-4"
           onClick={() => router.push(backPath)}
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
           {backLabel}
         </Button>
 
-        <GlassCard className="p-8 border-primary/20 mb-8">
-          <div className="flex items-start gap-4 mb-6">
-            <span className="text-4xl">✨</span>
-            <div className="flex-1">
-              <h1 className="text-2xl font-bold uppercase">{tp("phygital_title")}</h1>
-              <p className="text-primary font-semibold">
-                {lot.farmName} • {lot.code ?? tl("lot_id", { id: lot.id })}
-              </p>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.4 }}
+        >
+          <GlassCard className="p-5 md:p-8 border-primary/20 mb-6 md:mb-8">
+            <div className="flex items-start gap-4 mb-6 md:mb-8">
+              <span className="flex size-10 md:size-12 items-center justify-center rounded-full bg-primary/10 text-primary ring-1 ring-primary/25 shrink-0">
+                <CheckCircle2 className="size-5 md:size-6" />
+              </span>
+              <div className="flex-1 min-w-0">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 md:gap-4">
+                  <div>
+                    <h1 className="font-trenda text-lg md:text-2xl font-bold uppercase text-white leading-tight mb-0.5">{tp("phygital_title")}</h1>
+                    <p className="text-primary font-bold text-xs md:text-base truncate">
+                      {lot.farmName} • {lot.code ?? tl("lot_id", { id: lot.id })}
+                    </p>
+                  </div>
+                  <Badge
+                    className={`self-start uppercase px-2 py-0.5 text-[9px] md:text-xs font-black tracking-widest ${
+                      partnership.status === "active"
+                        ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+                        : "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
+                    }`}
+                  >
+                    {tp(`status_${partnership.status}` as Parameters<typeof tp>[0]) ?? partnership.status}
+                  </Badge>
+                </div>
+              </div>
             </div>
-            <Badge
-              className={
-                partnership.status === "active"
-                  ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
-                  : "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
-              }
-            >
-              {tp(`status_${partnership.status}` as Parameters<typeof tp>[0]) ?? partnership.status}
-            </Badge>
-          </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-sm">
-            <div>
-              <p className="text-gray-400">{tp("lot_label")}</p>
-              <p className="text-lg font-bold">{lot.code ?? `#${lot.id}`}</p>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6 text-sm">
+              <div className="bg-white/[0.03] p-3 rounded-xl border border-white/5 lg:bg-transparent lg:p-0 lg:border-0">
+                <p className="text-white/40 text-[9px] md:text-[10px] uppercase tracking-wider mb-1 font-semibold">{tp("lot_label")}</p>
+                <p className="text-sm md:text-lg font-bold truncate">{lot.code ?? `#${lot.id}`}</p>
+              </div>
+              <div className="bg-white/[0.03] p-3 rounded-xl border border-white/5 lg:bg-transparent lg:p-0 lg:border-0">
+                <p className="text-white/40 text-[9px] md:text-[10px] uppercase tracking-wider mb-1 font-semibold">{tp("area_label")}</p>
+                <p className="text-sm md:text-lg font-bold">{lot.areaManzanas ?? "—"} mz</p>
+              </div>
+              <div className="bg-white/[0.03] p-3 rounded-xl border border-white/5 lg:bg-transparent lg:p-0 lg:border-0">
+                <p className="text-white/40 text-[9px] md:text-[10px] uppercase tracking-wider mb-1 font-semibold">{tp("ticket_label")}</p>
+                <p className="text-sm md:text-lg font-bold text-primary">
+                  ${ticketUsd.toLocaleString()}
+                </p>
+              </div>
+              <div className="bg-white/[0.03] p-3 rounded-xl border border-white/5 lg:bg-transparent lg:p-0 lg:border-0">
+                <p className="text-white/40 text-[9px] md:text-[10px] uppercase tracking-wider mb-1 font-semibold">{tp("location_label")}</p>
+                <p className="text-sm md:text-lg font-bold truncate">
+                  {lot.country}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-gray-400">{tp("area_label")}</p>
-              <p className="text-lg font-bold">{lot.areaManzanas ?? "—"} mz</p>
-            </div>
-            <div>
-              <p className="text-gray-400">{tp("ticket_label")}</p>
-              <p className="text-lg font-bold text-primary">
-                ${ticketUsd.toLocaleString()}
-              </p>
-            </div>
-            <div>
-              <p className="text-gray-400">{tp("location_label")}</p>
-              <p className="text-lg font-bold">
-                {lot.region}, {lot.country}
-              </p>
-            </div>
-          </div>
 
-          {plan && (
-            <div className="mt-6 pt-6 border-t border-white/10 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div>
-                <p className="text-gray-400">{tp("price_lb")}</p>
-                <p className="font-bold">${(plan.priceCentsPerLb / 100).toFixed(2)}</p>
+            {plan && (
+              <div className="mt-6 md:mt-8 pt-6 md:pt-8 border-t border-white/5 grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-4 md:gap-y-6 text-sm">
+                <div>
+                  <p className="text-white/40 text-[9px] md:text-[10px] uppercase tracking-wider mb-1 font-semibold">{tp("price_lb")}</p>
+                  <p className="font-bold text-white/80 text-xs md:text-base">${(plan.priceCentsPerLb / 100).toFixed(2)}</p>
+                </div>
+                <div>
+                  <p className="text-white/40 text-[9px] md:text-[10px] uppercase tracking-wider mb-1 font-semibold">{tp("farmer_split")}</p>
+                  <p className="font-bold text-white/80 text-xs md:text-base">{(plan.splitFarmerBps / 100).toFixed(0)}%</p>
+                </div>
+                <div className="hidden md:block">
+                  <p className="text-white/40 text-[9px] md:text-[10px] uppercase tracking-wider mb-1 font-semibold">{tp("proj_yield")}</p>
+                  <p className="font-bold text-white/80 text-xs md:text-base">{(plan.projectedYieldY1TenthsQq / 10).toFixed(1)} qq</p>
+                </div>
+                <div className="hidden md:block">
+                  <p className="text-white/40 text-[9px] md:text-[10px] uppercase tracking-wider mb-1 font-semibold">{tp("plan_status")}</p>
+                  <Badge variant="outline" className="text-[9px] font-medium border-white/10 text-white/60 capitalize">
+                    {plan.status.replace(/_/g, " ")}
+                  </Badge>
+                </div>
               </div>
-              <div>
-                <p className="text-gray-400">{tp("farmer_split")}</p>
-                <p className="font-bold">{(plan.splitFarmerBps / 100).toFixed(0)}%</p>
-              </div>
-              <div>
-                <p className="text-gray-400">{tp("proj_yield")}</p>
-                <p className="font-bold">{(plan.projectedYieldY1TenthsQq / 10).toFixed(1)} qq</p>
-              </div>
-              <div>
-                <p className="text-gray-400">{tp("plan_status")}</p>
-                <p className="font-bold capitalize">{plan.status.replace(/_/g, " ")}</p>
-              </div>
-            </div>
-          )}
-        </GlassCard>
+            )}
+          </GlassCard>
+        </motion.div>
 
         {(() => {
           const completedCount = MILESTONES.filter(
@@ -299,30 +336,30 @@ export default function InvestmentDetailPage() {
               ).reduce((s, ms) => s + ticketUsd * ms.capitalPct, 0)
             : 0;
           return (
-            <GlassCard className="p-6 border-primary/20 mb-4">
-              <div className="flex justify-between items-center mb-3">
-                <h2 className="text-xl font-bold">{tm("title")}</h2>
-                <span className="text-sm text-gray-400">
-                  {tm("complete_count", { completed: completedCount, total: MILESTONES.length })}
+            <GlassCard className="p-5 md:p-6 border-primary/20 mb-4">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-base md:text-xl font-bold uppercase tracking-widest">{tm("title")}</h2>
+                <span className="text-[9px] md:text-sm text-white/50 bg-white/5 px-2 py-0.5 rounded-full border border-white/5 font-bold">
+                  {completedCount} / {MILESTONES.length}
                 </span>
               </div>
               <Progress
                 value={(completedCount / MILESTONES.length) * 100}
-                className="h-2"
+                className="h-1.5"
               />
               {plan && (
-                <div className="mt-4 grid grid-cols-3 gap-3 text-center text-sm border-t border-white/10 pt-4">
+                <div className="mt-6 grid grid-cols-3 gap-2 md:gap-4 text-center border-t border-white/5 pt-6">
                   <div>
-                    <p className="text-xs text-gray-400">{tm("total_escrow")}</p>
-                    <p className="font-bold text-primary">${Math.round(ticketUsd).toLocaleString()} USDC</p>
+                    <p className="text-white/40 text-[8px] md:text-[10px] uppercase tracking-tighter md:tracking-wider mb-1 font-semibold">{tm("total_escrow")}</p>
+                    <p className="font-bold text-primary text-sm md:text-lg">${Math.round(ticketUsd).toLocaleString()}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-400">{tm("released", { completed: completedCount })}</p>
-                    <p className="font-bold text-green-400">${Math.round(releasedUsd).toLocaleString()} USDC</p>
+                    <p className="text-white/40 text-[8px] md:text-[10px] uppercase tracking-tighter md:tracking-wider mb-1 font-semibold">{tm("released_short") ?? "Released"}</p>
+                    <p className="font-bold text-emerald-400 text-sm md:text-lg">${Math.round(releasedUsd).toLocaleString()}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-400">{tm("remaining")}</p>
-                    <p className="font-bold text-white">${Math.round(ticketUsd - releasedUsd).toLocaleString()} USDC</p>
+                    <p className="text-white/40 text-[8px] md:text-[10px] uppercase tracking-tighter md:tracking-wider mb-1 font-semibold">{tm("remaining")}</p>
+                    <p className="font-bold text-white text-sm md:text-lg">${Math.round(ticketUsd - releasedUsd).toLocaleString()}</p>
                   </div>
                 </div>
               )}
@@ -330,120 +367,131 @@ export default function InvestmentDetailPage() {
           );
         })()}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+        <motion.div 
+          variants={container}
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true }}
+          className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
+        >
           {MILESTONES.map((ms) => {
             const records = evidenceByMilestone.get(ms.number) ?? [];
             const hasEvidence = records.length > 0;
             const latestRecord = records[records.length - 1];
             const statusColor = hasEvidence
-              ? "border-emerald-500/30"
-              : "border-white/10";
+              ? "border-emerald-500/30 bg-emerald-500/5"
+              : "border-white/10 bg-white/[0.02]";
 
             return (
-              <GlassCard key={ms.number} className={`p-5 ${statusColor}`}>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">{ms.icon}</span>
-                    <div>
-                      <p className="text-xs text-gray-500">
-                        {tm("milestone_number", { number: ms.number })}
-                      </p>
-                      <p className="font-bold">{tm(ms.nameKey)}</p>
-                    </div>
-                  </div>
-                  {hasEvidence ? (
-                    <CheckCircle2 className="w-5 h-5 text-green-400 shrink-0" />
-                  ) : (
-                    <Clock className="w-5 h-5 text-gray-500 shrink-0" />
-                  )}
-                </div>
-
-                {plan && (
-                  <div className="mb-3">
-                    {hasEvidence ? (
-                      <span className="text-xs text-primary font-medium">{tm("capital_released")}</span>
-                    ) : (
-                      <span className="text-xs text-gray-400">
-                        {tm("capital_pending", { amount: Math.round(ticketUsd * ms.capitalPct).toLocaleString() })}
+              <motion.div key={ms.number} variants={item}>
+                <GlassCard className={`p-4 h-full flex flex-col ${statusColor} transition-colors hover:border-white/20`}>
+                  <div className="mb-3 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className={`flex size-8 items-center justify-center rounded-full text-xs font-bold ring-1 transition-all ${
+                        hasEvidence ? "bg-emerald-500/20 text-emerald-400 ring-emerald-500/30" : "bg-white/5 text-white/40 ring-white/10"
+                      }`}>
+                        {ms.number}
                       </span>
+                      <div>
+                        <p className="text-[10px] text-white/40 uppercase tracking-tight font-semibold">
+                          {tm("milestone_number", { number: ms.number })}
+                        </p>
+                        <p className="font-trenda text-sm font-bold text-white leading-tight">{tm(ms.nameKey)}</p>
+                      </div>
+                    </div>
+                    {hasEvidence ? (
+                      <div className="p-1 rounded-full bg-emerald-500/10">
+                        <CheckCircle2 className="size-3.5 text-emerald-400" />
+                      </div>
+                    ) : (
+                      <div className="p-1 rounded-full bg-white/5">
+                        <Clock className="size-3.5 text-white/30" />
+                      </div>
                     )}
                   </div>
-                )}
 
-                {records.length > 0 && (
-                  <div className="mb-3 space-y-1">
-                    {records.map((ev) => (
-                      <div
-                        key={ev.id}
-                        className="text-xs bg-white/5 px-2 py-1.5 rounded space-y-1"
-                      >
-                        <div className="flex justify-between items-center">
-                          <span
-                            className={
-                              ev.status === "attested"
-                                ? "text-emerald-400"
-                                : ev.status === "recorded"
-                                  ? "text-yellow-400"
-                                  : "text-gray-400"
-                            }
-                          >
-                            {ev.evidenceType} · {ev.status}
-                          </span>
+                  {plan && (
+                    <div className="mb-4">
+                      {hasEvidence ? (
+                        <div className="flex items-center gap-1.5 text-[10px] text-emerald-400/80 font-bold bg-emerald-500/10 w-fit px-2 py-0.5 rounded">
+                          <TrendingUp className="size-2.5" />
+                          {tm("capital_released")}
                         </div>
-                        {ev.notes && (
-                          <p className="text-gray-500">{ev.notes}</p>
-                        )}
-                        <div className="flex items-center gap-1 text-gray-600 font-mono">
-                          <span className="truncate max-w-[180px]">
-                            {ev.artifactHash}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              navigator.clipboard.writeText(ev.artifactHash)
-                            }
-                            className="shrink-0 hover:text-gray-300 transition-colors"
-                            title="Copy hash"
-                          >
-                            <Copy className="w-3 h-3" />
-                          </button>
+                      ) : (
+                        <div className="text-[10px] text-white/40 font-medium">
+                          {tm("capital_pending", { amount: Math.round(ticketUsd * ms.capitalPct).toLocaleString() })}
                         </div>
-                      </div>
-                    ))}
+                      )}
+                    </div>
+                  )}
+
+                  {records.length > 0 && (
+                    <div className="mb-4 flex flex-col gap-1.5">
+                      {records.slice(-2).map((ev) => (
+                        <div
+                          key={ev.id}
+                          className="flex flex-col gap-1 rounded-lg bg-black/20 border border-white/5 px-2.5 py-2 text-[10px]"
+                        >
+                          <div className="flex justify-between items-center">
+                            <span
+                              className={`font-bold uppercase tracking-tighter ${
+                                ev.status === "attested"
+                                  ? "text-emerald-400"
+                                  : ev.status === "recorded"
+                                    ? "text-yellow-400"
+                                    : "text-white/40"
+                              }`}
+                            >
+                              {ev.evidenceType.replace(/_/g, " ")}
+                            </span>
+                          </div>
+                          {ev.notes && (
+                            <p className="text-white/60 line-clamp-1 italic">"{ev.notes}"</p>
+                          )}
+                        </div>
+                      ))}
+                      {records.length > 2 && (
+                        <p className="text-[9px] text-white/30 text-center italic">
+                          + {records.length - 2} more records
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="mt-auto">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 w-full border-white/10 bg-white/5 text-[10px] font-bold text-white/70 hover:border-white/30 hover:text-white transition-all"
+                      onClick={() => {
+                        setRecordingMilestone(ms.number);
+                        form.reset({
+                          evidenceType: "demo_fixture",
+                          notes: "",
+                          description: "",
+                        });
+                      }}
+                    >
+                      <Plus className="w-3 h-3 mr-1" />
+                      {latestRecord ? tm("add_more_evidence") : tm("record_evidence")}
+                    </Button>
                   </div>
-                )}
-
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="w-full border-white/10 text-white/70 hover:border-white/30 hover:text-white text-xs"
-                  onClick={() => {
-                    setRecordingMilestone(ms.number);
-                    form.reset({
-                      evidenceType: "demo_fixture",
-                      notes: "",
-                      description: "",
-                    });
-                  }}
-                >
-                  <Plus className="w-3 h-3 mr-1" />
-                  {latestRecord ? tm("add_more_evidence") : tm("record_evidence")}
-                </Button>
-              </GlassCard>
+                </GlassCard>
+              </motion.div>
             );
           })}
-        </div>
+        </motion.div>
 
         {(() => {
           const allRecorded = evidenceRecords.length >= 6;
 
           if (partnership.status === "settled") {
             return (
-              <GlassCard className="p-6 border-emerald-500/20">
-                <h2 className="text-xl font-bold mb-4">{tm("settlement")}</h2>
+              <GlassCard className="p-5 md:p-6 border-emerald-500/20">
+                <h2 className="text-lg md:text-xl font-bold mb-4">{tm("settlement")}</h2>
                 <div className="text-emerald-400 flex items-center gap-2">
-                  <CheckCircle2 className="w-5 h-5" />
-                  <span>{tm("settlement_settled")}</span>
+                  <CheckCircle2 className="size-5" />
+                  <span className="font-semibold text-sm md:text-base">{tm("settlement_settled")}</span>
                 </div>
               </GlassCard>
             );
@@ -453,7 +501,7 @@ export default function InvestmentDetailPage() {
             return (
               <GlassCard className="p-6 border-white/10">
                 <h2 className="text-xl font-bold mb-4">{tm("settlement")}</h2>
-                <p className="text-gray-400 text-sm">
+                <p className="text-white/60 text-sm">
                   {tm("settlement_not_ready", { recorded: evidenceRecords.length })}
                 </p>
               </GlassCard>
@@ -481,39 +529,39 @@ export default function InvestmentDetailPage() {
             const displayPartnerCents = s?.partnerCents ?? partnerCents;
             const displayStatus = s?.status ?? "intent_created";
             return (
-              <GlassCard className="p-6 border-emerald-500/20">
-                <h2 className="text-xl font-bold mb-4">{tm("settlement")}</h2>
+              <GlassCard className="p-5 md:p-6 border-emerald-500/20">
+                <h2 className="text-lg md:text-xl font-bold mb-4">{tm("settlement")}</h2>
                 <div className="flex items-center gap-2 text-emerald-400 mb-1">
-                  <CheckCircle2 className="w-5 h-5" />
-                  <span className="font-semibold">{tm("settlement_requested")}</span>
+                  <CheckCircle2 className="size-5" />
+                  <span className="font-semibold text-sm md:text-base">{tm("settlement_requested")}</span>
                 </div>
-                <p className="text-sm text-gray-400 mb-6">
+                <p className="text-xs md:text-sm text-white/50 mb-6">
                   {tm("pending_review", { status: displayStatus.replace(/_/g, " ") })}
                 </p>
-                <div className="space-y-2 text-sm border-t border-white/10 pt-4">
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">{tm("gross_revenue")}</span>
-                    <span className="font-semibold">{fmt(displayRevenue)}</span>
+                <div className="space-y-3 text-sm border-t border-white/5 pt-6">
+                  <div className="flex justify-between items-center bg-white/5 p-3 rounded-lg border border-white/5">
+                    <span className="text-white/40 text-xs uppercase tracking-wider">{tm("gross_revenue")}</span>
+                    <span className="font-bold text-white">{fmt(displayRevenue)}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">{tm("agronomic_cost")}</span>
-                    <span className="font-semibold text-red-400">−{fmt(displayCost)}</span>
+                  <div className="flex justify-between items-center bg-white/5 p-3 rounded-lg border border-white/5">
+                    <span className="text-white/40 text-xs uppercase tracking-wider">{tm("agronomic_cost")}</span>
+                    <span className="font-bold text-red-400">−{fmt(displayCost)}</span>
                   </div>
-                  <div className="flex justify-between border-t border-white/10 pt-2">
-                    <span className="text-gray-400">{tm("net_profit")}</span>
-                    <span className="font-bold text-emerald-400">{fmt(displayProfit)}</span>
+                  <div className="flex justify-between items-center bg-emerald-500/10 p-3 rounded-lg border border-emerald-500/20">
+                    <span className="text-emerald-300/60 text-xs uppercase tracking-wider">{tm("net_profit")}</span>
+                    <span className="font-bold text-emerald-300">{fmt(displayProfit)}</span>
                   </div>
-                  <div className="flex justify-between pt-2">
-                    <span className="text-gray-400">
+                  <div className="flex justify-between items-center bg-primary/10 p-3 rounded-lg border border-primary/20 mt-4">
+                    <span className="text-primary/60 text-xs uppercase tracking-wider">
                       {tm("your_share", { pct: (partnerBps / 100).toFixed(0) })}
                     </span>
-                    <span className="font-bold text-primary">{fmt(displayPartnerCents)}</span>
+                    <span className="font-black text-primary text-base md:text-lg">{fmt(displayPartnerCents)}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">
+                  <div className="flex justify-between items-center bg-white/5 p-3 rounded-lg border border-white/5">
+                    <span className="text-white/40 text-xs uppercase tracking-wider">
                       {tm("farmer_share", { pct: (farmerBps / 100).toFixed(0) })}
                     </span>
-                    <span className="font-semibold">{fmt(displayFarmerCents)}</span>
+                    <span className="font-bold text-white/80">{fmt(displayFarmerCents)}</span>
                   </div>
                 </div>
               </GlassCard>
@@ -521,45 +569,45 @@ export default function InvestmentDetailPage() {
           }
 
           return (
-            <GlassCard className="p-6 border-primary/20">
-              <h2 className="text-xl font-bold mb-4">{tm("settlement")}</h2>
+            <GlassCard className="p-5 md:p-6 border-primary/20">
+              <h2 className="text-lg md:text-xl font-bold mb-4">{tm("settlement")}</h2>
               <div className="flex items-center gap-2 text-emerald-400 mb-6">
-                <CheckCircle2 className="w-5 h-5" />
-                <span className="font-semibold">{tm("all_recorded")}</span>
+                <CheckCircle2 className="size-5" />
+                <span className="font-semibold text-sm md:text-base">{tm("all_recorded")}</span>
               </div>
 
               {plan ? (
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6 text-sm">
-                  <div className="bg-white/5 rounded-lg p-3">
-                    <p className="text-gray-400 text-xs">{tm("revenue_label")}</p>
-                    <p className="text-base font-bold">{fmt(revenueCents)}</p>
-                    <p className="text-xs text-gray-500">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-8 text-sm">
+                  <div className="bg-white/5 border border-white/5 rounded-lg p-3 group-hover:bg-white/[0.08] transition-colors">
+                    <p className="text-white/40 text-[10px] uppercase tracking-wider mb-1">{tm("revenue_label")}</p>
+                    <p className="text-base font-bold text-white">{fmt(revenueCents)}</p>
+                    <p className="text-[10px] text-white/30 mt-1">
                       {yieldLbs.toLocaleString()} lbs × ${(plan.priceCentsPerLb / 100).toFixed(2)}
                     </p>
                   </div>
-                  <div className="bg-white/5 rounded-lg p-3">
-                    <p className="text-gray-400 text-xs">{tm("cost_label")}</p>
-                    <p className="text-base font-bold">{fmt(costCents)}</p>
-                    <p className="text-xs text-gray-500">{tm("agronomic_investment")}</p>
+                  <div className="bg-white/5 border border-white/5 rounded-lg p-3 group-hover:bg-white/[0.08] transition-colors">
+                    <p className="text-white/40 text-[10px] uppercase tracking-wider mb-1">{tm("cost_label")}</p>
+                    <p className="text-base font-bold text-white">{fmt(costCents)}</p>
+                    <p className="text-[10px] text-white/30 mt-1">{tm("agronomic_investment")}</p>
                   </div>
-                  <div className="bg-white/5 rounded-lg p-3">
-                    <p className="text-gray-400 text-xs">{tm("profit_label")}</p>
+                  <div className="bg-white/5 border border-white/5 rounded-lg p-3 group-hover:bg-white/[0.08] transition-colors">
+                    <p className="text-white/40 text-[10px] uppercase tracking-wider mb-1">{tm("profit_label")}</p>
                     <p className="text-base font-bold text-emerald-400">{fmt(profitCents)}</p>
-                    <p className="text-xs text-gray-500">{tm("revenue_minus_cost")}</p>
+                    <p className="text-[10px] text-white/30 mt-1">{tm("revenue_minus_cost")}</p>
                   </div>
-                  <div className="bg-white/5 rounded-lg p-3">
-                    <p className="text-gray-400 text-xs">{tm("farmer_share_label")}</p>
+                  <div className="bg-white/5 border border-white/5 rounded-lg p-3 group-hover:bg-white/[0.08] transition-colors">
+                    <p className="text-white/40 text-[10px] uppercase tracking-wider mb-1">{tm("farmer_share_label")}</p>
                     <p className="text-base font-bold text-primary">{fmt(farmerCents)}</p>
-                    <p className="text-xs text-gray-500">{tm("pct_of_profit", { pct: (farmerBps / 100).toFixed(0) })}</p>
+                    <p className="text-[10px] text-white/30 mt-1">{tm("pct_of_profit", { pct: (farmerBps / 100).toFixed(0) })}</p>
                   </div>
-                  <div className="bg-white/5 rounded-lg p-3">
-                    <p className="text-gray-400 text-xs">{tm("partner_share_label")}</p>
+                  <div className="bg-white/5 border border-white/5 rounded-lg p-3 group-hover:bg-white/[0.08] transition-colors">
+                    <p className="text-white/40 text-[10px] uppercase tracking-wider mb-1">{tm("partner_share_label")}</p>
                     <p className="text-base font-bold text-primary">{fmt(partnerCents)}</p>
-                    <p className="text-xs text-gray-500">{tm("pct_of_profit", { pct: (partnerBps / 100).toFixed(0) })}</p>
+                    <p className="text-[10px] text-white/30 mt-1">{tm("pct_of_profit", { pct: (partnerBps / 100).toFixed(0) })}</p>
                   </div>
                 </div>
               ) : (
-                <p className="text-gray-400 text-sm mb-6">
+                <p className="text-white/60 text-sm mb-6">
                   {tm("no_plan_financials")}
                 </p>
               )}
@@ -589,7 +637,7 @@ export default function InvestmentDetailPage() {
                 }}
               >
                 {requestSettlement.isPending ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 ) : (
                   tm("request_settlement")
                 )}
@@ -601,7 +649,7 @@ export default function InvestmentDetailPage() {
         {fromFarmer && (
           <GlassCard className="mt-6 p-6 border-white/10">
             <h3 className="text-lg font-bold mb-3">{tp("wallet_info_title")}</h3>
-            <p className="text-sm text-gray-400 mb-4">
+            <p className="text-sm text-white/60 mb-4">
               {tp("wallet_info_desc", {
                 amount: plan
                   ? `$${(plan.ticketCents / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
@@ -611,14 +659,14 @@ export default function InvestmentDetailPage() {
             <div className="space-y-3">
               <div className="bg-white/5 rounded-lg p-3 text-sm">
                 <p className="font-semibold text-white mb-0.5">MetaMask</p>
-                <p className="text-gray-400">{tp("wallet_metamask")}</p>
+                <p className="text-white/60">{tp("wallet_metamask")}</p>
               </div>
               <div className="bg-white/5 rounded-lg p-3 text-sm">
                 <p className="font-semibold text-white mb-0.5">MiniPay</p>
-                <p className="text-gray-400">{tp("wallet_minipay")}</p>
+                <p className="text-white/60">{tp("wallet_minipay")}</p>
               </div>
               <div className="bg-white/5 rounded-lg p-3 text-sm">
-                <p className="text-gray-400">{tp("wallet_help")}</p>
+                <p className="text-white/60">{tp("wallet_help")}</p>
               </div>
             </div>
           </GlassCard>
@@ -635,7 +683,7 @@ export default function InvestmentDetailPage() {
             <DialogTitle>
               {tm("record_dialog_title", { number: recordingMilestone ?? 0 })}
             </DialogTitle>
-            <DialogDescription className="text-gray-400">
+            <DialogDescription className="text-white/60">
               {MILESTONES.find((m) => m.number === recordingMilestone) &&
                 tm(MILESTONES.find((m) => m.number === recordingMilestone)!.nameKey)}
             </DialogDescription>
@@ -653,18 +701,22 @@ export default function InvestmentDetailPage() {
                   <FormItem>
                     <FormLabel>{tm("evidence_type")}</FormLabel>
                     <FormControl>
-                      <select
-                        {...field}
-                        className="w-full bg-black/20 border border-white/10 text-white p-2 rounded"
-                        style={{ colorScheme: "dark" }}
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
                       >
-                        <option value="demo_fixture">{tm("evidence_demo")}</option>
-                        <option value="photo">{tm("evidence_photo")}</option>
-                        <option value="sensor_snapshot">{tm("evidence_sensor")}</option>
-                        <option value="receipt">{tm("evidence_receipt")}</option>
-                        <option value="agronomist_review">{tm("evidence_agronomist")}</option>
-                        <option value="harvest_result">{tm("evidence_harvest")}</option>
-                      </select>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder={tm("evidence_type")} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="demo_fixture">{tm("evidence_demo")}</SelectItem>
+                          <SelectItem value="photo">{tm("evidence_photo")}</SelectItem>
+                          <SelectItem value="sensor_snapshot">{tm("evidence_sensor")}</SelectItem>
+                          <SelectItem value="receipt">{tm("evidence_receipt")}</SelectItem>
+                          <SelectItem value="agronomist_review">{tm("evidence_agronomist")}</SelectItem>
+                          <SelectItem value="harvest_result">{tm("evidence_harvest")}</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -680,7 +732,7 @@ export default function InvestmentDetailPage() {
                     <FormControl>
                       <Textarea
                         placeholder={tm("description_placeholder")}
-                        className="bg-black/20 border-white/10 text-white placeholder:text-gray-600"
+                        className="bg-black/20 border-white/10 text-white placeholder:text-white/35"
                         {...field}
                       />
                     </FormControl>
@@ -698,7 +750,7 @@ export default function InvestmentDetailPage() {
                     <FormControl>
                       <Textarea
                         placeholder={tm("notes_placeholder")}
-                        className="bg-black/20 border-white/10 text-white placeholder:text-gray-600"
+                        className="bg-black/20 border-white/10 text-white placeholder:text-white/35"
                         {...field}
                       />
                     </FormControl>

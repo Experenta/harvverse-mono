@@ -3,7 +3,6 @@
 import { Toaster } from "@harvverse-monorepo/ui/components/sonner";
 import { TooltipProvider } from "@harvverse-monorepo/ui/components/tooltip";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { WagmiProvider } from "wagmi";
 
 import { queryClient } from "@/utils/trpc";
@@ -24,7 +23,6 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 				<QueryClientProvider client={queryClient}>
 					<TooltipProvider>
 						{children}
-						<ReactQueryDevtools />
 					</TooltipProvider>
 					<Toaster richColors />
 				</QueryClientProvider>

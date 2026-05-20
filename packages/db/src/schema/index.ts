@@ -34,6 +34,7 @@ export const userRoleEnum = pgEnum("user_role", [
 export const userStatusEnum = pgEnum("user_status", ["active", "disabled"]);
 
 export const lotStatusEnum = pgEnum("lot_status", [
+	"draft",
 	"available",
 	"reserved",
 	"active",
@@ -220,6 +221,14 @@ export const farms = pgTable(
 		latitude: numeric("latitude"),
 		longitude: numeric("longitude"),
 		polygon: jsonb("polygon"),
+		riskScore: integer("risk_score"),
+		eudrCompliant: boolean("eudr_compliant"),
+		scoreHash: varchar("score_hash", { length: 64 }),
+		scoreUpdatedAt: timestamp("score_updated_at"),
+		ndviAverage: numeric("ndvi_average"),
+		annualPrecipMm: numeric("annual_precip_mm"),
+		avgTempC: numeric("avg_temp_c"),
+		scoreBreakdown: jsonb("score_breakdown"),
 		coeScore: numeric("coe_score"),
 		verified: boolean("verified").default(false),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -229,6 +238,38 @@ export const farms = pgTable(
 		farmerIdIdx: index("farms_farmer_id_idx").on(table.farmerId),
 	}),
 );
+
+export const farmImages = pgTable(
+	"farm_images",
+	{
+		id: serial("id").primaryKey(),
+		farmId: integer("farm_id")
+			.notNull()
+			.references(() => farms.id),
+		// TODO: Migrate to S3. Add s3Url column when ready.
+		// Keep data column as fallback during migration.
+		data: text("data").notNull(),
+		mimeType: varchar("mime_type", { length: 50 }).notNull(),
+		filename: text("filename").notNull(),
+		sizeBytes: integer("size_bytes"),
+		isPrimary: boolean("is_primary").default(false),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(table) => ({
+		farmIdIdx: index("farm_images_farm_id_idx").on(table.farmId),
+		primaryIdx: index("farm_images_primary_idx").on(table.farmId, table.isPrimary),
+	}),
+);
+
+export const waitlistEntries = pgTable("waitlist_entries", {
+	id: serial("id").primaryKey(),
+	fullName: text("full_name").notNull(),
+	email: text("email").notNull().unique(),
+	country: text("country").notNull(),
+	investmentRange: text("investment_range").notNull(),
+	howHeard: text("how_heard"),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+});
 
 export const lots = pgTable(
 	"lots",
@@ -705,6 +746,14 @@ export const farmsRelations = relations(farms, ({ one, many }) => ({
 		references: [users.id],
 	}),
 	lots: many(lots),
+	images: many(farmImages),
+}));
+
+export const farmImagesRelations = relations(farmImages, ({ one }) => ({
+	farm: one(farms, {
+		fields: [farmImages.farmId],
+		references: [farms.id],
+	}),
 }));
 
 export const lotsRelations = relations(lots, ({ one, many }) => ({
@@ -881,6 +930,22 @@ export const insertFarmSchema = createInsertSchema(farms).omit({
 export const selectFarmSchema = createSelectSchema(farms);
 export type Farm = typeof farms.$inferSelect;
 export type InsertFarm = z.infer<typeof insertFarmSchema>;
+
+export const insertFarmImageSchema = createInsertSchema(farmImages).omit({
+	id: true,
+	createdAt: true,
+});
+export const selectFarmImageSchema = createSelectSchema(farmImages);
+export type FarmImage = typeof farmImages.$inferSelect;
+export type InsertFarmImage = z.infer<typeof insertFarmImageSchema>;
+
+export const insertWaitlistEntrySchema = createInsertSchema(waitlistEntries).omit({
+	id: true,
+	createdAt: true,
+});
+export const selectWaitlistEntrySchema = createSelectSchema(waitlistEntries);
+export type WaitlistEntry = typeof waitlistEntries.$inferSelect;
+export type InsertWaitlistEntry = z.infer<typeof insertWaitlistEntrySchema>;
 
 export const insertLotSchema = createInsertSchema(lots).omit({
 	id: true,

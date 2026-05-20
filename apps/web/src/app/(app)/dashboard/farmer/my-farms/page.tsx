@@ -32,20 +32,23 @@ export default function MyFarmsPage() {
   const isLoadingFarms = userLoading || isLoading;
 
   return (
-    <div>
+    <div className="mx-auto max-w-7xl px-4 md:px-0 text-[#EEEEEE]">
       <Button
         variant="ghost"
-        className="mb-6 text-white/70"
+        className="mb-6 text-white/70 hover:bg-white/5 hover:text-white px-0 md:px-4"
         onClick={() => router.push("/dashboard/farmer")}
       >
         <ArrowLeft className="w-4 h-4 mr-2" />
         {tc("back_to_dashboard")}
       </Button>
 
-      <header className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">{tn("my_farms")}</h1>
+      <header className="mb-8 flex flex-col justify-between gap-6 md:flex-row md:items-center">
+        <div>
+          <h1 className="font-trenda text-2xl md:text-3xl font-bold text-white leading-tight">{tn("my_farms")}</h1>
+          <p className="mt-1 md:mt-2 text-sm md:text-base text-white/60">{t("no_farms_subtitle")}</p>
+        </div>
         <Button
-          className="bg-primary hover:bg-primary/90 text-[#001020]"
+          className="bg-primary font-bold text-[#001020] hover:bg-primary/90 w-full md:w-auto"
           onClick={() => router.push("/dashboard/farmer/create-farm")}
         >
           <Plus className="w-4 h-4 mr-2" />
@@ -61,8 +64,8 @@ export default function MyFarmsPage() {
           </p>
         </GlassCard>
       ) : isLoadingFarms ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {Array.from({ length: 2 }).map((_, idx) => (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          {Array.from({ length: 5 }).map((_, idx) => (
             <GlassCard key={idx} className="p-6 border-primary/20">
               <Skeleton className="h-40 w-full mb-4" />
               <Skeleton className="h-6 w-2/3 mb-2" />
@@ -72,21 +75,21 @@ export default function MyFarmsPage() {
           ))}
         </div>
       ) : farmsToShow.length === 0 ? (
-        <GlassCard className="p-12 text-center border-primary/20">
+        <GlassCard className="p-12 text-center border-primary/20 flex flex-col items-center">
           <div className="w-20 h-20 bg-primary/10 rounded-full mx-auto mb-6 flex items-center justify-center">
             <Sprout className="w-10 h-10 text-primary" />
           </div>
-          <h2 className="text-2xl font-bold mb-3">{t("no_farms_yet")}</h2>
-          <p className="text-gray-400 mb-8">{t("no_farms_subtitle")}</p>
+          <h2 className="font-trenda text-2xl font-bold text-white mb-3">{t("no_farms_yet")}</h2>
+          <p className="text-white/70 mb-8 max-w-md">{t("no_farms_subtitle")}</p>
           <Button
-            className="bg-primary hover:bg-primary/90 text-[#001020]"
+            className="bg-primary hover:bg-primary/90 text-[#001020] font-bold"
             onClick={() => router.push("/dashboard/farmer/create-farm")}
           >
             {t("register_first")}
           </Button>
         </GlassCard>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {farmsToShow.map((farm) => (
             <FarmCard key={farm.id} farm={farm} />
           ))}

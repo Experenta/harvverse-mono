@@ -10,7 +10,16 @@ import { z } from "zod";
 import { toast } from "sonner";
 import type { Polygon } from "geojson";
 import { useTranslations } from "next-intl";
-import { ArrowLeft, CheckCircle, Loader2 } from "lucide-react";
+import {
+  ArrowLeft,
+  ChevronDown,
+  CheckCircle,
+  Check,
+  ExternalLink,
+  FileUp,
+  Loader2,
+  MapPinned,
+} from "lucide-react";
 
 import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
 import { Button } from "@harvverse-monorepo/ui/components/button";
@@ -28,6 +37,14 @@ import {
 import { useCurrentUser } from "@/hooks/use-auth";
 import { queryClient, trpc } from "@/utils/trpc";
 import PolygonInput from "@/components/polygon-input";
+import FarmImageUpload from "@/components/farm-image-upload";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@harvverse-monorepo/ui/components/select";
 
 const createFarmSchema = z.object({
   name: z.string().min(2, "Farm name required").max(100, "Max 100 characters"),
@@ -76,7 +93,62 @@ const CERTIFICATIONS = [
 ];
 
 const inputClasses =
-  "bg-black/20 border-white/10 text-white placeholder:text-gray-600";
+  "harv-input";
+
+function MultiSelectDropdown({
+  value,
+  options,
+  placeholder,
+  accentClassName,
+  onChange,
+}: {
+  value: string[] | undefined;
+  options: string[];
+  placeholder: string;
+  accentClassName: string;
+  onChange: (value: string[]) => void;
+}) {
+  const selected = value ?? [];
+  const label =
+    selected.length > 0 ? selected.join(", ") : placeholder;
+
+  return (
+    <details className="group relative">
+      <summary className="harv-input flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 text-sm [&::-webkit-details-marker]:hidden">
+        <span className={selected.length > 0 ? "truncate text-white" : "truncate text-white/35"}>
+          {label}
+        </span>
+        <ChevronDown className="h-4 w-4 shrink-0 text-white/35 transition-transform group-open:rotate-180" />
+      </summary>
+      <div className="absolute z-30 mt-2 max-h-64 w-full overflow-auto rounded-xl border border-white/10 bg-[#001020] p-2 shadow-2xl shadow-black/40">
+        {options.map((option) => {
+          const isSelected = selected.includes(option);
+          return (
+            <button
+              key={option}
+              type="button"
+              onClick={() => {
+                onChange(
+                  isSelected
+                    ? selected.filter((item) => item !== option)
+                    : [...selected, option],
+                );
+              }}
+              className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm text-white/70 transition-colors hover:bg-white/5 hover:text-white"
+            >
+              <span>{option}</span>
+              {isSelected ? (
+                <span className={`flex h-5 w-5 items-center justify-center rounded-full ${accentClassName}`}>
+                  <Check className="h-3 w-3" />
+                </span>
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
+    </details>
+  );
+}
 
 export default function CreateFarmPage() {
   const router = useRouter();
@@ -87,6 +159,9 @@ export default function CreateFarmPage() {
   const [altitudeStatus, setAltitudeStatus] = useState<"detected" | "error" | null>(null);
   const [detectedAltitude, setDetectedAltitude] = useState<number | null>(null);
   const [calculatedArea, setCalculatedArea] = useState<{ hectares: number; manzanas: number } | null>(null);
+  const [showPolygonGuide, setShowPolygonGuide] = useState(true);
+  const [createdFarm, setCreatedFarm] = useState<{ id: number; name: string } | null>(null);
+  const [uploadedImageIds, setUploadedImageIds] = useState<number[]>([]);
 
   function handlePolygonChange(p: Polygon | null) {
     setPolygon(p);
@@ -135,7 +210,7 @@ export default function CreateFarmPage() {
           queryKey: trpc.farms.list.queryKey(),
         });
         toast.success(t("registered", { name: farm.name }));
-        router.push("/dashboard/farmer/my-farms" as Route);
+        setCreatedFarm({ id: farm.id, name: farm.name });
       },
     }),
   );
@@ -185,6 +260,7 @@ export default function CreateFarmPage() {
       region: values.region,
       altitudeMasl: values.altitudeMasl,
       totalArea: values.totalArea != null ? String(values.totalArea) : undefined,
+      areaManzanas: calculatedArea?.manzanas != null ? String(calculatedArea.manzanas) : undefined,
       latitude: values.latitude != null ? String(values.latitude) : undefined,
       longitude: values.longitude != null ? String(values.longitude) : undefined,
       varieties: values.varieties,
@@ -197,11 +273,16 @@ export default function CreateFarmPage() {
 
   const isSubmitting = createFarm.isPending;
 
+  function continueToFarmDetail() {
+    if (!createdFarm) return;
+    router.push(`/dashboard/farmer/farms/${createdFarm.id}` as Route);
+  }
+
   return (
-    <div>
+    <div className="px-4 md:px-0 text-[#EEEEEE]">
       <Button
         variant="ghost"
-        className="mb-6 text-white/70"
+        className="mb-6 text-white/70 px-0 md:px-4"
         onClick={() => router.push("/dashboard/farmer" as Route)}
       >
         <ArrowLeft className="w-4 h-4 mr-2" />
@@ -209,15 +290,65 @@ export default function CreateFarmPage() {
       </Button>
 
       <div className="max-w-2xl mx-auto">
-        <GlassCard className="p-8 border-primary/20">
-          <h1 className="text-3xl font-bold mb-2">{t("register_title")}</h1>
-          <p className="text-gray-400 mb-8">{t("register_subtitle")}</p>
+        <GlassCard className="p-6 md:p-8 border-primary/20 bg-white/[0.03]">
+          <h1 className="font-trenda text-2xl md:text-3xl font-bold text-white mb-2">{t("register_title")}</h1>
+          <p className="text-sm md:text-base text-white/70 mb-8">{t("register_subtitle")}</p>
+          <div className="mb-8 grid grid-cols-2 gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-1 text-xs font-bold">
+            <div className={`rounded-lg px-3 py-2 text-center ${createdFarm ? "text-white/45" : "bg-primary text-[#001020]"}`}>
+              {t("step_info")} {createdFarm ? "○" : "●"}
+            </div>
+            <div className={`rounded-lg px-3 py-2 text-center ${createdFarm ? "bg-primary text-[#001020]" : "text-white/45"}`}>
+              {t("step_photos")} {createdFarm ? "●" : "○"}
+            </div>
+          </div>
 
-          <Form {...form}>
+          {createdFarm ? (
+            <div className="space-y-6">
+              <div className="rounded-2xl border border-primary/20 bg-primary/[0.04] p-4">
+                <h2 className="font-trenda text-xl font-bold text-white">
+                  {t("photos_title")}
+                </h2>
+                <p className="mt-1 text-sm text-white/60">
+                  {t("photos_subtitle")}
+                </p>
+              </div>
+              <FarmImageUpload
+                farmId={createdFarm.id}
+                onUploadComplete={(ids) =>
+                  setUploadedImageIds((current) => [...current, ...ids])
+                }
+              />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Button
+                  type="button"
+                  className="h-11 bg-primary font-black text-[#001020] hover:bg-primary/90"
+                  onClick={continueToFarmDetail}
+                >
+                  {t("photos_continue")}
+                  {uploadedImageIds.length > 0 ? ` (${uploadedImageIds.length})` : ""}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-11 border-[#67B9C1]/40 text-[#67B9C1] hover:bg-[#67B9C1]/10"
+                  onClick={continueToFarmDetail}
+                >
+                  {t("photos_skip")}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Form {...form}>
             <form
               onSubmit={form.handleSubmit(onSubmit)}
-              className="space-y-5"
+              className="space-y-6"
             >
+              <div className="border-b border-white/10 pb-2">
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/40">
+                  {t("register_title")}
+                </p>
+              </div>
+
               <FormField
                 control={form.control}
                 name="name"
@@ -236,7 +367,7 @@ export default function CreateFarmPage() {
                 )}
               />
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
                   name="country"
@@ -244,17 +375,21 @@ export default function CreateFarmPage() {
                     <FormItem>
                       <FormLabel className="text-white/80">{t("country")}</FormLabel>
                       <FormControl>
-                        <select
-                          {...field}
-                          className="w-full bg-black/20 border border-white/10 text-white p-2 rounded hover:border-white/20"
-                          style={{ colorScheme: "dark" }}
+                        <Select
+                          value={field.value}
+                          onValueChange={field.onChange}
                         >
-                          {COUNTRIES.map((c) => (
-                            <option key={c} value={c}>
-                              {c}
-                            </option>
-                          ))}
-                        </select>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder={t("country")} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {COUNTRIES.map((c) => (
+                              <SelectItem key={c} value={c}>
+                                {c}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -280,7 +415,7 @@ export default function CreateFarmPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <FormField
                     control={form.control}
@@ -304,7 +439,7 @@ export default function CreateFarmPage() {
                     )}
                   />
                   {altitudeStatus && (
-                    <p className={`text-xs ${altitudeStatus === "detected" ? "text-green-400" : "text-yellow-400"}`}>
+                    <p className={`text-[10px] ${altitudeStatus === "detected" ? "text-green-400" : "text-yellow-400"}`}>
                       {altitudeStatus === "detected" && detectedAltitude != null
                         ? t("altitude_detected", { value: detectedAltitude })
                         : t("altitude_error")}
@@ -336,16 +471,83 @@ export default function CreateFarmPage() {
               </div>
 
               <div>
-                <p className="text-sm text-white/80 mb-1">{t("polygon_label")}</p>
-                <p className="text-xs text-gray-400 mb-3">{t("polygon_subtitle")}</p>
-                <div className="border-l-2 border-[#67B9C1] bg-[#67B9C1]/5 rounded-r-lg px-4 py-3 mb-3">
-                  <p className="text-xs font-semibold text-[#67B9C1] mb-2">{t("polygon_guide_title")}</p>
-                  <ol className="text-xs text-white/70 space-y-1 list-decimal list-inside">
-                    <li>{t("polygon_guide_step1")}</li>
-                    <li>{t("polygon_guide_step2")}</li>
-                    <li>{t("polygon_guide_step3")}</li>
-                    <li>{t("polygon_guide_step4")}</li>
-                  </ol>
+                <div className="mb-4 border-b border-white/10 pb-2">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/40">
+                    {t("polygon_label")}
+                  </p>
+                </div>
+                <p className="text-sm text-white/80 mb-1 font-bold">{t("polygon_label")}</p>
+                <p className="text-xs text-white/40 mb-3 leading-relaxed">{t("polygon_subtitle")}</p>
+                <div className="mb-3 rounded-xl border border-[#67B9C1]/20 bg-[#67B9C1]/[0.06]">
+                  <button
+                    type="button"
+                    className="flex w-full items-center justify-between gap-3 p-4 text-left"
+                    onClick={() => setShowPolygonGuide((value) => !value)}
+                    aria-expanded={showPolygonGuide}
+                  >
+                    <span className="flex items-start gap-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/25 bg-primary/10">
+                        <MapPinned className="h-4 w-4 text-primary" />
+                      </span>
+                      <span>
+                        <span className="block font-trenda text-sm font-bold text-white">
+                          {t("polygon_guide_title")}
+                        </span>
+                        <span className="mt-1 block text-[10px] font-bold uppercase tracking-[0.14em] text-[#67B9C1]">
+                          {t("polygon_guide_app")}
+                        </span>
+                      </span>
+                    </span>
+                    <ChevronDown
+                      className={`h-4 w-4 shrink-0 text-white/30 transition-transform ${
+                        showPolygonGuide ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+                  {showPolygonGuide && (
+                    <div className="border-t border-white/10 px-4 pb-4 pt-3">
+                      <ol className="grid gap-3 text-xs leading-relaxed text-white/60 sm:grid-cols-2">
+                        {([
+                          "polygon_guide_step1",
+                          "polygon_guide_step2",
+                          "polygon_guide_step3",
+                          "polygon_guide_step4",
+                          "polygon_guide_step5",
+                          "polygon_guide_step6",
+                          "polygon_guide_step7",
+                        ] as const).map((key, index) => (
+                          <li key={key} className="flex gap-2">
+                            <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[10px] font-black text-primary">
+                              {index + 1}
+                            </span>
+                            <span>{t(key)}</span>
+                          </li>
+                        ))}
+                      </ol>
+                      <div className="mt-5 flex flex-wrap gap-2">
+                        <a
+                          href="https://play.google.com/store/apps/details?id=com.google.earth"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#67B9C1]/30 bg-[#67B9C1]/5 px-3 text-xs font-bold text-[#67B9C1] transition-all hover:bg-[#67B9C1]/10"
+                        >
+                          <FileUp className="h-3.5 w-3.5" />
+                          {t("polygon_guide_android")}
+                          <ExternalLink className="h-3 w-3 opacity-50" />
+                        </a>
+                        <a
+                          href="https://apps.apple.com/us/app/google-earth/id293622097"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex h-9 items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-bold text-white/70 transition-all hover:bg-white/10 hover:text-white"
+                        >
+                          <FileUp className="h-3.5 w-3.5" />
+                          {t("polygon_guide_ios")}
+                          <ExternalLink className="h-3 w-3 opacity-50" />
+                        </a>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <PolygonInput
                   value={polygon}
@@ -354,12 +556,12 @@ export default function CreateFarmPage() {
                 />
               </div>
               {calculatedArea && (
-                <p className="text-xs text-green-400">
+                <p className="text-[10px] font-bold text-green-400/80 bg-green-400/5 px-2 py-1 rounded inline-block">
                   {t("area_calculated", { hectares: calculatedArea.hectares.toFixed(2), manzanas: calculatedArea.manzanas.toFixed(2) })}
                 </p>
               )}
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
                   name="latitude"
@@ -402,7 +604,11 @@ export default function CreateFarmPage() {
                   )}
                 />
               </div>
-
+              <div className="border-b border-white/10 pb-2">
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/40">
+                  {t("varieties")}
+                </p>
+              </div>
 
               <FormField
                 control={form.control}
@@ -410,32 +616,15 @@ export default function CreateFarmPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="text-white/80">{t("varieties")}</FormLabel>
-                    <div className="grid grid-cols-2 gap-3 mt-3">
-                      {COFFEE_VARIETIES.map((variety) => {
-                        const selected = field.value?.includes(variety);
-                        return (
-                          <button
-                            key={variety}
-                            type="button"
-                            onClick={() => {
-                              const current = field.value ?? [];
-                              field.onChange(
-                                selected
-                                  ? current.filter((v) => v !== variety)
-                                  : [...current, variety],
-                              );
-                            }}
-                            className={
-                              selected
-                                ? "p-3 rounded-lg text-sm transition-colors bg-primary/30 border border-primary/50 text-white"
-                                : "p-3 rounded-lg text-sm transition-colors bg-black/20 border border-white/10 text-gray-400 hover:border-white/20 hover:text-white"
-                            }
-                          >
-                            {variety}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    <FormControl>
+                      <MultiSelectDropdown
+                        value={field.value}
+                        options={COFFEE_VARIETIES}
+                        placeholder={t("select_varieties_placeholder")}
+                        accentClassName="bg-primary/20 text-primary"
+                        onChange={field.onChange}
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -447,32 +636,15 @@ export default function CreateFarmPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="text-white/80">{t("certifications")}</FormLabel>
-                    <div className="grid grid-cols-2 gap-3 mt-3">
-                      {CERTIFICATIONS.map((cert) => {
-                        const selected = field.value?.includes(cert);
-                        return (
-                          <button
-                            key={cert}
-                            type="button"
-                            onClick={() => {
-                              const current = field.value ?? [];
-                              field.onChange(
-                                selected
-                                  ? current.filter((c) => c !== cert)
-                                  : [...current, cert],
-                              );
-                            }}
-                            className={
-                              selected
-                                ? "p-3 rounded-lg text-sm transition-colors bg-primary/30 border border-primary/50 text-white"
-                                : "p-3 rounded-lg text-sm transition-colors bg-black/20 border border-white/10 text-gray-400 hover:border-white/20 hover:text-white"
-                            }
-                          >
-                            {cert}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    <FormControl>
+                      <MultiSelectDropdown
+                        value={field.value}
+                        options={CERTIFICATIONS}
+                        placeholder={t("select_certifications_placeholder")}
+                        accentClassName="bg-[#67B9C1]/20 text-[#67B9C1]"
+                        onChange={field.onChange}
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -487,7 +659,7 @@ export default function CreateFarmPage() {
                     <FormControl>
                       <Textarea
                         placeholder={t("description_placeholder")}
-                        className="bg-black/20 border-white/10 text-white placeholder:text-gray-600"
+                        className="bg-black/20 border-white/10 text-white placeholder:text-white/35 min-h-[100px] text-sm"
                         {...field}
                       />
                     </FormControl>
@@ -517,7 +689,7 @@ export default function CreateFarmPage() {
               <Button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full bg-primary hover:bg-primary/90 text-[#001020] font-bold h-11"
+                className="w-full bg-primary hover:bg-primary/90 text-[#001020] font-black uppercase tracking-widest h-12 shadow-xl shadow-primary/10 transition-all"
               >
                 {isSubmitting ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -528,6 +700,7 @@ export default function CreateFarmPage() {
               </Button>
             </form>
           </Form>
+          )}
         </GlassCard>
       </div>
     </div>

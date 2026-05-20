@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import type { Route } from "next";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { Polygon } from "geojson";
@@ -10,7 +10,6 @@ import { useTranslations } from "next-intl";
 import {
   ArrowLeft,
   CheckCircle2,
-  ChevronDown,
   Circle,
   Clock,
   ExternalLink,
@@ -18,7 +17,6 @@ import {
   Loader2,
   MapPin,
   Mountain,
-  RefreshCw,
   AlertCircle,
   ShieldCheck,
   Sprout,
@@ -28,7 +26,6 @@ import {
 import { Badge } from "@harvverse-monorepo/ui/components/badge";
 import { Button } from "@harvverse-monorepo/ui/components/button";
 import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
-import { Progress } from "@harvverse-monorepo/ui/components/progress";
 import { Skeleton } from "@harvverse-monorepo/ui/components/skeleton";
 import {
   Dialog,
@@ -43,9 +40,10 @@ import { useAccount, useConnect } from "wagmi";
 
 import { formatUsdFromCents } from "@/lib/format";
 import { useCurrentUser } from "@/hooks/use-auth";
-import { queryClient, trpc } from "@/utils/trpc";
+import { trpc } from "@/utils/trpc";
 import { useReservePartnership, type ReserveStep } from "@/hooks/use-reserve-partnership";
 import { wagmiConfig } from "@/lib/wagmi";
+import RiskScorePreview, { type RiskScoreData } from "@/components/risk-score-preview";
 
 const PolygonDisplayMap = dynamic(() => import("@/components/polygon-display-map"), {
   ssr: false,
@@ -122,15 +120,42 @@ async function sha256Hex(data: string): Promise<string> {
     .join("");
 }
 
+function riskScoreFromLot(lot: {
+  riskScore?: number | null;
+  eudrCompliant?: boolean | null;
+  scoreHash?: string | null;
+}): RiskScoreData | null {
+  if (lot.riskScore == null) return null;
+  return {
+    score: lot.riskScore,
+    eudrCompliant: lot.eudrCompliant ?? null,
+    hash: lot.scoreHash ?? null,
+  };
+}
+
+function formatRelativeDate(value: Date | string | null | undefined) {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const diffMs = date.getTime() - Date.now();
+  const diffDays = Math.round(diffMs / 86_400_000);
+  const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+  if (Math.abs(diffDays) >= 1) return rtf.format(diffDays, "day");
+  const diffHours = Math.round(diffMs / 3_600_000);
+  if (Math.abs(diffHours) >= 1) return rtf.format(diffHours, "hour");
+  const diffMinutes = Math.round(diffMs / 60_000);
+  return rtf.format(diffMinutes, "minute");
+}
+
 export default function LotDetailPage() {
   const router = useRouter();
   const params = useParams<{ lotId: string }>();
   const lotId = Number(params.lotId);
   const t = useTranslations("lot");
   const tp = useTranslations("partnership");
-  const trs = useTranslations("risk_score");
   const tc = useTranslations("common");
   const tpr = useTranslations("proposals");
+  const queryClient = useQueryClient();
 
   const { data: user, clerkUser } = useCurrentUser();
   const { address } = useAccount();
@@ -138,17 +163,11 @@ export default function LotDetailPage() {
   const [requestDialogOpen, setRequestDialogOpen] = useState(false);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [partnerMessage, setPartnerMessage] = useState("");
-  const [expandedRow, setExpandedRow] = useState<string | null>(null);
-
   const { data: lot, isLoading, isError } = useQuery(
     trpc.lots.byId.queryOptions(
       { id: lotId },
       { enabled: Number.isFinite(lotId) },
     ),
-  );
-
-  const computeScore = useMutation(
-    trpc.lots.computeRiskScore.mutationOptions(),
   );
 
   const { data: myProposals } = useQuery(
@@ -319,14 +338,14 @@ export default function LotDetailPage() {
   }
 
   return (
-    <div>
+    <div className="mx-auto max-w-7xl px-4 md:px-0 text-[#EEEEEE]">
       <Button
         variant="ghost"
-        className="mb-6 text-white/70"
-        onClick={() => router.back()}
+        className="mb-8 text-white/70 px-0 md:px-4"
+        onClick={() => router.push("/dashboard/player/explore" as Route)}
       >
         <ArrowLeft className="w-4 h-4 mr-2" />
-        {tc("back")}
+        {t("back_to_explore")}
       </Button>
 
       {isLoading ? (
@@ -344,31 +363,46 @@ export default function LotDetailPage() {
         </GlassCard>
       ) : !lot ? (
         <GlassCard className="p-12 text-center border-primary/20">
-          <p className="text-gray-400">{t("not_found")}</p>
+          <p className="text-white/60">{t("not_found")}</p>
         </GlassCard>
       ) : (
-        <div className="max-w-4xl">
+        <div className="max-w-5xl">
           {/* Header */}
           <div className="mb-8">
             {(() => {
+              const lotPolygon = lot.polygon != null
+                ? (lot.polygon as Polygon)
+                : null;
               const farmPolygon = lot.farm?.polygon != null
                 ? (lot.farm.polygon as Polygon)
                 : null;
+              const displayPolygon = lotPolygon ?? farmPolygon;
               const mapsUrl = (() => {
                 if (lot.gpsLat != null && lot.gpsLng != null) {
                   return `https://www.google.com/maps?q=${lot.gpsLat},${lot.gpsLng}`;
                 }
-                if (farmPolygon) {
-                  const centroid = polygonCentroid(farmPolygon.coordinates[0] ?? []);
+                if (displayPolygon) {
+                  const centroid = polygonCentroid(displayPolygon.coordinates[0] ?? []);
                   if (centroid) return `https://www.google.com/maps?q=${centroid[0]},${centroid[1]}`;
                 }
                 return null;
               })();
               return (
                 <>
-                  {farmPolygon ? (
-                    <div className="h-[200px] rounded-lg overflow-hidden mb-2 border border-white/10">
-                      <PolygonDisplayMap polygon={farmPolygon} />
+                  {displayPolygon ? (
+                    <div className="mb-2 overflow-hidden rounded-lg border border-white/10">
+                      <div className="h-[220px]">
+                        <PolygonDisplayMap
+                          polygon={displayPolygon}
+                          color={lotPolygon ? "#93D832" : "#67B9C1"}
+                          fillOpacity={lotPolygon ? 0.25 : 0.14}
+                        />
+                      </div>
+                      {!lotPolygon && farmPolygon ? (
+                        <p className="border-t border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-[#67B9C1]">
+                          {t("polygon_fallback")}
+                        </p>
+                      ) : null}
                     </div>
                   ) : null}
                   {mapsUrl ? (
@@ -388,19 +422,19 @@ export default function LotDetailPage() {
               );
             })()}
 
-            <div className="flex items-start justify-between mb-3">
+            <div className="mb-6 flex items-start justify-between gap-4">
               <div>
-                <h1 className="text-4xl font-bold mb-2">
+                <h1 className="font-trenda text-4xl font-bold text-white mb-2">
                   {lot.code ?? t("lot_id", { id: lot.id })}
                 </h1>
-                <p className="text-gray-400">{lot.farmName}</p>
+                <p className="text-lg text-white/70">{lot.farmName}</p>
               </div>
-              <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 uppercase">
+              <Badge className="rounded-full bg-emerald-500/20 text-emerald-400 border-emerald-500/30 uppercase">
                 {lot.status}
               </Badge>
             </div>
 
-            <div className="flex flex-wrap gap-4 text-sm text-gray-400">
+            <div className="mb-6 flex flex-wrap gap-4 text-sm text-white/60">
               <span className="flex items-center gap-1">
                 <MapPin className="w-4 h-4" />
                 {lot.region}, {lot.country}
@@ -424,56 +458,79 @@ export default function LotDetailPage() {
                 </span>
               ) : null}
             </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <GlassCard className="border-primary/20 bg-white/5 p-4 flex flex-col items-center text-center group hover:bg-white/10 transition-colors">
+                <p className="text-[10px] text-white/40 uppercase tracking-widest mb-1">{t("ticket")}</p>
+                <p className="text-xl font-bold text-primary">
+                  {activePlan ? formatUsdFromCents(activePlan.ticketCents) : "--"}
+                </p>
+              </GlassCard>
+              <GlassCard className="border-primary/20 bg-white/5 p-4 flex flex-col items-center text-center group hover:bg-white/10 transition-colors">
+                <p className="text-[10px] text-white/40 uppercase tracking-widest mb-1">{t("partner_split_pct")}</p>
+                <p className="text-xl font-bold text-white">
+                  {activePlan?.splitPartnerBps
+                    ? `${activePlan.splitPartnerBps / 100}%`
+                    : "--"}
+                </p>
+              </GlassCard>
+              <GlassCard className="border-primary/20 bg-white/5 p-4 flex flex-col items-center text-center sm:col-span-2 lg:col-span-1 group hover:bg-white/10 transition-colors">
+                <p className="text-[10px] text-white/40 uppercase tracking-widest mb-1">{t("altitude")}</p>
+                <p className="text-xl font-bold text-white">
+                  {lot.altitudeMasl ? `${lot.altitudeMasl}m` : "--"}
+                </p>
+              </GlassCard>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <GlassCard className="p-6 border-primary/20 md:col-span-2">
-              <h2 className="text-xl font-bold mb-4">{t("plan_terms")}</h2>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            <GlassCard className="p-6 md:p-8 border-primary/20 lg:col-span-2">
+              <h2 className="section-title mb-6 uppercase text-sm tracking-widest font-black text-primary">{t("plan_terms")}</h2>
               {activePlan ? (
-                <dl className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <dt className="text-gray-400">{t("plan_code")}</dt>
-                    <dd className="text-white">{activePlan.planCode}</dd>
+                <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                  <div className="bg-white/5 rounded-lg p-3 border border-white/5">
+                    <dt className="text-white/40 text-[10px] uppercase tracking-wider mb-1">{t("plan_code")}</dt>
+                    <dd className="text-white font-medium">{activePlan.planCode}</dd>
                   </div>
-                  <div>
-                    <dt className="text-gray-400">{t("ticket")}</dt>
-                    <dd className="text-primary font-bold text-lg">
+                  <div className="bg-white/5 rounded-lg p-3 border border-white/5">
+                    <dt className="text-white/40 text-[10px] uppercase tracking-wider mb-1">{t("ticket")}</dt>
+                    <dd className="text-primary font-black text-lg">
                       {formatUsdFromCents(activePlan.ticketCents)}
                     </dd>
                   </div>
-                  <div>
-                    <dt className="text-gray-400">{t("price_per_lb")}</dt>
-                    <dd className="text-white">
+                  <div className="bg-white/5 rounded-lg p-3 border border-white/5">
+                    <dt className="text-white/40 text-[10px] uppercase tracking-wider mb-1">{t("price_per_lb")}</dt>
+                    <dd className="text-white font-medium">
                       {formatUsdFromCents(activePlan.priceCentsPerLb)}
                     </dd>
                   </div>
-                  <div>
-                    <dt className="text-gray-400">{t("floor_per_lb")}</dt>
-                    <dd className="text-white">
+                  <div className="bg-white/5 rounded-lg p-3 border border-white/5">
+                    <dt className="text-white/40 text-[10px] uppercase tracking-wider mb-1">{t("floor_per_lb")}</dt>
+                    <dd className="text-white font-medium">
                       {formatUsdFromCents(activePlan.priceFloorCentsPerLb)}
                     </dd>
                   </div>
-                  <div>
-                    <dt className="text-gray-400">{t("proj_yield_y1")}</dt>
-                    <dd className="text-white">
+                  <div className="bg-white/5 rounded-lg p-3 border border-white/5">
+                    <dt className="text-white/40 text-[10px] uppercase tracking-wider mb-1">{t("proj_yield_y1")}</dt>
+                    <dd className="text-white font-medium">
                       {(activePlan.projectedYieldY1TenthsQq / 10).toFixed(1)} qq
                     </dd>
                   </div>
-                  <div>
-                    <dt className="text-gray-400">{t("yield_cap_y1")}</dt>
-                    <dd className="text-white">
+                  <div className="bg-white/5 rounded-lg p-3 border border-white/5">
+                    <dt className="text-white/40 text-[10px] uppercase tracking-wider mb-1">{t("yield_cap_y1")}</dt>
+                    <dd className="text-white font-medium">
                       {(activePlan.yieldCapY1TenthsQq / 10).toFixed(1)} qq
                     </dd>
                   </div>
-                  <div>
-                    <dt className="text-gray-400">{t("farmer_split_pct")}</dt>
-                    <dd className="text-white">
+                  <div className="bg-white/5 rounded-lg p-3 border border-white/5">
+                    <dt className="text-white/40 text-[10px] uppercase tracking-wider mb-1">{t("farmer_split_pct")}</dt>
+                    <dd className="text-white font-medium">
                       {activePlan.splitFarmerBps / 100}%
                     </dd>
                   </div>
-                  <div>
-                    <dt className="text-gray-400">{t("partner_split_pct")}</dt>
-                    <dd className="text-white">
+                  <div className="bg-white/5 rounded-lg p-3 border border-white/5">
+                    <dt className="text-white/40 text-[10px] uppercase tracking-wider mb-1">{t("partner_split_pct")}</dt>
+                    <dd className="text-white font-medium">
                       {activePlan.splitPartnerBps
                         ? `${activePlan.splitPartnerBps / 100}%`
                         : "—"}
@@ -481,231 +538,51 @@ export default function LotDetailPage() {
                   </div>
                 </dl>
               ) : (
-                <p className="text-gray-400 text-sm">{t("no_active_plan")}</p>
+                <p className="text-white/40 text-sm italic">{t("no_active_plan")}</p>
               )}
             </GlassCard>
 
-            <GlassCard className="p-6 border-primary/20">
-              <h2 className="text-xl font-bold mb-4">{t("risk_score")}</h2>
+            <div>
               {(() => {
-                const displayScore =
-                  computeScore.data?.score ?? lot.riskScore;
-                return displayScore != null ? (
-                  <>
-                    <div className="text-5xl font-bold text-primary mb-1">
-                      {displayScore}
-                    </div>
-                    <p className="text-xs text-gray-400 mb-4">{t("out_of_100")}</p>
-                    <Progress value={displayScore} className="mb-4" />
-                    <p className="text-xs text-gray-400">
-                      {lot.eudrCompliant
-                        ? t("eudr_verified")
-                        : t("eudr_pending")}
-                    </p>
-                  </>
-                ) : (
-                  <p className="text-sm text-gray-400 mb-4">
-                    {t("no_risk_score")}
-                  </p>
-                );
-              })()}
-              {(() => {
-                const hasFarmPolygon = lot.farm?.polygon != null;
-                const hasGps = lot.gpsLat != null && lot.gpsLng != null;
-                const canScore = hasFarmPolygon || hasGps;
+                const riskData = riskScoreFromLot(lot);
+                const updatedLabel = formatRelativeDate(lot.scoreUpdatedAt);
+                if (!riskData) {
+                  return (
+                    <GlassCard className="border-white/10 p-6">
+                      <h2 className="mb-2 font-trenda text-xl font-bold text-white">
+                        {t("score_pending")}
+                      </h2>
+                      <p className="text-sm text-white/60">{t("score_pending_desc")}</p>
+                    </GlassCard>
+                  );
+                }
                 return (
-                  <>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="w-full mt-2 border-white/20 text-white/70 hover:text-white hover:bg-white/10"
-                      disabled={computeScore.isPending || !canScore}
-                      onClick={() => {
-                        computeScore.mutate(
-                          { id: lotId },
-                          {
-                            onSuccess: () =>
-                              queryClient.invalidateQueries({
-                                queryKey: trpc.lots.byId.queryKey({ id: lotId }),
-                              }),
-                          },
-                        );
-                      }}
-                    >
-                      {computeScore.isPending ? (
-                        <Loader2 className="w-3 h-3 mr-2 animate-spin" />
-                      ) : (
-                        <RefreshCw className="w-3 h-3 mr-2" />
-                      )}
-                      {computeScore.isPending ? t("calculating_score") : t("calculate_score")}
-                    </Button>
-                    {!canScore ? (
-                      <p className="text-xs text-yellow-500/80 mt-2 flex items-center gap-1">
-                        <AlertCircle className="w-3 h-3 shrink-0" />
-                        {t("farm_polygon_required")}
+                  <div className="flex flex-col gap-2">
+                    <RiskScorePreview data={riskData} />
+                    {updatedLabel ? (
+                      <p className="text-xs text-white/55">
+                        {t("score_last_updated", { date: updatedLabel })}
                       </p>
                     ) : null}
-                  </>
+                  </div>
                 );
               })()}
-              {computeScore.error ? (
-                <p className="text-xs text-red-400 mt-2">
-                  {computeScore.error.message}
-                </p>
-              ) : null}
-            </GlassCard>
+            </div>
           </div>
 
-          {computeScore.data && (() => {
-            const sd = computeScore.data;
-            const climate = sd.climateMonths;
-            const ndviValid = sd.ndviMonths.filter((m) => m.mean != null).map((m) => m.mean as number);
-
-            const annualPrecipMm = climate.length > 0
-              ? (climate.reduce((s, m) => s + m.precipMm, 0) / climate.length) * 12
-              : 0;
-            const avgTempC = climate.length > 0
-              ? climate.reduce((s, m) => s + m.tempC, 0) / climate.length
-              : 0;
-            const avgNdvi = ndviValid.length > 0
-              ? ndviValid.reduce((a, b) => a + b, 0) / ndviValid.length
-              : null;
-
-            let maxDry = 0, dryRun = 0;
-            for (const m of climate) {
-              if (m.precipMm < 100) { dryRun++; if (dryRun > maxDry) maxDry = dryRun; }
-              else dryRun = 0;
-            }
-            const rainyMonths = climate.filter((m) => m.precipMm > 150).length;
-
-            const rainyStr = rainyMonths >= 4
-              ? t("rain_yes_months", { count: rainyMonths })
-              : t("rain_no_months", { count: rainyMonths });
-            const dryStr = maxDry >= 2
-              ? t("dry_yes", { count: maxDry })
-              : t("dry_no", { count: maxDry });
-
-            const rows: {
-              label: string;
-              value: number | null;
-              weight: string | null;
-              note?: string;
-              detail: string;
-            }[] = [
-              {
-                label: trs("ndvi_avg"),
-                value: sd.breakdown.ndviAvg,
-                weight: sd.hasSentinel ? "20%" : null,
-                note: !sd.hasSentinel ? t("no_sentinel_credentials") : undefined,
-                detail: avgNdvi != null
-                  ? t("ndvi_measured", { value: avgNdvi.toFixed(3), months: ndviValid.length })
-                  : t("ndvi_no_data"),
-              },
-              {
-                label: trs("ndvi_stability"),
-                value: sd.breakdown.ndviStability,
-                weight: sd.hasSentinel ? "10%" : null,
-                note: !sd.hasSentinel ? t("no_sentinel_credentials") : undefined,
-                detail: ndviValid.length >= 2
-                  ? t("ndvi_stability_has_data", { months: ndviValid.length })
-                  : t("ndvi_stability_no_data"),
-              },
-              {
-                label: trs("annual_precip"),
-                value: sd.breakdown.annualPrecip,
-                weight: sd.hasSentinel ? "15%" : "25%",
-                detail: t("precip_detail", { mm: Math.round(annualPrecipMm).toLocaleString(), years: Math.round(climate.length / 12) }),
-              },
-              {
-                label: trs("rain_distrib"),
-                value: sd.breakdown.rainDistrib,
-                weight: sd.hasSentinel ? "15%" : "25%",
-                detail: t("rain_detail", { rainy: rainyStr, dry: dryStr }),
-              },
-              {
-                label: trs("temperature"),
-                value: sd.breakdown.temperature,
-                weight: sd.hasSentinel ? "10%" : "17%",
-                detail: t("temp_detail", { temp: avgTempC.toFixed(1), months: climate.length }),
-              },
-              {
-                label: trs("eudr_compliance"),
-                value: sd.breakdown.eudr,
-                weight: sd.hasSentinel ? "20%" : "33%",
-                detail: sd.eudrCompliant === true
-                  ? t("eudr_compliant_detail")
-                  : sd.eudrCompliant === false
-                  ? t("eudr_non_compliant_detail")
-                  : t("eudr_pending_detail"),
-              },
-            ];
-
-            return (
-              <GlassCard className="p-6 border-primary/20 mb-8">
-                <h2 className="text-lg font-bold mb-1">{t("score_breakdown")}</h2>
-                <p className="text-xs text-gray-400 mb-4">
-                  {sd.hasSentinel
-                    ? t("score_source_sentinel")
-                    : t("score_source_climate")}
+          <GlassCard className="p-6 border-primary/25 bg-primary/5">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h2 className="section-title">{t("reserve_partnership")}</h2>
+                <p className="mt-1 text-sm text-white/70">
+                  {activePlan
+                    ? formatUsdFromCents(activePlan.ticketCents)
+                    : t("no_active_plan")}
                 </p>
-                <div className="space-y-1">
-                  {rows.map(({ label, value, weight, note, detail }) => {
-                    const isOpen = expandedRow === label;
-                    return (
-                      <div key={label}>
-                        <div className="grid grid-cols-[1fr_auto_auto] md:grid-cols-[1fr_auto_auto_auto] items-center gap-3 py-2">
-                          <div>
-                            <p className="text-sm text-white font-medium">{label}</p>
-                            {note ? (
-                              <p className="text-xs text-yellow-500/70">{note}</p>
-                            ) : null}
-                          </div>
-                          <span className="hidden md:block text-xs text-gray-500 w-10 text-right">
-                            {weight ?? "—"}
-                          </span>
-                          {value != null ? (
-                            <div className="flex items-center gap-2 w-32">
-                              <Progress value={value} className="flex-1 h-1.5 [&>div]:bg-primary" />
-                              <span className="text-xs font-mono text-primary font-bold w-8 text-right">
-                                {Math.round(value)}
-                              </span>
-                            </div>
-                          ) : (
-                            <span className="text-xs text-gray-500 w-32 text-right">N/A</span>
-                          )}
-                          <button
-                            onClick={() => setExpandedRow(isOpen ? null : label)}
-                            className="text-gray-500 hover:text-gray-300 transition-colors p-0.5"
-                            aria-label={isOpen ? "Collapse detail" : "Expand detail"}
-                          >
-                            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isOpen ? "rotate-180" : ""}`} />
-                          </button>
-                        </div>
-                        {isOpen && (
-                          <p className="text-xs text-gray-400 pb-2 pl-0 pr-8 leading-relaxed">
-                            {detail}
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="border-t border-white/10 mt-4 pt-3 flex justify-between items-center">
-                  <span className="text-sm text-gray-400">{t("score_total")}</span>
-                  <span className="text-2xl font-bold text-primary">
-                    {sd.score}
-                    <span className="text-sm text-gray-400 font-normal ml-1">/ 100</span>
-                  </span>
-                </div>
-                <p className="text-xs text-gray-600 mt-3">
-                  Hash: {sd.hash.slice(0, 16)}…
-                </p>
-              </GlassCard>
-            );
-          })()}
-
-          {/* CTA button — proposal-based flow */}
-          {renderProposalButton()}
+              </div>
+              {renderProposalButton()}
+            </div>
+          </GlassCard>
 
           {/* Approved proposal confirmation banner */}
           {lotProposal?.status === "signed" && activePlan && projections && (
@@ -713,7 +590,7 @@ export default function LotDetailPage() {
               <h3 className="text-lg font-bold text-green-300 mb-2">
                 {tpr("confirm_title")}
               </h3>
-              <p className="text-sm text-gray-300 mb-4">
+              <p className="text-sm text-white/80 mb-4">
                 {tpr("confirm_desc", { amount: formatUsdFromCents(activePlan.ticketCents) })}
               </p>
             </GlassCard>
@@ -726,7 +603,7 @@ export default function LotDetailPage() {
                 <DialogTitle className="text-xl font-bold text-white">
                   {tpr("send_request")}
                 </DialogTitle>
-                <DialogDescription className="text-gray-400">
+                <DialogDescription className="text-white/60">
                   {tpr("request_dialog_desc", {
                     lot: lot.code ?? t("lot_id", { id: lot.id }),
                   })}
@@ -736,13 +613,13 @@ export default function LotDetailPage() {
               {activePlan && projections && (
                 <div className="grid grid-cols-2 gap-3 text-sm my-2">
                   <div className="bg-white/5 rounded-lg p-3">
-                    <p className="text-gray-400 text-xs mb-1">{tp("your_ticket")}</p>
+                    <p className="text-white/60 text-xs mb-1">{tp("your_ticket")}</p>
                     <p className="font-bold text-primary text-lg">
                       {formatUsdFromCents(activePlan.ticketCents)}
                     </p>
                   </div>
                   <div className="bg-white/5 rounded-lg p-3">
-                    <p className="text-gray-400 text-xs mb-1">{tp("projected_return")}</p>
+                    <p className="text-white/60 text-xs mb-1">{tp("projected_return")}</p>
                     <p className="font-bold text-white text-lg">
                       {formatUsdFromCents(activePlan.ticketCents + projections.partnerCents)}
                     </p>
@@ -751,7 +628,7 @@ export default function LotDetailPage() {
               )}
 
               <div className="space-y-2">
-                <label className="text-sm text-gray-400">
+                <label className="text-sm text-white/60">
                   {tpr("message_label")}
                 </label>
                 <textarea
@@ -793,7 +670,7 @@ export default function LotDetailPage() {
                   <DialogTitle className="text-xl font-bold text-white">
                     {tpr("confirm_title")}
                   </DialogTitle>
-                  <DialogDescription className="text-gray-400">
+                  <DialogDescription className="text-white/60">
                     {tpr("confirm_desc", { amount: formatUsdFromCents(activePlan.ticketCents) })}
                   </DialogDescription>
                 </DialogHeader>
@@ -801,13 +678,13 @@ export default function LotDetailPage() {
                 <div className="space-y-4 py-2">
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div className="bg-white/5 rounded-lg p-3">
-                      <p className="text-gray-400 text-xs mb-1">{tp("your_ticket")}</p>
+                      <p className="text-white/60 text-xs mb-1">{tp("your_ticket")}</p>
                       <p className="font-bold text-primary text-lg">
                         {formatUsdFromCents(activePlan.ticketCents)}
                       </p>
                     </div>
                     <div className="bg-white/5 rounded-lg p-3">
-                      <p className="text-gray-400 text-xs mb-1">{tp("projected_return")}</p>
+                      <p className="text-white/60 text-xs mb-1">{tp("projected_return")}</p>
                       <p className="font-bold text-white text-lg">
                         {formatUsdFromCents(activePlan.ticketCents + projections.partnerCents)}
                       </p>
@@ -842,12 +719,12 @@ export default function LotDetailPage() {
                   )}
 
                   {reserve.txHash && reserve.step !== "done" && (
-                    <p className="text-xs text-gray-500 font-mono truncate">
+                    <p className="text-xs text-white/45 font-mono truncate">
                       tx: {reserve.txHash}
                     </p>
                   )}
 
-                  <p className="text-xs text-gray-500 leading-relaxed break-words">
+                  <p className="text-xs text-white/45 leading-relaxed break-words">
                     {tp("disclaimer")}
                   </p>
                 </div>

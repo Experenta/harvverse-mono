@@ -14,6 +14,7 @@ export default function SignInPage() {
             colorInputForeground: "#ffffff",
           },
         }}
+        forceRedirectUrl="/dashboard"
         fallbackRedirectUrl="/dashboard"
       />
     </div>

@@ -43,18 +43,23 @@ async function computeRiskScoreForLot(lotId: number, db: Db): Promise<void> {
   });
   if (!lot) return;
 
+  const lotPolygon =
+    lot.polygon != null
+      ? (lot.polygon as { coordinates: number[][][] })
+      : null;
   const farmPolygon =
     lot.farm?.polygon != null
       ? (lot.farm.polygon as { coordinates: number[][][] })
       : null;
+  const effectivePolygon = lotPolygon ?? farmPolygon;
   const lat = lot.gpsLat != null ? Number(lot.gpsLat) : null;
   const lng = lot.gpsLng != null ? Number(lot.gpsLng) : null;
 
   let effectiveLat: number;
   let effectiveLng: number;
 
-  if (farmPolygon) {
-    const centroid = computePolygonCentroid(farmPolygon);
+  if (effectivePolygon) {
+    const centroid = computePolygonCentroid(effectivePolygon);
     effectiveLat = centroid.lat;
     effectiveLng = centroid.lng;
   } else if (lat !== null && lng !== null && !isNaN(lat) && !isNaN(lng)) {
@@ -70,7 +75,7 @@ async function computeRiskScoreForLot(lotId: number, db: Db): Promise<void> {
     eudrCompliant: lot.eudrCompliant ?? null,
     sentinelClientId: env.SENTINEL_HUB_CLIENT_ID,
     sentinelClientSecret: env.SENTINEL_HUB_CLIENT_SECRET,
-    polygon: farmPolygon,
+    polygon: effectivePolygon,
   });
 
   await db
@@ -119,10 +124,16 @@ export const lotsRouter = router({
           plans: true,
         },
       });
-      if (!lot) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Lot not found" });
-      }
       return lot;
+    }),
+
+  byFarmId: publicProcedure
+    .input(z.object({ farmId: z.number().int().positive() }))
+    .query(({ ctx, input }) => {
+      return ctx.db.query.lots.findMany({
+        where: eq(lots.farmId, input.farmId),
+        with: { plans: true },
+      });
     }),
 
   byCode: publicProcedure
@@ -218,7 +229,7 @@ export const lotsRouter = router({
         return created;
       });
 
-      if (lot.riskScore == null && (lot.gpsLat != null || lot.gpsLng != null)) {
+      if (lot.riskScore == null && (lot.polygon != null || lot.gpsLat != null || lot.gpsLng != null)) {
         computeRiskScoreForLot(lot.id, ctx.db).catch((err) =>
           console.error("[lots.create] Risk score computation failed:", err),
         );
@@ -235,6 +246,24 @@ export const lotsRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      const requestingUser = await ctx.db.query.users.findFirst({
+        where: eq(users.clerkId, ctx.clerkId),
+      });
+      if (!requestingUser) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "User not found" });
+      }
+
+      const existingLot = await ctx.db.query.lots.findFirst({
+        where: eq(lots.id, input.id),
+        with: { farm: true },
+      });
+      if (!existingLot) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Lot not found" });
+      }
+      if (existingLot.farm.farmerId !== requestingUser.id) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You do not own this lot" });
+      }
+
       const [lot] = await ctx.db
         .update(lots)
         .set({ status: input.status, updatedAt: new Date() })
@@ -285,9 +314,9 @@ export const lotsRouter = router({
 
       const { lotId, areaManzanas, ...rest } = input;
 
-      // Section B fields are silently dropped when lot is not available
+      // Marketing fields can be edited before publish and while available.
       const sectionBFields =
-        lot.status === "available"
+        lot.status === "available" || lot.status === "draft"
           ? {
               variety: rest.variety,
               profile: rest.profile,
@@ -329,9 +358,13 @@ export const lotsRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Lot not found" });
       }
 
+      const lotPolygon = lot.polygon != null
+        ? (lot.polygon as { coordinates: number[][][] })
+        : null;
       const farmPolygon = lot.farm?.polygon != null
         ? (lot.farm.polygon as { coordinates: number[][][] })
         : null;
+      const effectivePolygon = lotPolygon ?? farmPolygon;
 
       const lat = lot.gpsLat != null ? Number(lot.gpsLat) : null;
       const lng = lot.gpsLng != null ? Number(lot.gpsLng) : null;
@@ -339,8 +372,8 @@ export const lotsRouter = router({
       let effectiveLat: number;
       let effectiveLng: number;
 
-      if (farmPolygon) {
-        const centroid = computePolygonCentroid(farmPolygon);
+      if (effectivePolygon) {
+        const centroid = computePolygonCentroid(effectivePolygon);
         effectiveLat = centroid.lat;
         effectiveLng = centroid.lng;
         if (lat === null || lng === null) {
@@ -363,7 +396,7 @@ export const lotsRouter = router({
         eudrCompliant: lot.eudrCompliant ?? null,
         sentinelClientId: env.SENTINEL_HUB_CLIENT_ID,
         sentinelClientSecret: env.SENTINEL_HUB_CLIENT_SECRET,
-        polygon: farmPolygon,
+        polygon: effectivePolygon,
       });
 
       await ctx.db

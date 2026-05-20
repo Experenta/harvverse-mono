@@ -14,6 +14,11 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-[#001020] text-white">
+      {/* Atmospheric elements */}
+      <div className="atmosphere-blob top-[-10%] right-[-10%] size-[500px] bg-primary/20" />
+      <div className="atmosphere-blob bottom-[5%] left-[-5%] size-[400px] bg-[#67B9C1]/20" />
+      <div className="atmosphere-blob top-[20%] left-[20%] size-[300px] bg-[#6766C4]/10" />
+
       {/* Mobile top bar — hidden on md+ */}
       <header className="fixed top-0 inset-x-0 h-14 bg-[#000d1a] border-b border-white/5 flex items-center justify-between px-4 z-50 md:hidden">
         <button

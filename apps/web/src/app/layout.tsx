@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import { ClerkProvider } from "@clerk/nextjs";
 import { ui } from "@clerk/ui";
-import { esES } from "@clerk/localizations";
+import { enUS, esES } from "@clerk/localizations";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import "../index.css";
@@ -40,7 +40,14 @@ export default async function RootLayout({
 	const messages = await getMessages();
 
 	return (
-		<ClerkProvider ui={ui} localization={esES}>
+		<ClerkProvider
+			ui={ui}
+			localization={locale === "en" ? enUS : esES}
+			signInForceRedirectUrl="/dashboard"
+			signInFallbackRedirectUrl="/dashboard"
+			signUpForceRedirectUrl="/onboarding"
+			signUpFallbackRedirectUrl="/onboarding"
+		>
 			<html lang={locale} className={trenda.variable} suppressHydrationWarning>
 				<body
 					className="antialiased"

@@ -14,6 +14,7 @@ export default function SignUpPage() {
             colorInputForeground: "#ffffff",
           },
         }}
+        forceRedirectUrl="/onboarding"
         fallbackRedirectUrl="/onboarding"
       />
     </div>

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect } from "react";
+import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -8,166 +9,169 @@ import { useTranslations } from "next-intl";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Loader2, Sprout } from "lucide-react";
+import { toast } from "sonner";
 
-import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
 import { Button } from "@harvverse-monorepo/ui/components/button";
+import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
+import { useCurrentUser } from "@/hooks/use-auth";
 import { trpc } from "@/utils/trpc";
 
 const schema = z.object({
-  displayName: z.string().trim().min(2),
-  phone: z.string().optional(),
-  country: z.string().optional(),
+  fullName: z.string().trim().min(2, "required"),
+  country: z.string().trim().min(1, "required"),
+  phone: z.string().trim().min(1, "required"),
 });
 
 type FormValues = z.input<typeof schema>;
 
-type Role = "partner" | "farmer";
-
 export default function OnboardingPage() {
   const router = useRouter();
   const { user: clerkUser, isLoaded } = useUser();
+  const { data: dbUser, isLoading: isLoadingDbUser } = useCurrentUser();
   const queryClient = useQueryClient();
-  const [selectedRole, setSelectedRole] = useState<Role | null>(null);
-  const t = useTranslations("auth");
+  const t = useTranslations("onboarding");
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
-      displayName: clerkUser?.fullName ?? "",
+      fullName: "",
+      country: "Honduras",
       phone: "",
-      country: "",
     },
   });
+
+  useEffect(() => {
+    if (!isLoaded || !clerkUser) return;
+    form.reset({
+      fullName:
+        clerkUser.fullName ??
+        clerkUser.primaryEmailAddress?.emailAddress?.split("@")[0] ??
+        "",
+      country: "Honduras",
+      phone: "",
+    });
+  }, [clerkUser, form, isLoaded]);
+
+  useEffect(() => {
+    if (!isLoaded || isLoadingDbUser || !dbUser) return;
+    router.replace(
+      dbUser.role === "farmer"
+        ? ("/dashboard/farmer" as Route)
+        : ("/dashboard/player" as Route),
+    );
+  }, [dbUser, isLoaded, isLoadingDbUser, router]);
 
   const upsert = useMutation(
     trpc.users.upsert.mutationOptions({
       onSuccess: async () => {
+        if (!clerkUser?.id) return;
         await queryClient.invalidateQueries({
-          queryKey: trpc.users.me.queryKey({ clerkId: clerkUser!.id }),
+          queryKey: trpc.users.me.queryKey({ clerkId: clerkUser.id }),
         });
-        router.push(
-          selectedRole === "farmer" ? "/dashboard/farmer" : "/dashboard/player",
-        );
+        router.push("/dashboard/farmer" as Route);
       },
     }),
   );
 
-  if (!isLoaded) return null;
+  if (!isLoaded || isLoadingDbUser || dbUser) return null;
 
   async function onSubmit(values: FormValues) {
-    if (!selectedRole || !clerkUser) return;
-    await upsert.mutateAsync({
-      clerkId: clerkUser.id,
-      email: clerkUser.primaryEmailAddress?.emailAddress,
-      displayName: values.displayName,
-      role: selectedRole,
-      phone: values.phone || undefined,
-      country: values.country || undefined,
-    });
+    if (!clerkUser) {
+      toast.error(t("session_error"));
+      return;
+    }
+    try {
+      await upsert.mutateAsync({
+        clerkId: clerkUser.id,
+        email: clerkUser.primaryEmailAddress?.emailAddress,
+        displayName: values.fullName,
+        role: "farmer",
+        country: values.country,
+        phone: values.phone,
+      });
+    } catch {
+      toast.error(t("submit_error"));
+    }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-[#001020]">
-      <div className="w-full max-w-lg">
-        <GlassCard className="p-8">
-          <div className="flex justify-center mb-6">
-            <img src="/logo.png" alt="Harvverse" className="h-14 w-auto" />
+    <div className="flex min-h-screen items-center justify-center bg-[#001020] p-4 text-[#EEEEEE]">
+      <div className="w-full max-w-md">
+        <GlassCard className="border-primary/20 bg-white/[0.03] p-8">
+          <div className="mb-6 flex justify-center">
+            <div className="flex size-14 items-center justify-center rounded-2xl border border-primary/25 bg-primary/10">
+              <Sprout className="size-7 text-primary" />
+            </div>
           </div>
 
-          <h1 className="text-2xl font-bold text-white text-center mb-2">
-            {t("complete_profile")}
+          <h1 className="mb-2 text-center font-trenda text-2xl font-bold text-white">
+            {t("title")}
           </h1>
-          <p className="text-gray-400 text-center mb-8">
-            {t("tell_us")}
-          </p>
 
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setSelectedRole("partner")}
-                className={`p-4 rounded-xl border-2 transition-all text-left ${
-                  selectedRole === "partner"
-                    ? "border-[#67B9C1] bg-[#67B9C1]/10"
-                    : "border-white/10 hover:border-white/30 bg-white/5"
-                }`}
-              >
-                <div className="text-2xl mb-2">💎</div>
-                <p className="font-bold text-white">{t("role_partner")}</p>
-                <p className="text-xs text-gray-400 mt-1">
-                  {t("invest_lots")}
-                </p>
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedRole("farmer")}
-                className={`p-4 rounded-xl border-2 transition-all text-left ${
-                  selectedRole === "farmer"
-                    ? "border-primary bg-primary/10"
-                    : "border-white/10 hover:border-white/30 bg-white/5"
-                }`}
-              >
-                <div className="text-2xl mb-2">🌿</div>
-                <p className="font-bold text-white">{t("role_farmer")}</p>
-                <p className="text-xs text-gray-400 mt-1">
-                  {t("list_lots")}
-                </p>
-              </button>
+          <form
+            onSubmit={form.handleSubmit(onSubmit, () => {
+              toast.error(t("required_error"));
+            })}
+            className="mt-8 space-y-5"
+          >
+            <div>
+              <label className="mb-1 block text-sm text-white/70">
+                {t("fullName")}
+              </label>
+              <input
+                {...form.register("fullName")}
+                className="harv-input w-full rounded-lg border px-3 py-2"
+                autoComplete="name"
+              />
+              {form.formState.errors.fullName ? (
+                <p className="mt-1 text-xs text-red-400">{t("required_error")}</p>
+              ) : null}
             </div>
 
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">
-                  {t("display_name")}
-                </label>
-                <input
-                  {...form.register("displayName")}
-                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-primary"
-                  placeholder={t("your_name")}
-                />
-                {form.formState.errors.displayName && (
-                  <p className="text-red-400 text-xs mt-1">
-                    {t("name_min_error")}
-                  </p>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">
-                    {t("phone_optional")}
-                  </label>
-                  <input
-                    {...form.register("phone")}
-                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-primary"
-                    placeholder="+1 234 567 8900"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">
-                    {t("country_optional")}
-                  </label>
-                  <input
-                    {...form.register("country")}
-                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-primary"
-                    placeholder="Colombia"
-                  />
-                </div>
-              </div>
+            <div>
+              <label className="mb-1 block text-sm text-white/70">
+                {t("country")}
+              </label>
+              <input
+                {...form.register("country")}
+                className="harv-input w-full rounded-lg border px-3 py-2"
+                autoComplete="country-name"
+              />
+              {form.formState.errors.country ? (
+                <p className="mt-1 text-xs text-red-400">{t("required_error")}</p>
+              ) : null}
             </div>
 
-            {upsert.error && (
-              <p className="text-red-400 text-sm text-center">
+            <div>
+              <label className="mb-1 block text-sm text-white/70">
+                {t("phone")}
+              </label>
+              <input
+                {...form.register("phone")}
+                className="harv-input w-full rounded-lg border px-3 py-2"
+                autoComplete="tel"
+              />
+              {form.formState.errors.phone ? (
+                <p className="mt-1 text-xs text-red-400">{t("required_error")}</p>
+              ) : null}
+            </div>
+
+            {upsert.error ? (
+              <p className="text-center text-sm text-red-400">
                 {upsert.error.message}
               </p>
-            )}
+            ) : null}
 
             <Button
               type="submit"
-              className="w-full bg-primary hover:bg-primary/90 text-[#001020] font-bold h-11"
-              disabled={!selectedRole || upsert.isPending}
+              className="h-11 w-full bg-primary font-bold text-[#001020] hover:bg-primary/90"
+              disabled={upsert.isPending}
             >
-              {upsert.isPending ? t("saving") : t("enter_harvverse")}
+              {upsert.isPending ? (
+                <Loader2 className="mr-2 size-4 animate-spin" />
+              ) : null}
+              {t("submit")}
             </Button>
           </form>
         </GlassCard>

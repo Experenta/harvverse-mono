@@ -1,29 +1,34 @@
 import type React from "react";
 import type { Route } from "next";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { imgEllipse1, imgVector1, imgVector8, imgVector2, imgVector3, imgVector4, imgGroup1, imgVector15, imgVector93, imgVector94, imgVector96, imgVector95, imgVector98, imgVector97, imgVector99, imgEllipse8, imgEllipse13, imgRectangle6, imgRectangle10, imgRectangle8, imgRectangle9, imgVector12, imgVector13, imgEllipse23, imgEllipse25, imgEllipse26, imgVector114 } from "./svg-sbfd3";
-const imgLogo051 = "/figma/edf7c1ef2f3153f356d49da93c676c2c2c348ede.png";
-const img12Colombia1SuperJumbo1 = "/figma/2c9027c1147786d46f9ff93f5809c5462c02bced.png";
-const imgIconosDeHarMesaDeTrabajo1011 = "/figma/77cd88c3b7371b4d74fa24a19a7bd7de862e9976.png";
-const imgIconosDeHarMesaDeTrabajo1012 = "/figma/0d85c92ca8d3efc7fa4a63e23f760895b8ea1487.png";
-const imgUpArrow1 = "/figma/a00d907b29af89c7814ada5d2e63c83722edfd90.png";
-const imgPlant1 = "/figma/fc59ca20a91883ce02f894d58014e4f1afc97e0c.png";
-const imgWifi1 = "/figma/7ddd3f7fdb156742772962c805f5a37299ef608d.png";
-const imgBalance1 = "/figma/9eb89f3b759a9fc57eabd46185fac06873a1e99b.png";
-const imgLoupe1 = "/figma/2e9002f46d3113d1ad0c646dde1f158c51dc976d.png";
-const imgVerified1 = "/figma/0e6455568aad3e0e338901dcd0be5f034a8b1043.png";
-const imgPartners1 = "/figma/70b198b4e08a86c4f0f19584020ce56847f25dbb.png";
-const imgVerified11 = "/figma/0fd8a67acd86abbfc91a0ab77957eeb28d25bdfc.png";
-const imgTrophy1 = "/figma/a891b3256df94f71a47075b1858be53b0a2e3b7c.png";
+import { LandingFigmaFrame } from "@/components/landing-figma-frame";
+import { LanguageSwitcher } from "@/components/language-switcher";
+
+const imgLogo051 = "/figma/logo-full.png";
+const img12Colombia1SuperJumbo1 = "/figma/landing-hero-farm.png";
+const imgIconosDeHarMesaDeTrabajo1011 = "/figma/landing-harv-icon-1.png";
+const imgIconosDeHarMesaDeTrabajo1012 = "/figma/landing-harv-icon-2.png";
+const imgUpArrow1 = "/figma/icon-up-arrow.png";
+const imgPlant1 = "/figma/icon-plant.png";
+const imgWifi1 = "/figma/icon-wifi.png";
+const imgBalance1 = "/figma/icon-balance.png";
+const imgLoupe1 = "/figma/icon-loupe.png";
+const imgVerified1 = "/figma/badge-verified-1.png";
+const imgPartners1 = "/figma/img-partners.png";
+const imgVerified11 = "/figma/badge-verified-2.png";
+const imgTrophy1 = "/figma/icon-trophy.png";
+
+const FIGMA_WIDTH = 1280;
+const FIGMA_HEIGHT = 9400;
 
 export default function LandingPage() {
+  const t = useTranslations("landing");
+
   return (
-    <div className="min-h-screen w-full overflow-x-auto bg-[#001020] text-[#EEE]">
-      <div
-        className="relative mx-auto min-h-[9400px] w-[1280px] bg-[#001020] font-trenda"
-        data-node-id="18:6"
-        data-name="Landing page rediseño"
-      >
+    <div className="min-h-screen w-full bg-[#001020] text-[#EEE] overflow-x-hidden">
+      <LandingFigmaFrame width={FIGMA_WIDTH} height={FIGMA_HEIGHT}>
       <div className="absolute border-2 border-[#93d832] border-solid h-[527px] left-[621px] rounded-[39px] top-[1643px] w-[551px]" data-node-id="26:142" style={{ backgroundImage: "linear-gradient(0.601663deg, rgb(0, 16, 32) 14.494%, rgb(103, 102, 196) 149.58%)" }} />
       <div className="-translate-x-1/2 absolute bg-gradient-to-t border-2 border-[#93d832] border-solid from-[#001020] from-[42.704%] h-[384px] left-[calc(50%+3px)] rounded-[39px] to-[#6766c4] to-[145.64%] top-[3404px] w-[228px]" data-node-id="296:14" />
       <div className="-translate-x-1/2 absolute h-[699px] left-1/2 top-[642px] w-[1848px]" data-node-id="25:67">
@@ -57,7 +62,7 @@ export default function LandingPage() {
         </div>
       </div>
       <p className="[word-break:break-word] absolute font-trenda font-bold leading-[normal] left-[123px] not-italic text-[32px] text-[color:var(--white,#eee)] top-[212px] whitespace-nowrap" data-node-id="25:4">
-        NOT A LOAN.
+        {t("hero_not_loan")}
       </p>
       <div className="[word-break:break-word] absolute font-trenda font-bold leading-[0] left-[145px] not-italic text-[32px] text-[color:var(--white,#eee)] top-[1790px] w-[387px]" data-node-id="26:124">
         <p className="mb-0">
@@ -71,20 +76,20 @@ export default function LandingPage() {
         <span className="leading-[normal] text-[64px]">41/LB</span>
       </p>
       <p className="[word-break:break-word] absolute font-trenda font-semibold leading-[normal] left-[98px] not-italic text-[18px] text-[color:var(--white,#eee)] top-[443px] w-[363px]" data-node-id="25:68">
-        Harvverse is an AgriFintech platform that connects global investors with smallholder coffee producers through co-investment partnerships — not loans. The farmer keeps 60% of harvest profit. The partner receives 40%. No debt. No interest. No default.
+        {t("hero_description")}
       </p>
       <div className="absolute flex items-center gap-4 left-[98px] top-[580px] z-10">
         <Link
           href={"/sign-in" as Route}
           className="font-trenda font-bold text-[18px] text-[#001020] bg-[#93d832] hover:bg-[#93d832]/90 transition-colors px-8 py-4 rounded-xl whitespace-nowrap"
         >
-          Get Started
+          {t("hero_cta_start")}
         </Link>
         <Link
           href="/dashboard/player/explore"
           className="font-trenda font-bold text-[18px] text-[#67b9c1] border-2 border-[#67b9c1] hover:bg-[#67b9c1]/10 transition-colors px-8 py-4 rounded-xl whitespace-nowrap"
         >
-          Explore Lots
+          {t("hero_cta_explore")}
         </Link>
       </div>
       <div className="[word-break:break-word] absolute font-trenda font-semibold leading-[0] left-[145px] not-italic text-[18px] text-[color:var(--white,#eee)] top-[1972px] w-[310px]" data-node-id="26:128">
@@ -92,7 +97,7 @@ export default function LandingPage() {
         <p className="leading-[normal]">{`lack capital. Every existing solution keeps them in debt — or locks them out entirely. 70% of farmer children abandon agriculture by age 25. `}</p>
       </div>
       <p className="[word-break:break-word] absolute font-trenda font-bold leading-[normal] left-[98px] not-italic text-[18px] text-[color:var(--white,#eee)] top-[374px] w-[292px]" data-node-id="229:2">
-        Replacing agricultural debt with profit-sharing partnerships.
+        {t("hero_tagline")}
       </p>
       <p className="[word-break:break-word] absolute font-trenda font-semibold leading-[normal] left-[787px] not-italic text-[18px] text-[color:var(--white,#eee)] top-[2596px] w-[292px]" data-node-id="174:794">
         A Phartmer (digital partner) co-invests $3K–$5K into a specific farm lot. No loan. No interest. Just shared profit at harvest — governed by smart contract.
@@ -150,32 +155,53 @@ export default function LandingPage() {
       <p className="[word-break:break-word] absolute font-trenda font-semibold leading-[normal] left-[726px] not-italic text-[18px] text-[color:var(--accent-blue,#67b9c1)] top-[355px] w-[364px]" data-node-id="26:89">
         Price achieved in specialty market · vs $2.50 commodity average.
       </p>
-      <p className="[word-break:break-word] absolute font-trenda font-bold leading-[normal] left-[292px] not-italic text-[18px] text-[color:var(--white,#eee)] top-[68px] w-[102px]" data-node-id="25:71">
-        PROBLEM
-      </p>
-      <p className="[word-break:break-word] absolute font-trenda font-bold leading-[normal] left-[413px] not-italic text-[18px] text-[color:var(--white,#eee)] top-[68px] w-[121px]" data-node-id="25:73">
-        OUR MODEL
-      </p>
-      <p className="[word-break:break-word] absolute font-trenda font-bold leading-[normal] left-[566px] not-italic text-[18px] text-[color:var(--white,#eee)] top-[68px] w-[142px]" data-node-id="25:77">
-        HOW IT WORKS
-      </p>
-      <p className="[word-break:break-word] absolute font-trenda font-bold leading-[normal] left-[740px] not-italic text-[18px] text-[color:var(--white,#eee)] top-[68px] w-[52px]" data-node-id="25:79">
-        TEAM
-      </p>
-      <p className="[word-break:break-word] absolute font-trenda font-bold leading-[normal] left-[837px] not-italic text-[18px] text-[color:var(--white,#eee)] top-[68px] w-[76px]" data-node-id="285:173">
-        THE ASK
-      </p>
-      <Link href="/dashboard/player/explore" className="[word-break:break-word] absolute font-trenda font-bold leading-[normal] left-[952px] not-italic text-[18px] text-[color:var(--accent-green,#93d832)] top-[68px] w-[134px] hover:opacity-80 transition-opacity">
-        EXPLORE LOTS
-      </Link>
-      <Link href={"/sign-in" as Route} className="absolute font-trenda font-bold leading-[normal] left-[1094px] not-italic text-[18px] text-[#eee] top-[62px] whitespace-nowrap hover:text-white transition-colors">
-        Sign In
-      </Link>
-      <Link href={"/sign-up" as Route} className="absolute font-trenda font-bold text-[13px] text-[#001020] bg-[#93d832] hover:bg-[#93d832]/90 transition-colors left-[1162px] top-[56px] px-4 py-2.5 rounded-xl whitespace-nowrap">
-        Get Started
-      </Link>
+      <div className="absolute left-[292px] top-[58px] flex items-center" data-name="Top nav">
+        <div className="flex items-center gap-6">
+          <span className="font-trenda font-bold leading-[normal] text-[18px] text-[#eee]" data-node-id="25:71">
+            {t("nav_problem")}
+          </span>
+          <span className="font-trenda font-bold leading-[normal] text-[18px] text-[#eee]" data-node-id="25:73">
+            {t("nav_model")}
+          </span>
+          <span className="font-trenda font-bold leading-[normal] text-[18px] text-[#eee]" data-node-id="25:77">
+            {t("nav_how")}
+          </span>
+          <span className="font-trenda font-bold leading-[normal] text-[18px] text-[#eee]" data-node-id="25:79">
+            {t("nav_team")}
+          </span>
+          <span className="font-trenda font-bold leading-[normal] text-[18px] text-[#eee]" data-node-id="285:173">
+            {t("nav_ask")}
+          </span>
+        </div>
+        <div className="ml-6 flex items-center gap-4">
+          <Link
+            href="/farms"
+            className="font-trenda font-bold leading-[normal] text-[18px] text-[#93d832] hover:opacity-80 transition-opacity"
+            data-node-id="25:80"
+          >
+            Open Farms
+          </Link>
+          <Link
+            href={"/sign-in" as Route}
+            className="font-trenda font-bold leading-[normal] text-[18px] text-[#eee] whitespace-nowrap hover:text-white transition-colors"
+            data-node-id="25:81"
+          >
+            {t("nav_signin")}
+          </Link>
+          <Link
+            href={"/sign-up?redirect_url=/onboarding" as Route}
+            className="font-trenda font-bold leading-[normal] text-[18px] text-[#001020] bg-[#93d832] hover:bg-[#93d832]/90 transition-colors px-4 py-2.5 rounded-xl whitespace-nowrap"
+            data-node-id="25:82"
+          >
+            {t("nav_getstarted")}
+          </Link>
+          <div className="ml-2 pl-4 border-l border-white/10">
+            <LanguageSwitcher />
+          </div>
+        </div>
+      </div>
       <p className="[word-break:break-word] absolute font-trenda font-bold leading-[normal] left-[98.19px] not-italic text-[32px] text-[color:var(--white,#eee)] top-[277px] whitespace-nowrap" data-node-id="25:5">
-        A PARTNERSHIP.
+        {t("hero_partnership")}
       </p>
       <div className="absolute h-[43px] left-[36px] top-[53px] w-[196px]" data-node-id="25:3" data-name="Logo-05 1">
         <img alt="" className="absolute inset-0 max-w-none object-cover pointer-events-none size-full" src={imgLogo051} />
@@ -2350,7 +2376,7 @@ export default function LandingPage() {
       <div className="absolute left-[1118px] size-[34px] top-[6751px]" data-node-id="307:98" data-name="trophy 6">
         <img alt="" className="absolute inset-0 max-w-none object-cover pointer-events-none size-full" src={imgTrophy1} />
       </div>
-      </div>
+      </LandingFigmaFrame>
     </div>
   );
 }
