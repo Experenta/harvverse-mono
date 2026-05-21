@@ -157,7 +157,6 @@ export function useReservePartnership(params: {
         const proposal = await createProposal.mutateAsync({
           lotId: lot.id,
           planId: activePlan.id,
-          userId: user.id,
           walletAddress: effectiveWallet,
           partnershipType: "phygital",
           status: "signed",

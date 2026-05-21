@@ -2,13 +2,14 @@ import {
   insertPartnershipSchema,
   partnershipStatusEnum,
   partnerships,
+  proposals,
   users,
 } from "@harvverse-monorepo/db/schema";
 import { TRPCError } from "@trpc/server";
 import { desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 
-import { protectedProcedure, publicProcedure, router } from "../index";
+import { protectedProcedure, router } from "../index";
 
 const partnershipStatusSchema = z.enum(partnershipStatusEnum.enumValues);
 
@@ -16,9 +17,29 @@ export const partnershipsRouter = router({
   create: protectedProcedure
     .input(insertPartnershipSchema)
     .mutation(async ({ ctx, input }) => {
+      const requestingUser = await ctx.db.query.users.findFirst({
+        where: eq(users.clerkId, ctx.clerkId),
+      });
+      if (!requestingUser) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "User not found" });
+      }
+
+      const proposal = await ctx.db.query.proposals.findFirst({
+        where: eq(proposals.id, input.proposalId),
+      });
+      if (!proposal) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Proposal not found" });
+      }
+      if (proposal.userId !== requestingUser.id) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You do not own this proposal" });
+      }
+      if (proposal.lotId !== input.lotId || proposal.planId !== input.planId) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Partnership does not match proposal" });
+      }
+
       const [partnership] = await ctx.db
         .insert(partnerships)
-        .values(input)
+        .values({ ...input, partnerUserId: requestingUser.id })
         .returning();
       if (!partnership) {
         throw new TRPCError({
@@ -29,13 +50,19 @@ export const partnershipsRouter = router({
       return partnership;
     }),
 
-  byId: publicProcedure
+  byId: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .query(async ({ ctx, input }) => {
+      const requestingUser = await ctx.db.query.users.findFirst({
+        where: eq(users.clerkId, ctx.clerkId),
+      });
+      if (!requestingUser) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "User not found" });
+      }
       const partnership = await ctx.db.query.partnerships.findFirst({
         where: eq(partnerships.id, input.id),
         with: {
-          lot: true,
+          lot: { with: { farm: true } },
           plan: true,
           evidenceRecords: true,
         },
@@ -46,10 +73,17 @@ export const partnershipsRouter = router({
           message: "Partnership not found",
         });
       }
+      if (
+        partnership.partnerUserId !== requestingUser.id &&
+        partnership.lot.farm.farmerId !== requestingUser.id &&
+        !["admin", "settlement_operator"].includes(requestingUser.role)
+      ) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You cannot view this partnership" });
+      }
       return partnership;
     }),
 
-  myPartnerships: publicProcedure
+  myPartnerships: protectedProcedure
     .input(
       z.object({
         clerkId: z.string().optional(),
@@ -57,11 +91,17 @@ export const partnershipsRouter = router({
       }),
     )
     .query(async ({ ctx, input }) => {
-      if (input.clerkId) {
-        const user = await ctx.db.query.users.findFirst({
-          where: eq(users.clerkId, input.clerkId),
-        });
-        if (!user) return [];
+      const user = await ctx.db.query.users.findFirst({
+        where: eq(users.clerkId, ctx.clerkId),
+      });
+      if (!user) return [];
+      if (input.clerkId && input.clerkId !== ctx.clerkId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You can only view your own partnerships" });
+      }
+      if (input.walletAddress && input.walletAddress !== user.walletAddress) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You can only view your own partnerships" });
+      }
+      if (input.clerkId || !input.walletAddress) {
         return ctx.db.query.partnerships.findMany({
           where: eq(partnerships.partnerUserId, user.id),
           orderBy: [desc(partnerships.createdAt)],
@@ -78,7 +118,7 @@ export const partnershipsRouter = router({
       return [];
     }),
 
-  forFarmer: publicProcedure
+  forFarmer: protectedProcedure
     .input(
       z.object({
         clerkId: z.string().optional(),
@@ -86,12 +126,18 @@ export const partnershipsRouter = router({
       }),
     )
     .query(async ({ ctx, input }) => {
-      if (input.clerkId) {
-        const user = await ctx.db.query.users.findFirst({
-          where: eq(users.clerkId, input.clerkId),
-          with: { farms: { with: { lots: true } } },
-        });
-        if (!user) return [];
+      const user = await ctx.db.query.users.findFirst({
+        where: eq(users.clerkId, ctx.clerkId),
+        with: { farms: { with: { lots: true } } },
+      });
+      if (!user) return [];
+      if (input.clerkId && input.clerkId !== ctx.clerkId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You can only view your own farm partnerships" });
+      }
+      if (input.walletAddress && input.walletAddress !== user.walletAddress) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You can only view your own farm partnerships" });
+      }
+      if (input.clerkId || !input.walletAddress) {
         const farmerLotIds = user.farms.flatMap((f) => f.lots.map((l) => l.id));
         if (farmerLotIds.length === 0) return [];
         return ctx.db.query.partnerships.findMany({
@@ -118,6 +164,29 @@ export const partnershipsRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      const requestingUser = await ctx.db.query.users.findFirst({
+        where: eq(users.clerkId, ctx.clerkId),
+      });
+      if (!requestingUser) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "User not found" });
+      }
+
+      const existingPartnership = await ctx.db.query.partnerships.findFirst({
+        where: eq(partnerships.id, input.id),
+      });
+      if (!existingPartnership) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Partnership not found",
+        });
+      }
+      if (
+        existingPartnership.partnerUserId !== requestingUser.id &&
+        !["admin", "settlement_operator"].includes(requestingUser.role)
+      ) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You do not own this partnership" });
+      }
+
       const [partnership] = await ctx.db
         .update(partnerships)
         .set({ status: input.status, updatedAt: new Date() })

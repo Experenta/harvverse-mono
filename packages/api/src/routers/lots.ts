@@ -6,6 +6,8 @@ import {
   lotStatusEnum,
   lots,
   plans,
+  partnerships,
+  proposals,
   users,
 } from "@harvverse-monorepo/db/schema";
 import type { Db } from "@harvverse-monorepo/db";
@@ -24,6 +26,32 @@ import {
 } from "../lib/copernicus";
 
 const lotStatusSchema = z.enum(lotStatusEnum.enumValues);
+const lotCreateStatusSchema = z.enum(["draft", "available"]);
+const lotCreateSchema = insertLotSchema.pick({
+  farmId: true,
+  code: true,
+  farmName: true,
+  farmerWallet: true,
+  region: true,
+  country: true,
+  variety: true,
+  process: true,
+  altitudeMasl: true,
+  areaManzanas: true,
+  gpsLat: true,
+  gpsLng: true,
+  numTrees: true,
+  plantAgeYears: true,
+  scaScoreTenths: true,
+  harvestYear: true,
+  cycleNotes: true,
+  profile: true,
+  summary: true,
+  coverImages: true,
+  polygon: true,
+}).extend({
+  status: lotCreateStatusSchema.optional(),
+});
 
 const planInputSchema = z.object({
   ticketCents: z.number().int().positive(),
@@ -114,7 +142,7 @@ export const lotsRouter = router({
       });
     }),
 
-  byId: publicProcedure
+  byId: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .query(async ({ ctx, input }) => {
       const lot = await ctx.db.query.lots.findFirst({
@@ -124,12 +152,56 @@ export const lotsRouter = router({
           plans: true,
         },
       });
+      if (!lot) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Lot not found" });
+      }
+      const requestingUser = await ctx.db.query.users.findFirst({
+        where: eq(users.clerkId, ctx.clerkId),
+      });
+      if (!requestingUser) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "User not found" });
+      }
+      const relatedProposal = await ctx.db.query.proposals.findFirst({
+        where: and(
+          eq(proposals.lotId, lot.id),
+          eq(proposals.userId, requestingUser.id),
+        ),
+      });
+      const relatedPartnership = await ctx.db.query.partnerships.findFirst({
+        where: and(
+          eq(partnerships.lotId, lot.id),
+          eq(partnerships.partnerUserId, requestingUser.id),
+        ),
+      });
+      if (
+        lot.status !== "available" &&
+        lot.farm.farmerId !== requestingUser.id &&
+        !relatedProposal &&
+        !relatedPartnership
+      ) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You cannot view this lot" });
+      }
       return lot;
     }),
 
-  byFarmId: publicProcedure
+  byFarmId: protectedProcedure
     .input(z.object({ farmId: z.number().int().positive() }))
-    .query(({ ctx, input }) => {
+    .query(async ({ ctx, input }) => {
+      const requestingUser = await ctx.db.query.users.findFirst({
+        where: eq(users.clerkId, ctx.clerkId),
+      });
+      if (!requestingUser) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "User not found" });
+      }
+      const farm = await ctx.db.query.farms.findFirst({
+        where: eq(farms.id, input.farmId),
+      });
+      if (!farm) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Farm not found" });
+      }
+      if (farm.farmerId !== requestingUser.id) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You do not own this farm" });
+      }
       return ctx.db.query.lots.findMany({
         where: eq(lots.farmId, input.farmId),
         with: { plans: true },
@@ -149,11 +221,14 @@ export const lotsRouter = router({
       if (!lot) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Lot not found" });
       }
+      if (lot.status !== "available") {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Lot not found" });
+      }
       return lot;
     }),
 
   create: protectedProcedure
-    .input(insertLotSchema.extend({ plan: planInputSchema.optional() }))
+    .input(lotCreateSchema.extend({ plan: planInputSchema.optional() }))
     .mutation(async ({ ctx, input }) => {
       const requestingUser = await ctx.db.query.users.findFirst({
         where: eq(users.clerkId, ctx.clerkId),
@@ -177,7 +252,6 @@ export const lotsRouter = router({
       const lot = await ctx.db.transaction(async (tx) => {
         const insertValues = {
           ...lotInput,
-          scoreUpdatedAt: lotInput.riskScore != null ? new Date() : lotInput.scoreUpdatedAt,
         };
 
         let created: typeof lots.$inferSelect;
@@ -350,12 +424,22 @@ export const lotsRouter = router({
   computeRiskScore: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
+      const requestingUser = await ctx.db.query.users.findFirst({
+        where: eq(users.clerkId, ctx.clerkId),
+      });
+      if (!requestingUser) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "User not found" });
+      }
+
       const lot = await ctx.db.query.lots.findFirst({
         where: eq(lots.id, input.id),
         with: { farm: true },
       });
       if (!lot) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Lot not found" });
+      }
+      if (lot.farm.farmerId !== requestingUser.id) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You do not own this lot" });
       }
 
       const lotPolygon = lot.polygon != null
@@ -471,6 +555,13 @@ export const lotsRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      const requestingUser = await ctx.db.query.users.findFirst({
+        where: eq(users.clerkId, ctx.clerkId),
+      });
+      if (!requestingUser || !["admin", "verifier", "settlement_operator"].includes(requestingUser.role)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Admin or verifier access required" });
+      }
+
       const [lot] = await ctx.db
         .update(lots)
         .set({

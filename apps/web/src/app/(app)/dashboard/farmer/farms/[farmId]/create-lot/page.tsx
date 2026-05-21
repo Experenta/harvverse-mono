@@ -381,9 +381,6 @@ export default function CreateLotPage() {
       coverImages: values.coverImageUrl ? [values.coverImageUrl] : undefined,
       polygon: lotPolygon ?? undefined,
       status: mode === "publish" ? "available" : "draft",
-      riskScore: previewScoreData?.score ?? undefined,
-      eudrCompliant: previewScoreData?.eudrCompliant ?? undefined,
-      scoreHash: previewScoreData?.hash ?? undefined,
       plan: mode === "publish" && planResult.success
         ? {
             ticketCents: Math.round(planResult.data.ticketUsd * 100),

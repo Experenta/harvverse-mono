@@ -234,7 +234,6 @@ export default function LotDetailPage() {
     await createProposal.mutateAsync({
       lotId,
       planId: activePlan.id,
-      userId: user.id,
       walletAddress: "",
       partnershipType: "phygital",
       status: "pending",

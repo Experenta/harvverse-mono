@@ -9,21 +9,32 @@ import { TRPCError } from "@trpc/server";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 
-import { protectedProcedure, publicProcedure, router } from "../index";
+import { protectedProcedure, router } from "../index";
 
 const proposalStatusSchema = z.enum(proposalStatusEnum.enumValues);
+const proposalCreateSchema = insertProposalSchema
+  .omit({ userId: true })
+  .extend({ expiresAt: z.coerce.date() })
+  .extend({ walletAddress: z.string().optional().default("") });
 
 export const proposalsRouter = router({
   create: protectedProcedure
-    .input(
-      insertProposalSchema
-        .extend({ expiresAt: z.coerce.date() })
-        .extend({ walletAddress: z.string().optional().default("") }),
-    )
+    .input(proposalCreateSchema)
     .mutation(async ({ ctx, input }) => {
+      const requestingUser = await ctx.db.query.users.findFirst({
+        where: eq(users.clerkId, ctx.clerkId),
+      });
+      if (!requestingUser) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "User not found" });
+      }
+
       const [proposal] = await ctx.db
         .insert(proposals)
-        .values({ ...input, walletAddress: input.walletAddress ?? "" })
+        .values({
+          ...input,
+          userId: requestingUser.id,
+          walletAddress: input.walletAddress ?? "",
+        })
         .returning();
       if (!proposal) {
         throw new TRPCError({
@@ -34,13 +45,19 @@ export const proposalsRouter = router({
       return proposal;
     }),
 
-  byId: publicProcedure
+  byId: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .query(async ({ ctx, input }) => {
+      const requestingUser = await ctx.db.query.users.findFirst({
+        where: eq(users.clerkId, ctx.clerkId),
+      });
+      if (!requestingUser) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "User not found" });
+      }
       const proposal = await ctx.db.query.proposals.findFirst({
         where: eq(proposals.id, input.id),
         with: {
-          lot: true,
+          lot: { with: { farm: true } },
           plan: true,
         },
       });
@@ -50,10 +67,17 @@ export const proposalsRouter = router({
           message: "Proposal not found",
         });
       }
+      if (
+        proposal.userId !== requestingUser.id &&
+        proposal.lot.farm.farmerId !== requestingUser.id &&
+        !["admin", "settlement_operator"].includes(requestingUser.role)
+      ) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You cannot view this proposal" });
+      }
       return proposal;
     }),
 
-  myProposals: publicProcedure
+  myProposals: protectedProcedure
     .input(
       z.object({
         clerkId: z.string().optional(),
@@ -61,11 +85,17 @@ export const proposalsRouter = router({
       }),
     )
     .query(async ({ ctx, input }) => {
-      if (input.clerkId) {
-        const user = await ctx.db.query.users.findFirst({
-          where: eq(users.clerkId, input.clerkId),
-        });
-        if (!user) return [];
+      const user = await ctx.db.query.users.findFirst({
+        where: eq(users.clerkId, ctx.clerkId),
+      });
+      if (!user) return [];
+      if (input.clerkId && input.clerkId !== ctx.clerkId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You can only view your own proposals" });
+      }
+      if (input.walletAddress && input.walletAddress !== user.walletAddress) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You can only view your own proposals" });
+      }
+      if (input.clerkId || !input.walletAddress) {
         return ctx.db.query.proposals.findMany({
           where: eq(proposals.userId, user.id),
           orderBy: [desc(proposals.createdAt)],
@@ -95,6 +125,26 @@ export const proposalsRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const { id, ...rest } = input;
+      const requestingUser = await ctx.db.query.users.findFirst({
+        where: eq(users.clerkId, ctx.clerkId),
+      });
+      if (!requestingUser) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "User not found" });
+      }
+
+      const existingProposal = await ctx.db.query.proposals.findFirst({
+        where: eq(proposals.id, id),
+      });
+      if (!existingProposal) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Proposal not found",
+        });
+      }
+      if (existingProposal.userId !== requestingUser.id) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You do not own this proposal" });
+      }
+
       const updateData = Object.fromEntries(
         Object.entries(rest).filter(([, v]) => v !== undefined),
       );

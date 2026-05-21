@@ -8,7 +8,7 @@ import { TRPCError } from "@trpc/server";
 import { asc, eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { protectedProcedure, publicProcedure, router } from "../index";
+import { protectedProcedure, router } from "../index";
 
 export const evidenceRouter = router({
   create: protectedProcedure
@@ -44,9 +44,31 @@ export const evidenceRouter = router({
       return record;
     }),
 
-  byPartnership: publicProcedure
+  byPartnership: protectedProcedure
     .input(z.object({ partnershipId: z.number().int().positive() }))
-    .query(({ ctx, input }) => {
+    .query(async ({ ctx, input }) => {
+      const requestingUser = await ctx.db.query.users.findFirst({
+        where: eq(users.clerkId, ctx.clerkId),
+      });
+      if (!requestingUser) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "User not found" });
+      }
+
+      const partnership = await ctx.db.query.partnerships.findFirst({
+        where: eq(partnerships.id, input.partnershipId),
+        with: { lot: { with: { farm: true } } },
+      });
+      if (!partnership) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Partnership not found" });
+      }
+      if (
+        partnership.partnerUserId !== requestingUser.id &&
+        partnership.lot.farm.farmerId !== requestingUser.id &&
+        !["admin", "verifier", "settlement_operator"].includes(requestingUser.role)
+      ) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You cannot view this evidence" });
+      }
+
       return ctx.db.query.evidenceRecords.findMany({
         where: eq(evidenceRecords.partnershipId, input.partnershipId),
         orderBy: [
@@ -66,6 +88,32 @@ export const evidenceRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const { id, ...rest } = input;
+      const requestingUser = await ctx.db.query.users.findFirst({
+        where: eq(users.clerkId, ctx.clerkId),
+      });
+      if (!requestingUser) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "User not found" });
+      }
+
+      const existingRecord = await ctx.db.query.evidenceRecords.findFirst({
+        where: eq(evidenceRecords.id, id),
+      });
+      if (!existingRecord) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Evidence record not found",
+        });
+      }
+      const partnership = await ctx.db.query.partnerships.findFirst({
+        where: eq(partnerships.id, existingRecord.partnershipId),
+      });
+      if (
+        partnership?.partnerUserId !== requestingUser.id &&
+        !["admin", "verifier", "settlement_operator"].includes(requestingUser.role)
+      ) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You cannot attest this evidence" });
+      }
+
       const [record] = await ctx.db
         .update(evidenceRecords)
         .set({
