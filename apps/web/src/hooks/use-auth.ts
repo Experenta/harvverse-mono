@@ -1,6 +1,6 @@
 "use client";
 
-import { useUser } from "@clerk/nextjs";
+import { useClerk, useUser } from "@clerk/nextjs";
 import { useQuery } from "@tanstack/react-query";
 import { useDisconnect } from "wagmi";
 
@@ -25,10 +25,12 @@ export function useCurrentUser() {
 }
 
 export function useLogout() {
+  const { signOut } = useClerk();
   const { disconnect } = useDisconnect();
   return {
     mutate: (_?: unknown, options?: { onSuccess?: () => void }) => {
       disconnect();
+      void signOut({ redirectUrl: "/sign-in" });
       options?.onSuccess?.();
     },
     isPending: false,

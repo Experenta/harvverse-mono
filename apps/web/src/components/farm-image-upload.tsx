@@ -16,8 +16,9 @@ export interface FarmImageUploadItem {
   id: number;
   filename: string;
   isPrimary: boolean | null;
-  data: string;
+  data?: string | null;
   mimeType: string;
+  url?: string | null;
 }
 
 interface LocalImageItem extends FarmImageUploadItem {
@@ -42,6 +43,10 @@ function fileToBase64(file: File) {
     reader.onerror = () => reject(reader.error);
     reader.readAsDataURL(file);
   });
+}
+
+function imageSrc(image: FarmImageUploadItem) {
+  return image.url ?? (image.data ? `data:${image.mimeType};base64,${image.data}` : null);
 }
 
 export function FarmImageUpload({
@@ -315,9 +320,9 @@ export function FarmImageUpload({
               className="group relative overflow-hidden rounded-xl border border-white/10 bg-white/[0.03]"
             >
               <div className="aspect-[4/3] bg-white/[0.04]">
-                {image.data ? (
+                {imageSrc(image) ? (
                   <img
-                    src={`data:${image.mimeType};base64,${image.data}`}
+                    src={imageSrc(image) ?? undefined}
                     alt={image.filename}
                     className="h-full w-full object-cover"
                   />

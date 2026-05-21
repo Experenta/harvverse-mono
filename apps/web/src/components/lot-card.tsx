@@ -9,13 +9,15 @@ import {
   Sprout,
   ArrowRight,
   ShieldCheck,
-  ShieldAlert,
   Inbox,
   TrendingUp,
   DollarSign,
   Settings2,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import { useState } from "react";
 
 import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
 import { Button } from "@harvverse-monorepo/ui/components/button";
@@ -76,6 +78,7 @@ function statusBadgeStyles(status: string) {
 export function LotCard({ lot, variant, pendingProposals = 0 }: LotCardProps) {
   const router = useRouter();
   const t = useTranslations("lot");
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   const activePlan = lot.plans[0] ?? null;
   const ticketUsd = activePlan ? (activePlan.ticketCents / 100).toFixed(0) : null;
@@ -83,7 +86,17 @@ export function LotCard({ lot, variant, pendingProposals = 0 }: LotCardProps) {
     ? (activePlan.splitPartnerBps / 100).toFixed(0)
     : null;
 
-  const coverSrc = lot.coverImages?.[0];
+  const displayImages = lot.coverImages?.filter(Boolean) ?? [];
+
+  const nextImage = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCurrentImageIndex((prev) => (prev + 1) % displayImages.length);
+  };
+
+  const prevImage = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCurrentImageIndex((prev) => (prev - 1 + displayImages.length) % displayImages.length);
+  };
 
   return (
     <motion.div
@@ -94,32 +107,61 @@ export function LotCard({ lot, variant, pendingProposals = 0 }: LotCardProps) {
     >
       <GlassCard className="group flex flex-col overflow-hidden border-primary/20 transition-all hover:border-primary/50 hover:shadow-primary/5">
         <div className="relative h-44 overflow-hidden bg-gradient-to-br from-primary/20 to-[#001020]">
-          {coverSrc ? (
-            <img
-              src={coverSrc}
-              alt={lot.code ?? `Lot ${lot.id}`}
-              className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
-              onError={(e) => {
-                (e.currentTarget as HTMLImageElement).src = "";
-                e.currentTarget.style.display = "none";
-                const parent = e.currentTarget.parentElement;
-                if (parent) {
-                  const fallback = parent.querySelector<HTMLElement>("[data-fallback]");
-                  if (fallback) fallback.style.display = "flex";
-                }
-              }}
-            />
-          ) : null}
-          <div
-            data-fallback=""
-            className="absolute inset-0 flex items-center justify-center"
-            style={{ display: coverSrc ? "none" : "flex" }}
-          >
-            <Sprout className="size-12 text-primary/30" />
-          </div>
-          <div className="absolute inset-0 bg-gradient-to-t from-[#001020] via-[#001020]/20 to-transparent" />
+          <AnimatePresence mode="wait">
+            {displayImages.length > 0 ? (
+              <motion.img
+                key={displayImages[currentImageIndex]}
+                src={displayImages[currentImageIndex]}
+                alt={lot.code ?? `Lot ${lot.id}`}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3 }}
+                className="h-full w-full object-cover"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = "";
+                  e.currentTarget.style.display = "none";
+                }}
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center">
+                <Sprout className="size-12 text-primary/30" />
+              </div>
+            )}
+          </AnimatePresence>
 
-          <div className="absolute top-2 left-2 flex flex-col gap-1.5">
+          <div className="absolute inset-0 bg-gradient-to-t from-[#001020] via-[#001020]/20 to-transparent pointer-events-none" />
+
+          {displayImages.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={prevImage}
+                className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-black/40 p-1 text-white opacity-0 transition-opacity group-hover:opacity-100 hover:bg-black/60"
+              >
+                <ChevronLeft className="size-4" />
+              </button>
+              <button
+                type="button"
+                onClick={nextImage}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-black/40 p-1 text-white opacity-0 transition-opacity group-hover:opacity-100 hover:bg-black/60"
+              >
+                <ChevronRight className="size-4" />
+              </button>
+              <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 gap-1">
+                {displayImages.map((_, i) => (
+                  <div
+                    key={i}
+                    className={`h-1 w-3 rounded-full transition-all ${
+                      i === currentImageIndex ? "bg-primary w-5" : "bg-white/30"
+                    }`}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+
+          <div className="absolute top-2 left-2 flex flex-col gap-1.5 pointer-events-none">
             <Badge className={`rounded-full border text-[9px] px-2 py-0 backdrop-blur-md ${statusBadgeStyles(lot.status)}`}>
               {t(`status_${lot.status}` as Parameters<typeof t>[0]) ?? lot.status}
             </Badge>

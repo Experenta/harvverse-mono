@@ -49,6 +49,7 @@ function riskScoreFromFarm(farm: {
     breakdown: stored.breakdown ?? null,
     ndviMonths: stored.ndviMonths ?? [],
     climateMonths: stored.climateMonths ?? [],
+    quarterlyNdvi: stored.quarterlyNdvi ?? [],
     hasSentinel: stored.hasSentinel ?? false,
     eudrScreening: extractEudrScreening(farm.scoreBreakdown),
   };
@@ -59,6 +60,10 @@ function eudrLabel(t: ReturnType<typeof useTranslations<"farm">>, status: EudrRi
   if (status === "review_required") return t("eudr_prelim_review");
   if (status === "high_risk") return t("eudr_prelim_failed");
   return t("eudr_prelim_inconclusive");
+}
+
+function farmImageSrc(image: { url?: string | null; data?: string | null; mimeType: string }) {
+  return image.url ?? (image.data ? `data:${image.mimeType};base64,${image.data}` : null);
 }
 
 export default function FarmerFarmDetailPage() {
@@ -229,7 +234,8 @@ export default function FarmerFarmDetailPage() {
                 {(() => {
                   const primary = farm.images.find((image) => image.isPrimary) ?? farm.images[0];
                   if (!primary) return null;
-                  const src = `data:${primary.mimeType};base64,${primary.data}`;
+                  const src = farmImageSrc(primary);
+                  if (!src) return null;
                   return (
                     <button
                       type="button"
@@ -246,7 +252,8 @@ export default function FarmerFarmDetailPage() {
                 })()}
                 <div className="grid grid-cols-2 gap-3">
                   {farm.images.map((image) => {
-                    const src = `data:${image.mimeType};base64,${image.data}`;
+                    const src = farmImageSrc(image);
+                    if (!src) return null;
                     return (
                       <button
                         key={image.id}

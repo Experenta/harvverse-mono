@@ -1,128 +1,107 @@
 "use client";
 
-import Link from "next/link";
-import type { Route } from "next";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { ArrowLeft, MapPin, Mountain, Sprout } from "lucide-react";
-
-import { Badge } from "@harvverse-monorepo/ui/components/badge";
-import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
-import { Skeleton } from "@harvverse-monorepo/ui/components/skeleton";
 import { trpc } from "@/utils/trpc";
-import { eudrTone, extractEudrScreening } from "@/lib/eudr-screening";
-
-function scoreBadge(score: number) {
-  if (score >= 80) return "border-green-500/30 bg-green-500/15 text-green-300";
-  if (score >= 60) return "border-[#67B9C1]/35 bg-[#67B9C1]/15 text-[#67B9C1]";
-  if (score >= 40) return "border-yellow-500/35 bg-yellow-500/15 text-yellow-300";
-  return "border-red-500/35 bg-red-500/15 text-red-300";
-}
+import { FarmCard } from "@/components/farm-card";
+import { Skeleton } from "@harvverse-monorepo/ui/components/skeleton";
+import { Button } from "@harvverse-monorepo/ui/components/button";
+import Link from "next/link";
+import type { Route } from "next";
+import { motion } from "framer-motion";
 
 export default function PublicFarmsPage() {
-  const t = useTranslations("farm");
+  const t = useTranslations("landing");
+  const tf = useTranslations("farm");
   const { data: farms, isLoading } = useQuery(
     trpc.farms.listPublic.queryOptions(),
   );
 
   return (
-    <main className="min-h-screen bg-[#001020] px-4 py-8 text-[#EEEEEE]">
-      <div className="mx-auto max-w-7xl">
-        <div className="mb-8 flex items-center justify-between gap-4">
-          <div>
-            <Link href="/" className="mb-4 inline-flex items-center text-sm text-white/60 hover:text-white">
-              <ArrowLeft className="mr-2 size-4" />
-              Harvverse
-            </Link>
-            <h1 className="font-trenda text-3xl font-bold text-white md:text-5xl">
-              {t("open_farms_title")}
-            </h1>
-          </div>
-          <Link
-            href={"/waiting-list" as Route}
-            className="inline-flex h-9 items-center justify-center rounded-none bg-primary px-3 text-xs font-bold text-[#001020] hover:bg-primary/90"
+    <div className="flex flex-col min-h-screen">
+      {/* Hero Section */}
+      <section className="bg-[#0F1A24] pt-32 pb-20 border-b border-white/5">
+        <div className="mx-auto max-w-7xl px-4 md:px-6">
+          <motion.p
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-[11px] font-bold tracking-[3px] text-primary uppercase mb-6"
           >
-            {t("invest_button")}
-          </Link>
+            OPEN FARMS DIRECTORY
+          </motion.p>
+          <motion.h1
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="text-4xl md:text-6xl font-black text-white leading-tight mb-8"
+          >
+            Every farm. Satellite-verified.<br />
+            Publicly accessible. Free.
+          </motion.h1>
+          <motion.p
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="text-lg md:text-xl text-white/60 max-w-2xl mb-10 leading-relaxed"
+          >
+            The global EUDR compliance directory for coffee farmers. Powered by ESA Copernicus satellite data.
+          </motion.p>
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+          >
+            <Button
+              asChild
+              size="lg"
+              className="bg-primary text-[#0F1A24] font-black h-14 px-10 rounded-xl shadow-xl shadow-primary/20"
+            >
+              <Link href={"/sign-up" as Route}>{t("hero_cta_farmer")}</Link>
+            </Button>
+          </motion.div>
         </div>
+      </section>
 
-        {isLoading ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {Array.from({ length: 8 }).map((_, index) => (
-              <Skeleton key={index} className="h-64 rounded-xl" />
-            ))}
+      {/* Directory Section */}
+      <section className="bg-[#F4F7F0] py-20 flex-1">
+        <div className="mx-auto max-w-7xl px-4 md:px-6">
+          {/* Filters Placeholder */}
+          <div className="flex flex-wrap items-center gap-4 mb-12 pb-8 border-b border-[#0F1A24]/10">
+             <div className="px-4 py-2 bg-white rounded-lg border border-[#0F1A24]/10 text-sm font-bold text-[#0F1A24]/60 cursor-pointer hover:border-primary transition-colors flex items-center gap-2">
+               Country <span className="text-[10px]">▾</span>
+             </div>
+             <div className="px-4 py-2 bg-white rounded-lg border border-[#0F1A24]/10 text-sm font-bold text-[#0F1A24]/60 cursor-pointer hover:border-primary transition-colors flex items-center gap-2">
+               Variety <span className="text-[10px]">▾</span>
+             </div>
+             <div className="px-4 py-2 bg-white rounded-lg border border-[#0F1A24]/10 text-sm font-bold text-[#0F1A24]/60 cursor-pointer hover:border-primary transition-colors flex items-center gap-2">
+               Altitude <span className="text-[10px]">▾</span>
+             </div>
+             <div className="px-4 py-2 bg-white rounded-lg border border-[#0F1A24]/10 text-sm font-bold text-[#0F1A24]/60 cursor-pointer hover:border-primary transition-colors flex items-center gap-2">
+               Score <span className="text-[10px]">▾</span>
+             </div>
+             <label className="flex items-center gap-2 cursor-pointer ml-auto">
+               <input type="checkbox" className="size-4 accent-primary" />
+               <span className="text-sm font-bold text-[#0F1A24]/60">Available to invest</span>
+             </label>
           </div>
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {(farms ?? []).map((farm) => (
-              <Link key={farm.id} href={`/farms/${farm.id}` as Route}>
-                <GlassCard className="group h-full overflow-hidden border-primary/20 bg-white/[0.03] transition hover:border-primary/50">
-                  <div className="relative h-32 bg-gradient-to-br from-primary/20 via-[#67B9C1]/10 to-transparent">
-                    {farm.primaryImageData && farm.primaryImageMimeType ? (
-                      <img
-                        src={`data:${farm.primaryImageMimeType};base64,${farm.primaryImageData}`}
-                        alt={farm.name}
-                        className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
-                      />
-                    ) : null}
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#001020] to-transparent" />
-                    <div className="absolute right-3 top-3 flex flex-col items-end gap-2">
-                      <Badge className={`rounded-full border px-2 py-0 text-[10px] font-bold ${scoreBadge(farm.riskScore ?? 0)}`}>
-                        ● {farm.riskScore}
-                      </Badge>
-                      {(() => {
-                        const status = extractEudrScreening(farm.scoreBreakdown)?.status ?? "unknown";
-                        const tone = eudrTone(status);
-                        const label =
-                          status === "low_risk"
-                            ? t("eudr_prelim_passed")
-                            : status === "review_required"
-                              ? t("eudr_prelim_review")
-                              : status === "high_risk"
-                                ? t("eudr_prelim_failed")
-                                : t("eudr_prelim_inconclusive");
-                        return (
-                          <Badge className={`max-w-44 rounded-full border px-2 py-0 text-[10px] font-bold ${tone.badge}`}>
-                            <span className="truncate">{label}</span>
-                          </Badge>
-                        );
-                      })()}
-                    </div>
-                    <Sprout className="absolute bottom-3 left-3 size-8 text-primary" />
-                  </div>
-                  <div className="p-4">
-                    <h2 className="truncate font-trenda text-lg font-bold text-white group-hover:text-primary">
-                      {farm.name}
-                    </h2>
-                    <p className="mt-1 flex items-center gap-1.5 text-sm text-white/60">
-                      <MapPin className="size-3.5 text-primary/70" />
-                      {farm.region}, {farm.country}
-                    </p>
-                    <div className="mt-4 flex flex-wrap gap-2 text-xs">
-                      {(farm.varieties ?? []).slice(0, 3).map((variety) => (
-                        <span key={variety} className="rounded-full bg-primary/10 px-2 py-1 text-primary">
-                          {variety}
-                        </span>
-                      ))}
-                    </div>
-                    <div className="mt-4 flex flex-wrap gap-3 text-xs text-white/55">
-                      {farm.altitudeMasl ? (
-                        <span className="inline-flex items-center gap-1">
-                          <Mountain className="size-3.5" />
-                          {farm.altitudeMasl}m
-                        </span>
-                      ) : null}
-                      {farm.areaManzanas ? (
-                        <span>{Number(farm.areaManzanas).toFixed(1)} mz</span>
-                      ) : null}
-                    </div>
-                  </div>
-                </GlassCard>
-              </Link>
-            ))}
-          </div>
-        )}
-      </div>
-    </main>
+
+          {isLoading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Skeleton key={i} className="h-96 w-full rounded-3xl" />
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+              {farms?.map((farm) => (
+                <Link key={farm.id} href={`/farms/${farm.id}`}>
+                  <FarmCard farm={farm as any} />
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+    </div>
   );
 }

@@ -54,7 +54,12 @@ ALTER TABLE "farms" ADD COLUMN IF NOT EXISTS "score_breakdown" jsonb;
 CREATE TABLE IF NOT EXISTS "farm_images" (
   "id" serial PRIMARY KEY NOT NULL,
   "farm_id" integer NOT NULL REFERENCES "farms"("id"),
-  "data" text NOT NULL,
+  "data" text,
+  "storage_provider" varchar(20) DEFAULT 'database' NOT NULL,
+  "storage_bucket" text,
+  "storage_key" text,
+  "storage_region" varchar(40),
+  "checksum_sha256" varchar(64),
   "mime_type" varchar(50) NOT NULL,
   "filename" text NOT NULL,
   "size_bytes" integer,
@@ -62,8 +67,16 @@ CREATE TABLE IF NOT EXISTS "farm_images" (
   "created_at" timestamp DEFAULT now() NOT NULL
 );
 
+ALTER TABLE "farm_images" ALTER COLUMN "data" DROP NOT NULL;
+ALTER TABLE "farm_images" ADD COLUMN IF NOT EXISTS "storage_provider" varchar(20) DEFAULT 'database' NOT NULL;
+ALTER TABLE "farm_images" ADD COLUMN IF NOT EXISTS "storage_bucket" text;
+ALTER TABLE "farm_images" ADD COLUMN IF NOT EXISTS "storage_key" text;
+ALTER TABLE "farm_images" ADD COLUMN IF NOT EXISTS "storage_region" varchar(40);
+ALTER TABLE "farm_images" ADD COLUMN IF NOT EXISTS "checksum_sha256" varchar(64);
+
 CREATE INDEX IF NOT EXISTS "farm_images_farm_id_idx" ON "farm_images" ("farm_id");
 CREATE INDEX IF NOT EXISTS "farm_images_primary_idx" ON "farm_images" ("farm_id", "is_primary");
+CREATE INDEX IF NOT EXISTS "farm_images_storage_key_idx" ON "farm_images" ("storage_key");
 
 CREATE TABLE IF NOT EXISTS "waitlist_entries" (
   "id" serial PRIMARY KEY NOT NULL,

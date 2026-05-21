@@ -14,18 +14,56 @@ interface ScoreBreakdown {
   temperature: number;
   eudr: number;
   eudrScreening?: EudrScreening | null;
+  opticalCoverage?: {
+    averageValidPixelCoverage: number | null;
+    averageCloudCoverage: number | null;
+    lowCoverageMonths: number;
+  };
+  climateTrend?: {
+    providerLabel: string;
+    precipitationTrendMmPerYear: number | null;
+    daysOver100Mm: number;
+    waterStressLabel: "low" | "medium" | "high" | "unknown";
+    confidence: "none" | "low" | "medium" | "high";
+  };
+  terrain?: {
+    providerLabel: string;
+    elevationMasl: number | null;
+    terrainRisk: "low" | "medium" | "high" | "unknown";
+    confidence: "none" | "low" | "medium" | "high";
+  };
+  sentinel1?: {
+    structuralChangeSignal: "none" | "possible_change" | "unknown";
+    soilMoistureProxy: "low" | "medium" | "high" | "unknown";
+    confidence: "none" | "low" | "medium" | "high";
+  };
+  jrcGfc2020?: {
+    post2020LossSignal: "none" | "possible_loss" | "unknown";
+    confidence: "none" | "low" | "medium" | "high";
+  };
   total: number;
 }
 
 interface NdviMonth {
   date: string;
   mean: number | null;
+  validPixelCoverage?: number | null;
+  cloudCoverage?: number | null;
 }
 
 interface ClimateMonth {
   date: string;
   precipMm: number;
   tempC: number;
+  daysOver100Mm?: number;
+}
+
+interface QuarterlyNdviMetric {
+  quarter: string;
+  mean: number | null;
+  validPixelCoverage: number | null;
+  deltaFromPrevious: number | null;
+  anomaly: "none" | "drop" | "increase" | "insufficient_data";
 }
 
 export interface RiskScoreData {
@@ -34,6 +72,7 @@ export interface RiskScoreData {
   hash?: string | null;
   ndviMonths?: NdviMonth[];
   climateMonths?: ClimateMonth[];
+  quarterlyNdvi?: QuarterlyNdviMetric[];
   hasSentinel?: boolean;
   eudrScreening?: EudrScreening | null;
   eudrCompliant: boolean | null;
@@ -64,7 +103,13 @@ function ScoreBar({ value, max = 20, naLabel }: { value: number | null; max?: nu
   );
 }
 
-export default function RiskScorePreview({ data }: { data: RiskScoreData }) {
+export default function RiskScorePreview({
+  data,
+  hideHeader = false,
+}: {
+  data: RiskScoreData;
+  hideHeader?: boolean;
+}) {
   const [expanded, setExpanded] = useState(false);
   const t = useTranslations("risk_score");
 
@@ -90,6 +135,12 @@ export default function RiskScorePreview({ data }: { data: RiskScoreData }) {
         (ndviMonths.filter((m) => m.mean !== null).length || 1)
       : null;
   const eudrScreening = data.eudrScreening ?? data.breakdown?.eudrScreening ?? null;
+  const latestQuarter = data.quarterlyNdvi?.at(-1) ?? null;
+  const opticalCoverage = data.breakdown?.opticalCoverage ?? null;
+  const climateTrend = data.breakdown?.climateTrend ?? null;
+  const terrain = data.breakdown?.terrain ?? null;
+  const sentinel1 = data.breakdown?.sentinel1 ?? null;
+  const jrcGfc2020 = data.breakdown?.jrcGfc2020 ?? null;
   const eudrStatus = eudrScreening?.status ?? "unknown";
   const eudrUi = eudrTone(eudrStatus);
   const eudrLabel =
@@ -122,7 +173,9 @@ export default function RiskScorePreview({ data }: { data: RiskScoreData }) {
     <GlassCard className={`p-5 border ${cls.color}`}>
       <div className="flex items-center justify-between mb-4">
         <div>
-          <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">{t("title")}</p>
+          {!hideHeader ? (
+            <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">{t("title")}</p>
+          ) : null}
           <div className="flex items-center gap-3">
             <span className={`text-5xl font-bold ${cls.textColor}`}>{data.score}</span>
             <span className={`text-sm font-semibold px-2 py-0.5 rounded border ${cls.color} ${cls.textColor}`}>
@@ -182,6 +235,100 @@ export default function RiskScorePreview({ data }: { data: RiskScoreData }) {
               <p className="text-xs text-white/70">{t("temp_label")}</p>
               <p className="text-lg font-semibold text-white">
                 {avgTempC !== null ? `${avgTempC.toFixed(1)} °C` : "—"}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-3 border-t border-white/10 pt-3 sm:grid-cols-2">
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/40">
+                {t("provider_optical")}
+              </p>
+              <p className="mt-1 text-sm font-bold text-white">
+                Sentinel-2 L2A
+              </p>
+              <p className="mt-1 text-xs text-white/55">
+                {t("valid_coverage")}:{" "}
+                {opticalCoverage?.averageValidPixelCoverage != null
+                  ? `${Math.round(opticalCoverage.averageValidPixelCoverage * 100)}%`
+                  : "—"}
+                {" · "}
+                {t("cloud_coverage")}:{" "}
+                {opticalCoverage?.averageCloudCoverage != null
+                  ? `${Math.round(opticalCoverage.averageCloudCoverage * 100)}%`
+                  : "—"}
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/40">
+                {t("ndvi_trend")}
+              </p>
+              <p className="mt-1 text-sm font-bold text-white">
+                {latestQuarter?.quarter ?? "—"}
+              </p>
+              <p className="mt-1 text-xs text-white/55">
+                {t("quarter_delta")}:{" "}
+                {latestQuarter?.deltaFromPrevious != null
+                  ? latestQuarter.deltaFromPrevious.toFixed(3)
+                  : "—"}
+                {" · "}
+                {t(`anomaly_${latestQuarter?.anomaly ?? "insufficient_data"}`)}
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/40">
+                {t("climate_trend")}
+              </p>
+              <p className="mt-1 text-sm font-bold text-white">
+                {t(`water_stress_${climateTrend?.waterStressLabel ?? "unknown"}`)}
+              </p>
+              <p className="mt-1 text-xs text-white/55">
+                {t("rainfall_trend")}:{" "}
+                {climateTrend?.precipitationTrendMmPerYear != null
+                  ? `${climateTrend.precipitationTrendMmPerYear.toFixed(0)} mm/yr`
+                  : "—"}
+                {" · "}
+                {t("extreme_rain_days")}: {climateTrend?.daysOver100Mm ?? "—"}
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/40">
+                {t("terrain")}
+              </p>
+              <p className="mt-1 text-sm font-bold text-white">
+                {terrain?.elevationMasl != null ? `${terrain.elevationMasl} m` : "—"}
+              </p>
+              <p className="mt-1 text-xs text-white/55">
+                {t("terrain_risk")}: {t(`risk_${terrain?.terrainRisk ?? "unknown"}`)}
+                {" · "}
+                {terrain?.providerLabel ?? t("provider_unavailable")}
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/40">
+                Sentinel-1 SAR
+              </p>
+              <p className="mt-1 text-sm font-bold text-white">
+                {t(`sar_signal_${sentinel1?.structuralChangeSignal ?? "unknown"}`)}
+              </p>
+              <p className="mt-1 text-xs text-white/55">
+                {t("confidence")}: {t(`confidence_${sentinel1?.confidence ?? "none"}`)}
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/40">
+                JRC GFC2020
+              </p>
+              <p className="mt-1 text-sm font-bold text-white">
+                {t(`forest_signal_${jrcGfc2020?.post2020LossSignal ?? "unknown"}`)}
+              </p>
+              <p className="mt-1 text-xs text-white/55">
+                {t("confidence")}: {t(`confidence_${jrcGfc2020?.confidence ?? "none"}`)}
               </p>
             </div>
           </div>

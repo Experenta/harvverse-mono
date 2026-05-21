@@ -112,11 +112,7 @@ export default function PlayerSidebar({ isMobileOpen, onClose }: Props) {
           variant="ghost"
           className="w-full justify-start gap-3 text-white/55 hover:bg-red-500/10 hover:text-red-300"
           disabled={logout.isPending}
-          onClick={() =>
-            logout.mutate(undefined, {
-              onSuccess: () => router.push("/"),
-            })
-          }
+          onClick={() => logout.mutate()}
         >
           <LogOut className="size-4" />
           {logout.isPending ? t("signing_out") : t("sign_out")}

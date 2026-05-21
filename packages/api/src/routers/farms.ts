@@ -19,8 +19,12 @@ import { protectedProcedure, publicProcedure, router } from "../index";
 import {
   computePolygonCentroid,
   computeRiskScore,
-  getAltitudeFromOpenMeteo,
 } from "../lib/copernicus";
+import {
+  deleteFarmImageObject,
+  getFarmImageUrl,
+  putFarmImageObject,
+} from "../lib/farm-image-storage";
 
 type FarmPolygon = { coordinates: number[][][] };
 const MAX_FARM_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -28,32 +32,94 @@ const MAX_FARM_IMAGES = 10;
 const ALLOWED_FARM_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 
 type FarmImageRecord = {
-  data: string;
+  id: number;
+  data: string | null;
+  storageProvider: string;
+  storageBucket: string | null;
+  storageKey: string | null;
+  storageRegion: string | null;
   mimeType: string;
+  filename: string;
   isPrimary: boolean | null;
   createdAt: Date;
 };
 
-function withPrimaryImage<T extends { images?: FarmImageRecord[] }>(farm: T) {
+async function withImageUrl<T extends FarmImageRecord>(image: T) {
+  try {
+    return {
+      ...image,
+      url: await getFarmImageUrl(image),
+    };
+  } catch (error) {
+    console.error(`[farms.withImageUrl] Failed to get URL for image ${image.id}:`, error);
+    return {
+      ...image,
+      url: null,
+    };
+  }
+}
+
+async function withImageUrls(images: FarmImageRecord[] | undefined) {
+  return Promise.all((images ?? []).map((image) => withImageUrl(image)));
+}
+
+function publicImagePayload(image: Awaited<ReturnType<typeof withImageUrl>>) {
+  return {
+    id: image.id,
+    url: image.url,
+    data: image.data,
+    mimeType: image.mimeType,
+    filename: image.filename,
+    isPrimary: image.isPrimary,
+    createdAt: image.createdAt,
+  };
+}
+
+async function withPrimaryImage<T extends { images?: FarmImageRecord[] }>(farm: T) {
+  const images = await withImageUrls(farm.images);
   const primary =
-    farm.images?.find((image) => image.isPrimary) ??
-    farm.images?.[0] ??
+    images.find((image) => image.isPrimary) ??
+    images[0] ??
     null;
   return {
     ...farm,
+    images,
+    primaryImageUrl: primary?.url ?? null,
     primaryImageData: primary?.data ?? null,
     primaryImageMimeType: primary?.mimeType ?? null,
   };
 }
 
-function withPublicPrimaryImage<T extends { images?: FarmImageRecord[] }>(farm: T) {
-  const { images: _images, ...rest } = farm;
+async function withPublicPrimaryImage<T extends { images?: FarmImageRecord[] }>(
+  farm: T,
+) {
+  const images = (await withImageUrls(farm.images)).map(publicImagePayload);
   const primary =
-    farm.images?.find((image) => image.isPrimary) ??
-    farm.images?.[0] ??
+    images.find((image) => image.isPrimary) ??
+    images[0] ??
     null;
   return {
+    ...farm,
+    images,
+    primaryImageUrl: primary?.url ?? null,
+    primaryImageData: primary?.data ?? null,
+    primaryImageMimeType: primary?.mimeType ?? null,
+  };
+}
+
+async function withPublicImages<T extends { images?: FarmImageRecord[] }>(farm: T) {
+  const { images: _images, ...rest } = farm;
+  const images = await withImageUrls(farm.images);
+  const publicImages = images.map(publicImagePayload);
+  const primary =
+    publicImages.find((image) => image.isPrimary) ??
+    publicImages[0] ??
+    null;
+
+  return {
     ...rest,
+    images: publicImages,
+    primaryImageUrl: primary?.url ?? null,
     primaryImageData: primary?.data ?? null,
     primaryImageMimeType: primary?.mimeType ?? null,
   };
@@ -119,6 +185,11 @@ function farmRiskPayload(result: Awaited<ReturnType<typeof computeRiskScore>>) {
       ndviMonths: result.ndviMonths,
       climateMonths: result.climateMonths,
       hasSentinel: result.hasSentinel,
+      quarterlyNdvi: result.quarterlyNdvi,
+      climateTrend: result.climateTrend,
+      terrain: result.terrain,
+      sentinel1: result.sentinel1,
+      jrcGfc2020: result.jrcGfc2020,
       eudrScreening: result.eudrScreening,
     },
     updatedAt: new Date(),
@@ -178,6 +249,11 @@ async function recordCopernicusEvidence(params: {
         hasSentinel: result.hasSentinel,
         ndviMonths: result.ndviMonths,
         climateMonths: result.climateMonths,
+        quarterlyNdvi: result.quarterlyNdvi,
+        climateTrend: result.climateTrend,
+        terrain: result.terrain,
+        sentinel1: result.sentinel1,
+        jrcGfc2020: result.jrcGfc2020,
       },
       confidence: result.eudrScreening.confidence,
       generatedReportHash,
@@ -208,6 +284,56 @@ async function recordCopernicusEvidence(params: {
       metrics: month,
       confidence: "medium",
     })),
+    ...result.quarterlyNdvi.map((quarter) => ({
+      runId: run.id,
+      farmId,
+      providerName: "sentinel_hub_cdse",
+      collectionId: "sentinel-2-l2a",
+      observedAt: null,
+      metricType: "ndvi_quarterly",
+      metrics: quarter,
+      confidence: quarter.mean == null ? "low" : "medium",
+    })),
+    {
+      runId: run.id,
+      farmId,
+      providerName: result.climateTrend.provider,
+      collectionId: "open-meteo-archive",
+      observedAt: null,
+      metricType: "climate_trend",
+      metrics: result.climateTrend,
+      confidence: result.climateTrend.confidence,
+    },
+    {
+      runId: run.id,
+      farmId,
+      providerName: result.terrain.provider,
+      collectionId: result.terrain.provider,
+      observedAt: null,
+      metricType: "terrain",
+      metrics: result.terrain,
+      confidence: result.terrain.confidence,
+    },
+    {
+      runId: run.id,
+      farmId,
+      providerName: result.sentinel1.provider,
+      collectionId: "sentinel-1-grd",
+      observedAt: null,
+      metricType: "sentinel1_readiness",
+      metrics: result.sentinel1,
+      confidence: result.sentinel1.confidence,
+    },
+    {
+      runId: run.id,
+      farmId,
+      providerName: result.jrcGfc2020.provider,
+      collectionId: "jrc-gfc2020",
+      observedAt: null,
+      metricType: "jrc_gfc2020_readiness",
+      metrics: result.jrcGfc2020,
+      confidence: result.jrcGfc2020.confidence,
+    },
   ];
 
   if (observationRows.length > 0) {
@@ -311,17 +437,16 @@ async function runCopernicusAnalysisForFarm(
 
   if (lat == null || lng == null) return null;
 
-  const [result, altitude] = await Promise.all([
-    computeRiskScore({
-      lat,
-      lng,
-      eudrCompliant: farm.eudrCompliant ?? null,
-      sentinelClientId: env.SENTINEL_HUB_CLIENT_ID,
-      sentinelClientSecret: env.SENTINEL_HUB_CLIENT_SECRET,
-      polygon,
-    }),
-    farm.altitudeMasl == null ? getAltitudeFromOpenMeteo(lat, lng) : null,
-  ]);
+  const result = await computeRiskScore({
+    lat,
+    lng,
+    eudrCompliant: farm.eudrCompliant ?? null,
+    sentinelClientId: env.SENTINEL_HUB_CLIENT_ID,
+    sentinelClientSecret: env.SENTINEL_HUB_CLIENT_SECRET,
+    polygon,
+  });
+  const altitude =
+    farm.altitudeMasl == null ? result.terrain.elevationMasl : null;
 
   const [updatedFarm] = await db
     .update(farms)
@@ -354,7 +479,7 @@ export async function computeRiskScoreForFarm(
 }
 
 export const farmsRouter = router({
-  list: publicProcedure
+  list: protectedProcedure
     .input(
       z
         .object({
@@ -362,28 +487,44 @@ export const farmsRouter = router({
         })
         .optional(),
     )
-    .query(({ ctx, input }) => {
-      const farmerId = input?.farmerId;
-      return ctx.db.query.farms.findMany({
+    .query(async ({ ctx, input }) => {
+      const requestingUser = await getRequestingUser(ctx);
+      const farmerId = input?.farmerId ?? requestingUser.id;
+      if (farmerId !== requestingUser.id) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You can only list your own farms",
+        });
+      }
+
+      const items = await ctx.db.query.farms.findMany({
         where: farmerId ? eq(farms.farmerId, farmerId) : undefined,
         with: {
           lots: { with: { plans: true } },
           images: {
             columns: {
+              id: true,
               data: true,
+              storageProvider: true,
+              storageBucket: true,
+              storageKey: true,
+              storageRegion: true,
               mimeType: true,
+              filename: true,
               isPrimary: true,
               createdAt: true,
             },
             orderBy: (table, { desc }) => [desc(table.isPrimary), desc(table.createdAt)],
           },
         },
-      }).then((items) => items.map(withPrimaryImage));
+      });
+      return Promise.all(items.map(withPrimaryImage));
     }),
 
-  byId: publicProcedure
+  byId: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .query(async ({ ctx, input }) => {
+      await assertOwnsFarm(ctx.db, ctx.clerkId, input.id);
       const farm = await ctx.db.query.farms.findFirst({
         where: eq(farms.id, input.id),
         with: {
@@ -399,8 +540,8 @@ export const farmsRouter = router({
       return withPrimaryImage(farm);
     }),
 
-  listPublic: publicProcedure.query(({ ctx }) => {
-    return ctx.db.query.farms.findMany({
+  listPublic: publicProcedure.query(async ({ ctx }) => {
+    const items = await ctx.db.query.farms.findMany({
       where: isNotNull(farms.riskScore),
       with: {
         farmer: {
@@ -408,10 +549,19 @@ export const farmsRouter = router({
             displayName: true,
           },
         },
+        lots: {
+          with: { plans: true },
+        },
         images: {
           columns: {
+            id: true,
             data: true,
+            storageProvider: true,
+            storageBucket: true,
+            storageKey: true,
+            storageRegion: true,
             mimeType: true,
+            filename: true,
             isPrimary: true,
             createdAt: true,
           },
@@ -419,7 +569,8 @@ export const farmsRouter = router({
         },
       },
       orderBy: (table, { desc }) => [desc(table.scoreUpdatedAt)],
-    }).then((items) => items.map(withPublicPrimaryImage));
+    });
+    return Promise.all(items.map(withPublicPrimaryImage));
   }),
 
   byIdPublic: publicProcedure
@@ -433,6 +584,7 @@ export const farmsRouter = router({
               displayName: true,
             },
           },
+          lots: { with: { plans: true } },
           images: {
             orderBy: (table, { desc }) => [desc(table.isPrimary), desc(table.createdAt)],
           },
@@ -441,17 +593,18 @@ export const farmsRouter = router({
       if (!farm || farm.riskScore == null) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Farm not found" });
       }
-      return withPrimaryImage(farm);
+      return withPublicImages(farm);
     }),
 
   getImages: protectedProcedure
     .input(z.object({ farmId: z.number().int().positive() }))
     .query(async ({ ctx, input }) => {
       await assertOwnsFarm(ctx.db, ctx.clerkId, input.farmId);
-      return ctx.db.query.farmImages.findMany({
+      const images = await ctx.db.query.farmImages.findMany({
         where: eq(farmImages.farmId, input.farmId),
         orderBy: (table, { desc }) => [desc(table.isPrimary), desc(table.createdAt)],
       });
+      return Promise.all(images.map(withImageUrl));
     }),
 
   uploadImage: protectedProcedure
@@ -487,11 +640,26 @@ export const farmsRouter = router({
           .where(eq(farmImages.farmId, input.farmId));
       }
 
+      const storedObject = await putFarmImageObject({
+        farmId: input.farmId,
+        data: input.data,
+        mimeType: input.mimeType,
+        filename: input.filename,
+      });
+      const fallbackChecksum = storedObject
+        ? null
+        : createHash("sha256").update(Buffer.from(input.data, "base64")).digest("hex");
+
       const [image] = await ctx.db
         .insert(farmImages)
         .values({
           farmId: input.farmId,
-          data: input.data,
+          data: storedObject ? null : input.data,
+          storageProvider: storedObject?.provider ?? "database",
+          storageBucket: storedObject?.bucket ?? null,
+          storageKey: storedObject?.key ?? null,
+          storageRegion: storedObject?.region ?? null,
+          checksumSha256: storedObject?.checksumSha256 ?? fallbackChecksum,
           mimeType: input.mimeType,
           filename: input.filename,
           sizeBytes: input.sizeBytes,
@@ -519,6 +687,7 @@ export const farmsRouter = router({
       }
       await assertOwnsFarm(ctx.db, ctx.clerkId, image.farmId);
 
+      await deleteFarmImageObject(image);
       await ctx.db.delete(farmImages).where(eq(farmImages.id, input.imageId));
 
       if (image.isPrimary) {

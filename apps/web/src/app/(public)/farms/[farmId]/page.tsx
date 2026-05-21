@@ -3,33 +3,32 @@
 import { useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import type { Route } from "next";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import type { Polygon } from "geojson";
-import { AlertTriangle, ArrowLeft, CheckCircle2, HelpCircle, MapPin, Mountain, Satellite, XCircle } from "lucide-react";
+import { MapPin, Mountain, Sprout, Layers, ArrowLeft } from "lucide-react";
 
 import { Button } from "@harvverse-monorepo/ui/components/button";
 import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
+import { Badge } from "@harvverse-monorepo/ui/components/badge";
 import { Skeleton } from "@harvverse-monorepo/ui/components/skeleton";
 import RiskScorePreview, { type RiskScoreData } from "@/components/risk-score-preview";
 import { trpc } from "@/utils/trpc";
-import { eudrTone, extractEudrScreening, type EudrRiskStatus } from "@/lib/eudr-screening";
+import { eudrTone, extractEudrScreening } from "@/lib/eudr-screening";
+import { motion } from "framer-motion";
 
 const PolygonDisplayMap = dynamic(() => import("@/components/polygon-display-map"), {
   ssr: false,
+  loading: () => <Skeleton className="h-full w-full rounded-3xl" />,
 });
 
-function riskScoreFromFarm(farm: {
-  riskScore?: number | null;
-  eudrCompliant?: boolean | null;
-  scoreHash?: string | null;
-  scoreBreakdown?: unknown;
-}): RiskScoreData | null {
+function riskScoreFromFarm(farm: any): RiskScoreData | null {
   if (farm.riskScore == null) return null;
   const stored =
     farm.scoreBreakdown != null && typeof farm.scoreBreakdown === "object"
-      ? (farm.scoreBreakdown as Partial<RiskScoreData> & { breakdown?: RiskScoreData["breakdown"] })
+      ? (farm.scoreBreakdown as any)
       : {};
   return {
     score: farm.riskScore,
@@ -38,22 +37,21 @@ function riskScoreFromFarm(farm: {
     breakdown: stored.breakdown ?? null,
     ndviMonths: stored.ndviMonths ?? [],
     climateMonths: stored.climateMonths ?? [],
+    quarterlyNdvi: stored.quarterlyNdvi ?? stored.breakdown?.quarterlyNdvi ?? [],
     hasSentinel: stored.hasSentinel ?? false,
     eudrScreening: extractEudrScreening(farm.scoreBreakdown),
   };
 }
 
-function eudrLabel(t: ReturnType<typeof useTranslations<"farm">>, status: EudrRiskStatus | null) {
-  if (status === "low_risk") return t("eudr_prelim_passed");
-  if (status === "review_required") return t("eudr_prelim_review");
-  if (status === "high_risk") return t("eudr_prelim_failed");
-  return t("eudr_prelim_inconclusive");
+function farmImageSrc(image: any) {
+  return image.url ?? (image.data ? `data:${image.mimeType};base64,${image.data}` : null);
 }
 
 export default function PublicFarmDetailPage() {
   const params = useParams<{ farmId: string }>();
   const farmId = Number(params.farmId);
-  const t = useTranslations("farm");
+  const t = useTranslations("landing");
+  const tf = useTranslations("farm");
   const [expandedImage, setExpandedImage] = useState<string | null>(null);
 
   const { data: farm, isLoading } = useQuery(
@@ -63,171 +61,211 @@ export default function PublicFarmDetailPage() {
     ),
   );
 
-  const riskData = farm ? riskScoreFromFarm(farm) : null;
+  if (isLoading) {
+    return (
+      <div className="mx-auto max-w-7xl px-4 py-32 space-y-12">
+        <Skeleton className="h-12 w-64" />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+          <Skeleton className="h-[600px] rounded-3xl" />
+          <Skeleton className="h-[600px] rounded-3xl" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!farm) {
+    return (
+      <div className="flex min-h-screen items-center justify-center pt-32">
+        <GlassCard className="p-12 text-center border-primary/20">
+          <p className="text-white/60">{tf("not_found")}</p>
+          <Button asChild variant="link" className="mt-4 text-primary">
+            <Link href="/farms">Back to directory</Link>
+          </Button>
+        </GlassCard>
+      </div>
+    );
+  }
+
+  const riskData = riskScoreFromFarm(farm);
+  const screening = extractEudrScreening(farm.scoreBreakdown);
+  const eudrUi = eudrTone(screening?.status ?? "unknown");
+
+  const allImages = [
+    ...(farm.images?.map(farmImageSrc) ?? []),
+    ...(farm.photoUrls ?? [])
+  ].filter(Boolean);
+
+  const [mainImage, ...gallery] = allImages;
 
   return (
-    <main className="min-h-screen bg-[#001020] px-4 py-8 text-[#EEEEEE]">
-      <div className="mx-auto max-w-6xl">
-        <Link href="/farms" className="mb-6 inline-flex items-center text-sm text-white/60 hover:text-white">
-          <ArrowLeft className="mr-2 size-4" />
-          {t("open_farms_title")}
-        </Link>
+    <div className="flex flex-col min-h-screen bg-[#0F1A24]">
+      <section className="pt-24 pb-12">
+        <div className="mx-auto max-w-7xl px-4 md:px-6">
+          <Link href="/farms" className="inline-flex items-center text-sm font-bold text-white/40 hover:text-primary transition-colors mb-12 uppercase tracking-widest">
+            <ArrowLeft className="mr-2 size-4" />
+            {t("nav_open_farms")}
+          </Link>
 
-        {isLoading ? (
-          <div className="space-y-5">
-            <Skeleton className="h-36 rounded-xl" />
-            <Skeleton className="h-80 rounded-xl" />
-          </div>
-        ) : !farm ? (
-          <GlassCard className="border-primary/20 p-10 text-center">
-            <p className="text-white/60">{t("not_found")}</p>
-          </GlassCard>
-        ) : (
-          <div className="space-y-6">
-            <GlassCard className="border-primary/20 bg-white/[0.03] p-6">
-              <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
-                <div>
-                  <h1 className="font-trenda text-3xl font-bold text-white md:text-5xl">
-                    {farm.name}
-                  </h1>
-                  <p className="mt-3 flex flex-wrap items-center gap-4 text-white/65">
-                    <span className="inline-flex items-center gap-1.5">
-                      <MapPin className="size-4 text-primary" />
-                      {farm.region}, {farm.country}
-                    </span>
-                    {farm.altitudeMasl ? (
-                      <span className="inline-flex items-center gap-1.5">
-                        <Mountain className="size-4 text-primary" />
-                        {farm.altitudeMasl}m
-                      </span>
-                    ) : null}
-                  </p>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {(farm.varieties ?? []).map((variety) => (
-                      <span key={variety} className="rounded-full bg-primary/10 px-3 py-1 text-sm text-primary">
-                        {variety}
-                      </span>
-                    ))}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
+            {/* Left Column - Visuals */}
+            <div className="space-y-6">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="relative aspect-video md:aspect-[4/3] rounded-3xl overflow-hidden border border-white/10 shadow-2xl shadow-black/50"
+              >
+                {mainImage ? (
+                  <img src={mainImage} alt={farm.name} className="size-full object-cover" />
+                ) : (
+                  <div className="size-full bg-white/5 flex items-center justify-center text-white/10">
+                    <Sprout className="size-24" />
                   </div>
-                </div>
-              </div>
-            </GlassCard>
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-[#0F1A24]/60 to-transparent pointer-events-none" />
+              </motion.div>
 
-            {farm.images && farm.images.length > 0 ? (
-              <GlassCard className="border-primary/20 bg-white/[0.03] p-5">
-                <h2 className="section-title mb-4 text-xl md:text-2xl">
-                  {t("images_title")}
-                </h2>
-                <div className="grid gap-3 md:grid-cols-[1.4fr_1fr]">
-                  {(() => {
-                    const primary = farm.images.find((image) => image.isPrimary) ?? farm.images[0];
-                    if (!primary) return null;
-                    const src = `data:${primary.mimeType};base64,${primary.data}`;
-                    return (
-                      <button
-                        type="button"
-                        className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] text-left"
-                        onClick={() => setExpandedImage(src)}
-                      >
-                        <img
-                          src={src}
-                          alt={primary.filename}
-                          className="h-72 w-full object-cover transition-transform hover:scale-[1.02]"
-                        />
-                      </button>
-                    );
-                  })()}
-                  <div className="grid grid-cols-2 gap-3">
-                    {farm.images.map((image) => {
-                      const src = `data:${image.mimeType};base64,${image.data}`;
-                      return (
-                        <button
-                          key={image.id}
-                          type="button"
-                          className="relative overflow-hidden rounded-xl border border-white/10 bg-white/[0.03]"
-                          onClick={() => setExpandedImage(src)}
-                        >
-                          <img src={src} alt={image.filename} className="aspect-[4/3] w-full object-cover" />
-                          {image.isPrimary ? (
-                            <span className="absolute left-2 top-2 rounded-full bg-primary px-2 py-0.5 text-[10px] font-black text-[#001020]">
-                              Principal
-                            </span>
-                          ) : null}
-                        </button>
-                      );
-                    })}
-                  </div>
+              {gallery.length > 0 && (
+                <div className="grid grid-cols-4 gap-4">
+                  {gallery.map((img, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setExpandedImage(img)}
+                      className="aspect-square rounded-xl overflow-hidden border border-white/10 hover:border-primary/50 transition-colors bg-white/5"
+                    >
+                      <img src={img} alt={`${farm.name} gallery ${i}`} className="size-full object-cover" />
+                    </button>
+                  ))}
                 </div>
-              </GlassCard>
-            ) : null}
+              )}
 
-            <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
-              {farm.polygon ? (
-                <GlassCard className="h-[420px] overflow-hidden border-white/10 p-0">
+              {farm.polygon != null ? (
+                <div className="h-80 rounded-3xl overflow-hidden border border-white/10 bg-white/5 shadow-inner">
                   <PolygonDisplayMap polygon={farm.polygon as Polygon} />
-                </GlassCard>
+                </div>
               ) : null}
-
-              <div className="space-y-5">
-                {riskData ? <RiskScorePreview data={riskData} /> : null}
-                {(() => {
-                  const screening = extractEudrScreening(farm.scoreBreakdown);
-                  const status = screening?.status ?? "unknown";
-                  const tone = eudrTone(status);
-                  const EudrIcon =
-                    status === "low_risk"
-                      ? CheckCircle2
-                      : status === "high_risk"
-                        ? XCircle
-                        : status === "review_required"
-                          ? AlertTriangle
-                          : HelpCircle;
-                  return (
-                    <GlassCard className={`border p-5 ${tone.card}`}>
-                      <div className="mb-2 flex items-center gap-2">
-                        <EudrIcon className={`size-5 ${tone.text}`} />
-                        <p className="font-trenda text-lg font-bold text-white">
-                          {eudrLabel(t, status)}
-                        </p>
-                      </div>
-                      <p className="text-sm text-white/75">
-                        {t("eudr_prelim_helper")}
-                      </p>
-                    </GlassCard>
-                  );
-                })()}
-              </div>
             </div>
 
-            <GlassCard className="border-primary/20 bg-primary/5 p-6 text-center">
-              <p className="mb-4 font-trenda text-xl font-bold text-white">
-                {t("invest_cta")}
+            {/* Right Column - Info */}
+            <div className="space-y-10">
+              <div>
+                <motion.h1
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="text-4xl md:text-6xl font-black text-white leading-tight mb-4"
+                >
+                  {farm.name}
+                </motion.h1>
+                <p className="text-xl text-white/60 font-medium">
+                  {farm.region}, {farm.country}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-4">
+                <Badge className={`rounded-full px-4 py-1 text-xs font-black uppercase tracking-widest ${eudrUi.badge}`}>
+                   {screening?.status === "low_risk" ? "EUDR Verified ✅" : "EUDR Assessment Pending"}
+                </Badge>
+                {farm.riskScore != null && (
+                  <Badge className="rounded-full px-4 py-1 text-xs font-black bg-primary text-[#0F1A24] border-0">
+                    Score: {farm.riskScore}/100
+                  </Badge>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-y-8 gap-x-12 py-8 border-y border-white/5">
+                <div className="space-y-1">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-white/30 flex items-center gap-2">
+                    <MapPin className="size-3 text-primary" /> Location
+                  </p>
+                  <p className="text-lg font-bold text-white/80">{farm.region}, {farm.country}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-white/30 flex items-center gap-2">
+                    <Mountain className="size-3 text-primary" /> Altitude
+                  </p>
+                  <p className="text-lg font-bold text-white/80">{farm.altitudeMasl ?? "—"} masl</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-white/30 flex items-center gap-2">
+                    <Sprout className="size-3 text-primary" /> Variety
+                  </p>
+                  <p className="text-lg font-bold text-white/80">{(farm.varieties ?? [])[0] ?? "Specialty Blend"}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-white/30 flex items-center gap-2">
+                    <Layers className="size-3 text-primary" /> Area
+                  </p>
+                  <p className="text-lg font-bold text-white/80">{farm.areaManzanas ? `${Number(farm.areaManzanas).toFixed(1)} hectares` : "—"}</p>
+                </div>
+              </div>
+
+              {riskData && (
+                <div className="space-y-6">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/30">Risk Score Breakdown</p>
+                  <div className="space-y-4">
+                    <div className="w-full h-4 bg-white/5 rounded-full overflow-hidden border border-white/10">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${farm.riskScore}%` }}
+                        transition={{ duration: 1, delay: 0.5 }}
+                        className="h-full bg-primary shadow-[0_0_15px_rgba(147,216,50,0.5)]"
+                      />
+                    </div>
+                    <p className="text-sm font-bold text-white/50 text-right">{farm.riskScore}/100</p>
+                  </div>
+
+                  {/* Reuse the accordion-like breakdown from RiskScorePreview if possible or simplified version */}
+                  <RiskScorePreview data={riskData} hideHeader />
+                </div>
+              )}
+
+              <div className="pt-8">
+                <div className="bg-[#1E3A2F]/40 p-8 rounded-3xl border border-primary/20 space-y-6">
+                  <div className="flex items-center gap-2 text-primary font-bold">
+                    <div className="size-2 bg-primary rounded-full animate-pulse" />
+                    Available for co-investment
+                  </div>
+                  <Button
+                    asChild
+                    size="lg"
+                    className="w-full h-16 bg-primary text-[#0F1A24] font-black text-lg rounded-2xl shadow-xl shadow-primary/20 hover:scale-[1.02] transition-transform"
+                  >
+                    <Link href="/waiting-list">
+                      Join the Waiting List
+                    </Link>
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Strip */}
+      <section className="bg-[#1E3A2F] py-12">
+        <div className="mx-auto max-w-7xl px-4 md:px-6">
+           <div className="flex flex-col md:flex-row items-center justify-between gap-8">
+              <p className="text-xl md:text-2xl font-black text-white text-center md:text-left">
+                Is this your farm? Register to claim your profile.
               </p>
               <Button
-                className="bg-primary font-bold text-[#001020] hover:bg-primary/90"
-                onClick={() => {
-                  window.location.href = "/waiting-list";
-                }}
+                asChild
+                className="bg-primary text-[#0F1A24] font-black px-8 py-6 rounded-xl text-lg h-14"
               >
-                {t("invest_button")}
+                <Link href={"/sign-up" as Route}>{t("hero_cta_farmer")}</Link>
               </Button>
-            </GlassCard>
-            {expandedImage ? (
-              <button
-                type="button"
-                className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-                onClick={() => setExpandedImage(null)}
-              >
-                <img
-                  src={expandedImage}
-                  alt=""
-                  className="max-h-[90vh] max-w-[92vw] rounded-2xl object-contain"
-                />
-              </button>
-            ) : null}
-          </div>
-        )}
-      </div>
-    </main>
+           </div>
+        </div>
+      </section>
+
+      {/* Expanded Image Modal */}
+      {expandedImage && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-4 cursor-pointer"
+          onClick={() => setExpandedImage(null)}
+        >
+          <img src={expandedImage} alt="Expanded" className="max-h-full max-w-full rounded-2xl object-contain" />
+        </div>
+      )}
+    </div>
   );
 }

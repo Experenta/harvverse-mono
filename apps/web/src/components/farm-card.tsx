@@ -2,8 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { MapPin, Mountain, CheckCircle2 } from "lucide-react";
-import { motion } from "framer-motion";
+import { MapPin, Mountain, CheckCircle2, ChevronLeft, ChevronRight, Sprout } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useState } from "react";
 
 import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
 import { Button } from "@harvverse-monorepo/ui/components/button";
@@ -15,6 +16,13 @@ interface Lot {
   status: string;
   variety?: string | null;
   plans: unknown[];
+}
+
+interface FarmImage {
+  data?: string | null;
+  mimeType: string;
+  url?: string | null;
+  isPrimary: boolean | null;
 }
 
 interface Farm {
@@ -32,8 +40,10 @@ interface Farm {
   riskScore?: number | null;
   eudrCompliant?: boolean | null;
   scoreBreakdown?: unknown;
+  primaryImageUrl?: string | null;
   primaryImageData?: string | null;
   primaryImageMimeType?: string | null;
+  images?: FarmImage[];
   lots: Lot[];
 }
 
@@ -45,11 +55,26 @@ export function FarmCard({ farm }: FarmCardProps) {
   const router = useRouter();
   const t = useTranslations("farm");
   const tn = useTranslations("nav");
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  const allImages = Array.from(new Set([
+    ...(farm.images?.map((img) =>
+      img.url ?? (img.data ? `data:${img.mimeType};base64,${img.data}` : null),
+    ) ?? []),
+    farm.primaryImageUrl,
+    farm.primaryImageData && farm.primaryImageMimeType
+      ? `data:${farm.primaryImageMimeType};base64,${farm.primaryImageData}`
+      : null,
+    ...(farm.photoUrls ?? [])
+  ].filter((src): src is string => Boolean(src))));
+
+  const displayImages = allImages.length > 0 ? allImages : [];
+  const activeImage = displayImages[currentImageIndex] ?? displayImages[0] ?? null;
 
   const varieties = Array.from(
     new Set([
       ...(farm.varieties ?? []),
-      ...farm.lots.map((l) => l.variety).filter(Boolean),
+      ...(farm.lots ?? []).map((l) => l.variety).filter(Boolean),
     ]),
   ) as string[];
   const scoreBadge =
@@ -62,9 +87,7 @@ export function FarmCard({ farm }: FarmCardProps) {
           : farm.riskScore >= 40
             ? { className: "border-yellow-500/35 bg-yellow-500/15 text-yellow-300", label: `● ${farm.riskScore} Moderado` }
             : { className: "border-red-500/35 bg-red-500/15 text-red-300", label: `● ${farm.riskScore} Alto Riesgo` };
-  const primaryImageSrc = farm.primaryImageData && farm.primaryImageMimeType
-    ? `data:${farm.primaryImageMimeType};base64,${farm.primaryImageData}`
-    : farm.photoUrls?.[0] ?? null;
+
   const eudrScreening = extractEudrScreening(farm.scoreBreakdown);
   const eudrStatus = eudrScreening?.status ?? null;
   const eudrUi = eudrTone(eudrStatus);
@@ -81,6 +104,16 @@ export function FarmCard({ farm }: FarmCardProps) {
               ? t("eudr_prelim_inconclusive")
               : t("status_analyzing");
 
+  const nextImage = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCurrentImageIndex((prev) => (prev + 1) % displayImages.length);
+  };
+
+  const prevImage = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCurrentImageIndex((prev) => (prev - 1 + displayImages.length) % displayImages.length);
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 15 }}
@@ -90,19 +123,60 @@ export function FarmCard({ farm }: FarmCardProps) {
     >
       <GlassCard className="group flex flex-col overflow-hidden border-primary/20 transition-all hover:border-primary/50 hover:shadow-primary/5">
         <div className="relative h-44 overflow-hidden bg-gradient-to-br from-primary/20 to-[#001020]">
-          {primaryImageSrc && (
-            <img
-              src={primaryImageSrc}
-              alt={farm.name}
-              className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110 group-hover:rotate-1"
-              onError={(e) => {
-                (e.currentTarget as HTMLImageElement).style.display = "none";
-              }}
-            />
-          )}
-          <div className="absolute inset-0 bg-gradient-to-t from-[#001020] via-[#001020]/20 to-transparent" />
+          <AnimatePresence mode="wait">
+            {activeImage ? (
+              <motion.img
+                key={activeImage}
+                src={activeImage}
+                alt={farm.name}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3 }}
+                className="h-full w-full object-cover"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).style.display = "none";
+                }}
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-white/10">
+                <Sprout className="size-12" />
+              </div>
+            )}
+          </AnimatePresence>
+
+          <div className="absolute inset-0 bg-gradient-to-t from-[#001020] via-[#001020]/20 to-transparent pointer-events-none" />
           
-          <div className="absolute top-2 right-2 flex flex-col items-end gap-1.5">
+          {displayImages.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={prevImage}
+                className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-black/40 p-1 text-white opacity-0 transition-opacity group-hover:opacity-100 hover:bg-black/60"
+              >
+                <ChevronLeft className="size-4" />
+              </button>
+              <button
+                type="button"
+                onClick={nextImage}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-black/40 p-1 text-white opacity-0 transition-opacity group-hover:opacity-100 hover:bg-black/60"
+              >
+                <ChevronRight className="size-4" />
+              </button>
+              <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 gap-1">
+                {displayImages.map((_, i) => (
+                  <div
+                    key={i}
+                    className={`h-1 w-3 rounded-full transition-all ${
+                      i === currentImageIndex ? "bg-primary w-5" : "bg-white/30"
+                    }`}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+
+          <div className="absolute top-2 right-2 flex flex-col items-end gap-1.5 pointer-events-none">
             <Badge className={`max-w-44 rounded-full border px-2 py-0 text-[9px] font-bold backdrop-blur-md ${farm.riskScore == null ? "border-white/15 bg-white/10 text-white/55" : eudrUi.badge}`}>
               <span className="truncate">{eudrLabel}</span>
             </Badge>
@@ -115,11 +189,6 @@ export function FarmCard({ farm }: FarmCardProps) {
               <Badge className="gap-1 rounded-full border border-primary/30 bg-primary/20 text-[9px] font-bold text-primary backdrop-blur-md px-2 py-0">
                 <CheckCircle2 className="size-2.5" />
                 {t("verified")}
-              </Badge>
-            )}
-            {farm.coeScore && (
-              <Badge className="rounded-full border border-yellow-500/30 bg-yellow-500/20 text-[9px] font-bold text-yellow-400 backdrop-blur-md px-2 py-0">
-                CoE {farm.coeScore}
               </Badge>
             )}
           </div>
@@ -173,10 +242,6 @@ export function FarmCard({ farm }: FarmCardProps) {
               >
                 {tn("manage")}
               </Button>
-              {/*
-                Lot creation is intentionally hidden while the product flow focuses
-                on farm registration and Copernicus analysis.
-              */}
             </div>
           </div>
         </div>

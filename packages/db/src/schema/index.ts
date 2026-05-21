@@ -250,9 +250,14 @@ export const farmImages = pgTable(
 		farmId: integer("farm_id")
 			.notNull()
 			.references(() => farms.id),
-		// TODO: Migrate to S3. Add s3Url column when ready.
-		// Keep data column as fallback during migration.
-		data: text("data").notNull(),
+		data: text("data"),
+		storageProvider: varchar("storage_provider", { length: 20 })
+			.notNull()
+			.default("database"),
+		storageBucket: text("storage_bucket"),
+		storageKey: text("storage_key"),
+		storageRegion: varchar("storage_region", { length: 40 }),
+		checksumSha256: varchar("checksum_sha256", { length: 64 }),
 		mimeType: varchar("mime_type", { length: 50 }).notNull(),
 		filename: text("filename").notNull(),
 		sizeBytes: integer("size_bytes"),
@@ -262,6 +267,7 @@ export const farmImages = pgTable(
 	(table) => ({
 		farmIdIdx: index("farm_images_farm_id_idx").on(table.farmId),
 		primaryIdx: index("farm_images_primary_idx").on(table.farmId, table.isPrimary),
+		storageKeyIdx: index("farm_images_storage_key_idx").on(table.storageKey),
 	}),
 );
 

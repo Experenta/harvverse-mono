@@ -5,12 +5,63 @@ import { createHash } from "crypto";
 export interface NdviMonth {
   date: string;       // YYYY-MM
   mean: number | null;
+  validPixelCoverage: number | null;
+  cloudCoverage: number | null;
 }
 
 export interface ClimateMonth {
   date: string;       // YYYY-MM
   precipMm: number;
   tempC: number;
+  daysOver100Mm: number;
+}
+
+export interface QuarterlyNdviMetric {
+  quarter: string;
+  mean: number | null;
+  validPixelCoverage: number | null;
+  deltaFromPrevious: number | null;
+  anomaly: "none" | "drop" | "increase" | "insufficient_data";
+}
+
+export interface ClimateTrendMetrics {
+  provider: "open_meteo_archive";
+  providerLabel: string;
+  precipitationTrendMmPerYear: number | null;
+  daysOver100Mm: number;
+  averageAnnualPrecipMm: number | null;
+  averageTempC: number | null;
+  waterStressLabel: "low" | "medium" | "high" | "unknown";
+  confidence: EvidenceConfidence;
+}
+
+export interface TerrainMetrics {
+  provider: "copernicus_dem_glo30" | "open_meteo_elevation_fallback" | "unavailable";
+  providerLabel: string;
+  elevationMasl: number | null;
+  slopeDegrees: number | null;
+  aspectDegrees: number | null;
+  terrainRisk: "low" | "medium" | "high" | "unknown";
+  confidence: EvidenceConfidence;
+  limitations: string[];
+}
+
+export interface Sentinel1Metrics {
+  provider: "sentinel_1_grd" | "not_configured";
+  vvQuarterly: Array<{ quarter: string; mean: number | null }>;
+  vhQuarterly: Array<{ quarter: string; mean: number | null }>;
+  structuralChangeSignal: "none" | "possible_change" | "unknown";
+  soilMoistureProxy: "low" | "medium" | "high" | "unknown";
+  confidence: EvidenceConfidence;
+  limitations: string[];
+}
+
+export interface JrcGfc2020Screening {
+  provider: "jrc_gfc2020" | "not_configured";
+  baselineForestIntersectionPct: number | null;
+  post2020LossSignal: "none" | "possible_loss" | "unknown";
+  confidence: EvidenceConfidence;
+  limitations: string[];
 }
 
 export type EudrRiskStatus =
@@ -42,6 +93,16 @@ export interface ScoreBreakdown {
   temperature: number;
   eudr: number;
   eudrScreening: EudrScreening;
+  opticalCoverage: {
+    averageValidPixelCoverage: number | null;
+    averageCloudCoverage: number | null;
+    lowCoverageMonths: number;
+  };
+  quarterlyNdvi: QuarterlyNdviMetric[];
+  climateTrend: ClimateTrendMetrics;
+  terrain: TerrainMetrics;
+  sentinel1: Sentinel1Metrics;
+  jrcGfc2020: JrcGfc2020Screening;
   total: number;
 }
 
@@ -52,6 +113,11 @@ export interface RiskScoreResult {
   ndviMonths: NdviMonth[];
   climateMonths: ClimateMonth[];
   hasSentinel: boolean;
+  quarterlyNdvi: QuarterlyNdviMetric[];
+  climateTrend: ClimateTrendMetrics;
+  terrain: TerrainMetrics;
+  sentinel1: Sentinel1Metrics;
+  jrcGfc2020: JrcGfc2020Screening;
   eudrScreening: EudrScreening;
   // Manual/verifier compliance value only. Satellite screening must not set this.
   eudrCompliant: boolean | null;
@@ -68,17 +134,22 @@ const SH_STATS_URL =
 const NDVI_EVALSCRIPT = `//VERSION=3
 function setup() {
   return {
-    input: [{ bands: ["B04", "B08", "dataMask"] }],
+    input: [{ bands: ["B04", "B08", "SCL", "dataMask"] }],
     output: [
-      { id: "ndvi", bands: 1 },
-      { id: "dataMask", bands: 1 }
+      { id: "ndvi", bands: 1, sampleType: "FLOAT32" },
+      { id: "dataMask", bands: 1, sampleType: "FLOAT32" },
+      { id: "cloudMask", bands: 1, sampleType: "FLOAT32" }
     ]
   };
 }
 function evaluatePixel(s) {
+  const isCloud = [3, 8, 9, 10, 11].includes(s.SCL);
+  const valid = s.dataMask === 1 && !isCloud && (s.B08 + s.B04) !== 0;
+  const ndvi = valid ? (s.B08 - s.B04) / (s.B08 + s.B04) : NaN;
   return {
-    ndvi: [(s.B08 - s.B04) / (s.B08 + s.B04)],
-    dataMask: [s.dataMask]
+    ndvi: [ndvi],
+    dataMask: [valid ? 1 : 0],
+    cloudMask: [isCloud ? 1 : 0]
   };
 }`;
 
@@ -111,6 +182,25 @@ function setup() {
 }
 function evaluatePixel(s) {
   return [s.DEM];
+}`;
+
+const SENTINEL1_EVALSCRIPT = `//VERSION=3
+function setup() {
+  return {
+    input: [{ bands: ["VV", "VH", "dataMask"] }],
+    output: [
+      { id: "vv", bands: 1, sampleType: "FLOAT32" },
+      { id: "vh", bands: 1, sampleType: "FLOAT32" },
+      { id: "dataMask", bands: 1, sampleType: "FLOAT32" }
+    ]
+  };
+}
+function evaluatePixel(s) {
+  return {
+    vv: [s.dataMask ? s.VV : NaN],
+    vh: [s.dataMask ? s.VH : NaN],
+    dataMask: [s.dataMask]
+  };
 }`;
 
 export async function getAltitudeFromDem(
@@ -238,6 +328,7 @@ async function fetchNdviStats(
   token: string,
   bbox: [number, number, number, number],
   months: number,
+  polygon?: { coordinates: number[][][] } | null,
 ): Promise<NdviMonth[]> {
   const now = new Date();
   const end = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -248,6 +339,14 @@ async function fetchNdviStats(
     input: {
       bounds: {
         bbox,
+        ...(polygon
+          ? {
+              geometry: {
+                type: "Polygon",
+                coordinates: polygon.coordinates,
+              },
+            }
+          : {}),
         properties: { crs: "http://www.opengis.net/def/crs/EPSG/0/4326" },
       },
       data: [
@@ -291,6 +390,12 @@ async function fetchNdviStats(
         ndvi?: {
           bands?: Record<string, { stats?: { mean?: number | null } }>;
         };
+        dataMask?: {
+          bands?: Record<string, { stats?: { mean?: number | null } }>;
+        };
+        cloudMask?: {
+          bands?: Record<string, { stats?: { mean?: number | null } }>;
+        };
       };
     }>;
   };
@@ -298,11 +403,121 @@ async function fetchNdviStats(
 
   return (data.data ?? []).map((interval) => {
     const date = interval.interval.from.slice(0, 7);
-    const bands = interval.outputs?.ndvi?.bands ?? {};
-    const band = Object.values(bands)[0];
-    const mean = band?.stats?.mean ?? null;
-    return { date, mean };
+    const ndviBands = interval.outputs?.ndvi?.bands ?? {};
+    const dataMaskBands = interval.outputs?.dataMask?.bands ?? {};
+    const cloudMaskBands = interval.outputs?.cloudMask?.bands ?? {};
+    const ndviBand = Object.values(ndviBands)[0];
+    const dataMaskBand = Object.values(dataMaskBands)[0];
+    const cloudMaskBand = Object.values(cloudMaskBands)[0];
+    const mean = numericOrNull(ndviBand?.stats?.mean ?? null);
+    const validPixelCoverage = numericOrNull(dataMaskBand?.stats?.mean ?? null);
+    const cloudCoverage = numericOrNull(cloudMaskBand?.stats?.mean ?? null);
+    return { date, mean, validPixelCoverage, cloudCoverage };
   });
+}
+
+async function fetchSentinel1Stats(
+  token: string,
+  bbox: [number, number, number, number],
+  months: number,
+  polygon?: { coordinates: number[][][] } | null,
+): Promise<{
+  vvQuarterly: Array<{ quarter: string; mean: number | null }>;
+  vhQuarterly: Array<{ quarter: string; mean: number | null }>;
+  coverageQuarterly: Array<{ quarter: string; validPixelCoverage: number | null }>;
+}> {
+  const now = new Date();
+  const end = new Date(now.getFullYear(), now.getMonth(), 1);
+  const start = new Date(end);
+  start.setMonth(start.getMonth() - months);
+
+  const payload = {
+    input: {
+      bounds: {
+        bbox,
+        ...(polygon
+          ? {
+              geometry: {
+                type: "Polygon",
+                coordinates: polygon.coordinates,
+              },
+            }
+          : {}),
+        properties: { crs: "http://www.opengis.net/def/crs/EPSG/0/4326" },
+      },
+      data: [
+        {
+          type: "sentinel-1-grd",
+          dataFilter: {
+            acquisitionMode: "IW",
+            polarization: "DV",
+          },
+          processing: {
+            backCoeff: "SIGMA0_ELLIPSOID",
+            orthorectify: true,
+          },
+        },
+      ],
+    },
+    aggregation: {
+      timeRange: {
+        from: `${start.toISOString().split("T")[0]}T00:00:00Z`,
+        to: `${end.toISOString().split("T")[0]}T00:00:00Z`,
+      },
+      aggregationInterval: { of: "P3M" },
+      evalscript: SENTINEL1_EVALSCRIPT,
+      width: 512,
+      height: 512,
+    },
+  };
+
+  const res = await fetch(SH_STATS_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    throw new Error(
+      `Sentinel-1 stats failed: ${res.status} ${await res.text()}`,
+    );
+  }
+
+  type SHSarResponse = {
+    data?: Array<{
+      interval: { from: string };
+      outputs?: Record<
+        "vv" | "vh" | "dataMask",
+        { bands?: Record<string, { stats?: { mean?: number | null } }> }
+      >;
+    }>;
+  };
+  const data = (await res.json()) as SHSarResponse;
+  const vvQuarterly: Array<{ quarter: string; mean: number | null }> = [];
+  const vhQuarterly: Array<{ quarter: string; mean: number | null }> = [];
+  const coverageQuarterly: Array<{ quarter: string; validPixelCoverage: number | null }> = [];
+
+  for (const interval of data.data ?? []) {
+    const quarter = quarterFromMonth(interval.interval.from.slice(0, 7));
+    const vv = numericOrNull(
+      Object.values(interval.outputs?.vv?.bands ?? {})[0]?.stats?.mean ?? null,
+    );
+    const vh = numericOrNull(
+      Object.values(interval.outputs?.vh?.bands ?? {})[0]?.stats?.mean ?? null,
+    );
+    const coverage =
+      numericOrNull(
+        Object.values(interval.outputs?.dataMask?.bands ?? {})[0]?.stats?.mean ?? null,
+      );
+    vvQuarterly.push({ quarter, mean: vv });
+    vhQuarterly.push({ quarter, mean: vh });
+    coverageQuarterly.push({ quarter, validPixelCoverage: coverage });
+  }
+
+  return { vvQuarterly, vhQuarterly, coverageQuarterly };
 }
 
 // ── ERA5 via Open-Meteo archive (daily → manual monthly aggregation) ──────────
@@ -354,12 +569,14 @@ async function fetchOpenMeteoClimate(
   const tempDaily = data.daily?.temperature_2m_mean ?? [];
 
   // Aggregate daily rows into calendar months
-  const monthMap = new Map<string, { precipMm: number; tempSum: number; tempCount: number }>();
+  const monthMap = new Map<string, { precipMm: number; tempSum: number; tempCount: number; daysOver100Mm: number }>();
   for (let i = 0; i < times.length; i++) {
     const month = (times[i] ?? "").slice(0, 7); // "YYYY-MM"
     if (month.length !== 7) continue;
-    const entry = monthMap.get(month) ?? { precipMm: 0, tempSum: 0, tempCount: 0 };
-    entry.precipMm += precipDaily[i] ?? 0;
+    const entry = monthMap.get(month) ?? { precipMm: 0, tempSum: 0, tempCount: 0, daysOver100Mm: 0 };
+    const precip = precipDaily[i] ?? 0;
+    entry.precipMm += precip;
+    if (precip > 100) entry.daysOver100Mm++;
     const t = tempDaily[i];
     if (t != null) { entry.tempSum += t; entry.tempCount++; }
     monthMap.set(month, entry);
@@ -367,10 +584,11 @@ async function fetchOpenMeteoClimate(
 
   return Array.from(monthMap.entries())
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, { precipMm, tempSum, tempCount }]) => ({
+    .map(([date, { precipMm, tempSum, tempCount, daysOver100Mm }]) => ({
       date,
       precipMm,
       tempC: tempCount > 0 ? tempSum / tempCount : 0,
+      daysOver100Mm,
     }));
 }
 
@@ -378,6 +596,20 @@ async function fetchOpenMeteoClimate(
 
 function clamp(x: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, x));
+}
+
+function numericOrNull(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function roundedOrNull(value: unknown, digits: number): number | null {
+  const numeric = numericOrNull(value);
+  return numeric != null ? Number(numeric.toFixed(digits)) : null;
 }
 
 function lerp(
@@ -461,16 +693,233 @@ function scoreTemperature(avgC: number): number {
   return 20;
 }
 
+function average(values: number[]) {
+  return values.length > 0
+    ? values.reduce((sum, value) => sum + value, 0) / values.length
+    : null;
+}
+
+function quarterFromMonth(date: string) {
+  const [year, monthRaw] = date.split("-");
+  const month = Number(monthRaw);
+  if (!year || Number.isNaN(month)) return date;
+  return `${year}-Q${Math.floor((month - 1) / 3) + 1}`;
+}
+
+function buildQuarterlyNdviMetrics(months: NdviMonth[]): QuarterlyNdviMetric[] {
+  const grouped = new Map<string, NdviMonth[]>();
+  for (const month of months) {
+    const quarter = quarterFromMonth(month.date);
+    grouped.set(quarter, [...(grouped.get(quarter) ?? []), month]);
+  }
+
+  let previousMean: number | null = null;
+  return Array.from(grouped.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([quarter, items]) => {
+      const mean = average(
+        items
+          .map((item) => item.mean)
+          .filter((value): value is number => typeof value === "number"),
+      );
+      const validPixelCoverage = average(
+        items
+          .map((item) => item.validPixelCoverage)
+          .filter((value): value is number => typeof value === "number"),
+      );
+      const deltaFromPrevious =
+        mean != null && previousMean != null ? mean - previousMean : null;
+      const anomaly: QuarterlyNdviMetric["anomaly"] =
+        mean == null || validPixelCoverage == null || validPixelCoverage < 0.35
+          ? "insufficient_data"
+          : deltaFromPrevious != null && deltaFromPrevious <= -0.15
+            ? "drop"
+            : deltaFromPrevious != null && deltaFromPrevious >= 0.15
+              ? "increase"
+              : "none";
+      previousMean = mean ?? previousMean;
+      return {
+        quarter,
+        mean,
+        validPixelCoverage,
+        deltaFromPrevious,
+        anomaly,
+      };
+    });
+}
+
+function buildClimateTrendMetrics(months: ClimateMonth[]): ClimateTrendMetrics {
+  const annualizedPrecip =
+    months.length > 0
+      ? (months.reduce((sum, month) => sum + month.precipMm, 0) / months.length) * 12
+      : null;
+  const avgTemp = average(months.map((month) => month.tempC));
+  const daysOver100Mm = months.reduce((sum, month) => sum + month.daysOver100Mm, 0);
+
+  const firstHalf = months.slice(0, Math.floor(months.length / 2));
+  const secondHalf = months.slice(Math.floor(months.length / 2));
+  const firstAnnualized =
+    firstHalf.length > 0
+      ? (firstHalf.reduce((sum, month) => sum + month.precipMm, 0) / firstHalf.length) * 12
+      : null;
+  const secondAnnualized =
+    secondHalf.length > 0
+      ? (secondHalf.reduce((sum, month) => sum + month.precipMm, 0) / secondHalf.length) * 12
+      : null;
+  const yearsBetweenHalves = months.length >= 2 ? months.length / 24 : null;
+  const precipitationTrendMmPerYear =
+    firstAnnualized != null && secondAnnualized != null && yearsBetweenHalves
+      ? (secondAnnualized - firstAnnualized) / yearsBetweenHalves
+      : null;
+
+  const waterStressLabel: ClimateTrendMetrics["waterStressLabel"] =
+    annualizedPrecip == null || avgTemp == null
+      ? "unknown"
+      : annualizedPrecip < 1000 || avgTemp > 26
+        ? "high"
+        : annualizedPrecip < 1300 || avgTemp > 24
+          ? "medium"
+          : "low";
+
+  return {
+    provider: "open_meteo_archive",
+    providerLabel: "Open-Meteo Archive climate fallback",
+    precipitationTrendMmPerYear,
+    daysOver100Mm,
+    averageAnnualPrecipMm: annualizedPrecip,
+    averageTempC: avgTemp,
+    waterStressLabel,
+    confidence: months.length >= 12 ? "medium" : "low",
+  };
+}
+
+async function buildTerrainMetrics(params: {
+  token: string | null;
+  lat: number;
+  lng: number;
+}): Promise<TerrainMetrics> {
+  if (params.token) {
+    const demElevation = await getAltitudeFromDem(params.token, params.lat, params.lng);
+    if (demElevation != null) {
+      return {
+        provider: "copernicus_dem_glo30",
+        providerLabel: "Copernicus DEM terrain screening",
+        elevationMasl: demElevation,
+        slopeDegrees: null,
+        aspectDegrees: null,
+        terrainRisk:
+          demElevation < 600 || demElevation > 2200
+            ? "medium"
+            : "low",
+        confidence: "medium",
+        limitations: [
+          "This V1 terrain screen uses DEM elevation; slope and aspect are reserved for the raster-processing provider increment.",
+        ],
+      };
+    }
+  }
+
+  const fallbackElevation = await getAltitudeFromOpenMeteo(params.lat, params.lng);
+  return {
+    provider: fallbackElevation != null ? "open_meteo_elevation_fallback" : "unavailable",
+    providerLabel:
+      fallbackElevation != null
+        ? "Open-Meteo elevation fallback"
+        : "Terrain provider unavailable",
+    elevationMasl: fallbackElevation,
+    slopeDegrees: null,
+    aspectDegrees: null,
+    terrainRisk:
+      fallbackElevation == null
+        ? "unknown"
+        : fallbackElevation < 600 || fallbackElevation > 2200
+          ? "medium"
+          : "low",
+    confidence: fallbackElevation == null ? "none" : "low",
+    limitations: [
+      "Open-Meteo elevation is a fallback and is not a full Copernicus DEM terrain report.",
+      "Slope and aspect require the raster-processing provider increment.",
+    ],
+  };
+}
+
+function buildSentinel1Metrics(
+  stats: Awaited<ReturnType<typeof fetchSentinel1Stats>> | null,
+): Sentinel1Metrics {
+  if (!stats) {
+    return {
+      provider: "not_configured",
+      vvQuarterly: [],
+      vhQuarterly: [],
+      structuralChangeSignal: "unknown",
+      soilMoistureProxy: "unknown",
+      confidence: "none",
+      limitations: [
+        "Sentinel-1 SAR quarterly backscatter is not enabled in this deployment yet.",
+        "Soil moisture is reported only as a future radar proxy, not direct ground soil moisture.",
+      ],
+    };
+  }
+
+  const validVh = stats.vhQuarterly
+    .map((quarter) => quarter.mean)
+    .filter((value): value is number => typeof value === "number");
+  const validVv = stats.vvQuarterly
+    .map((quarter) => quarter.mean)
+    .filter((value): value is number => typeof value === "number");
+  const latestVh = validVh.at(-1) ?? null;
+  const previousVh = validVh.length >= 2 ? validVh.at(-2) ?? null : null;
+  const vhDelta =
+    latestVh != null && previousVh != null ? latestVh - previousVh : null;
+  const vvAverage = average(validVv);
+
+  return {
+    provider: "sentinel_1_grd",
+    vvQuarterly: stats.vvQuarterly,
+    vhQuarterly: stats.vhQuarterly,
+    structuralChangeSignal:
+      vhDelta != null && vhDelta <= -0.03 ? "possible_change" : "none",
+    soilMoistureProxy:
+      vvAverage == null
+        ? "unknown"
+        : vvAverage < 0.04
+          ? "low"
+          : vvAverage > 0.16
+            ? "high"
+            : "medium",
+    confidence: validVh.length >= 4 && validVv.length >= 4 ? "medium" : "low",
+    limitations: [
+      "Sentinel-1 backscatter is a structural/moisture proxy and not a direct ground measurement.",
+      "Interpret radar changes with farm context, terrain, and optical coverage.",
+    ],
+  };
+}
+
+function buildJrcPlaceholder(): JrcGfc2020Screening {
+  return {
+    provider: "not_configured",
+    baselineForestIntersectionPct: null,
+    post2020LossSignal: "unknown",
+    confidence: "none",
+    limitations: [
+      "JRC Global Forest Cover 2020 intersection is not enabled yet.",
+      "Until JRC/post-2020 loss evidence is available, automatic EUDR screening remains preliminary.",
+    ],
+  };
+}
+
 function buildEudrScreening(params: {
   manualCompliance: boolean | null;
   hasSentinel: boolean;
   validNdvi: number[];
   ndviAverage: number | null;
   ndviStabilityScore: number | null;
+  averageValidPixelCoverage: number | null;
+  jrcGfc2020: JrcGfc2020Screening;
 }): EudrScreening {
   const sharedLimitations = [
     "Automatic screening is not a legal EUDR deforestation determination.",
-    "Stage 1 does not yet intersect JRC Global Forest Cover 2020 or post-2020 forest-loss layers.",
+    "JRC Global Forest Cover 2020 and post-2020 forest-loss intersection are required for stronger EUDR evidence.",
   ];
 
   if (params.manualCompliance === true) {
@@ -526,6 +975,44 @@ function buildEudrScreening(params: {
       manualCompliance: null,
       source: "sentinel_2_screening",
       reasons: ["Sentinel-2 coverage is too sparse for a reliable EUDR screening signal."],
+      limitations: sharedLimitations,
+      cutoffDate: "2020-12-31",
+      ndviAverage: params.ndviAverage,
+      validNdviMonths: params.validNdvi.length,
+    };
+  }
+
+  if (
+    params.averageValidPixelCoverage != null &&
+    params.averageValidPixelCoverage < 0.35
+  ) {
+    return {
+      status: "review_required",
+      score: 45,
+      confidence: "low",
+      manualCompliance: null,
+      source: "sentinel_2_screening",
+      reasons: ["Optical satellite coverage is too low for a confident automated screen."],
+      limitations: sharedLimitations,
+      cutoffDate: "2020-12-31",
+      ndviAverage: params.ndviAverage,
+      validNdviMonths: params.validNdvi.length,
+    };
+  }
+
+  if (
+    params.jrcGfc2020.post2020LossSignal === "possible_loss" ||
+    (params.jrcGfc2020.baselineForestIntersectionPct != null &&
+      params.jrcGfc2020.baselineForestIntersectionPct > 0 &&
+      params.jrcGfc2020.post2020LossSignal === "unknown")
+  ) {
+    return {
+      status: "review_required",
+      score: 35,
+      confidence: "medium",
+      manualCompliance: null,
+      source: "sentinel_2_screening",
+      reasons: ["Forest baseline or post-2020 change evidence requires review."],
       limitations: sharedLimitations,
       cutoffDate: "2020-12-31",
       ndviAverage: params.ndviAverage,
@@ -615,23 +1102,46 @@ export async function computeRiskScore(params: {
   // ── NDVI ──────────────────────────────────────────────────────────────────
   let ndviMonths: NdviMonth[] = [];
   let hasSentinel = false;
+  let sentinelToken: string | null = null;
+  let sentinel1Stats: Awaited<ReturnType<typeof fetchSentinel1Stats>> | null = null;
 
   if (params.sentinelClientId && params.sentinelClientSecret) {
     try {
-      const token = await getSentinelToken(
+      sentinelToken = await getSentinelToken(
         params.sentinelClientId,
         params.sentinelClientSecret,
       );
-      ndviMonths = await fetchNdviStats(token, sentinelBbox, MONTHS);
-      hasSentinel = true;
+      const [ndvi, sar] = await Promise.allSettled([
+        fetchNdviStats(sentinelToken, sentinelBbox, MONTHS, params.polygon),
+        fetchSentinel1Stats(sentinelToken, sentinelBbox, MONTHS, params.polygon),
+      ]);
+      if (ndvi.status === "fulfilled") {
+        ndviMonths = ndvi.value;
+        hasSentinel = true;
+      } else {
+        console.error("[copernicus] Sentinel-2 error:", ndvi.reason);
+      }
+      if (sar.status === "fulfilled") {
+        sentinel1Stats = sar.value;
+      } else {
+        console.error("[copernicus] Sentinel-1 error:", sar.reason);
+      }
     } catch (err) {
       // Credentials set but API call failed → continue without NDVI
       console.error("[copernicus] Sentinel Hub error:", err);
+      sentinelToken = null;
     }
   }
 
   // ── Climate (ERA5 via Open-Meteo) ──────────────────────────────────────────
-  const climateMonths = await fetchOpenMeteoClimate(climateLat, climateLng, MONTHS);
+  const [climateMonths, terrain] = await Promise.all([
+    fetchOpenMeteoClimate(climateLat, climateLng, MONTHS),
+    buildTerrainMetrics({
+      token: sentinelToken,
+      lat: climateLat,
+      lng: climateLng,
+    }),
+  ]);
 
   // ── Individual scores ──────────────────────────────────────────────────────
   const validNdvi = ndviMonths
@@ -655,6 +1165,25 @@ export async function computeRiskScore(params: {
 
   const ndviAvgScore = hasSentinel && avgNdvi != null ? scoreNdviAvg(avgNdvi) : null;
   const ndviStabScore = hasSentinel ? scoreNdviStability(validNdvi) : null;
+  const averageValidPixelCoverage = average(
+    ndviMonths
+      .map((month) => month.validPixelCoverage)
+      .filter((value): value is number => typeof value === "number"),
+  );
+  const averageCloudCoverage = average(
+    ndviMonths
+      .map((month) => month.cloudCoverage)
+      .filter((value): value is number => typeof value === "number"),
+  );
+  const lowCoverageMonths = ndviMonths.filter(
+    (month) =>
+      month.validPixelCoverage != null &&
+      month.validPixelCoverage < 0.35,
+  ).length;
+  const quarterlyNdvi = buildQuarterlyNdviMetrics(ndviMonths);
+  const climateTrend = buildClimateTrendMetrics(climateMonths);
+  const sentinel1 = buildSentinel1Metrics(sentinel1Stats);
+  const jrcGfc2020 = buildJrcPlaceholder();
 
   const eudrScreening = buildEudrScreening({
     manualCompliance: params.eudrCompliant,
@@ -662,6 +1191,8 @@ export async function computeRiskScore(params: {
     validNdvi,
     ndviAverage: avgNdvi,
     ndviStabilityScore: ndviStabScore,
+    averageValidPixelCoverage,
+    jrcGfc2020,
   });
 
   const breakdown: ScoreBreakdown = {
@@ -672,6 +1203,16 @@ export async function computeRiskScore(params: {
     temperature: scoreTemperature(avgTemp),
     eudr: eudrScreening.score,
     eudrScreening,
+    opticalCoverage: {
+      averageValidPixelCoverage,
+      averageCloudCoverage,
+      lowCoverageMonths,
+    },
+    quarterlyNdvi,
+    climateTrend,
+    terrain,
+    sentinel1,
+    jrcGfc2020,
     total: 0,
   };
 
@@ -701,13 +1242,21 @@ export async function computeRiskScore(params: {
     months: MONTHS,
     ndviMonths: ndviMonths.map((m) => ({
       date: m.date,
-      mean: m.mean != null ? Number(m.mean.toFixed(4)) : null,
+      mean: roundedOrNull(m.mean, 4),
+      validPixelCoverage: roundedOrNull(m.validPixelCoverage, 4),
+      cloudCoverage: roundedOrNull(m.cloudCoverage, 4),
     })),
     climateMonths: climateMonths.map((m) => ({
       date: m.date,
       precipMm: Number(m.precipMm.toFixed(2)),
       tempC: Number(m.tempC.toFixed(2)),
+      daysOver100Mm: m.daysOver100Mm,
     })),
+    quarterlyNdvi,
+    climateTrend,
+    terrain,
+    sentinel1,
+    jrcGfc2020,
     manualEudrCompliant: params.eudrCompliant,
     eudrScreening: {
       status: eudrScreening.status,
@@ -730,6 +1279,11 @@ export async function computeRiskScore(params: {
     ndviMonths,
     climateMonths,
     hasSentinel,
+    quarterlyNdvi,
+    climateTrend,
+    terrain,
+    sentinel1,
+    jrcGfc2020,
     eudrScreening,
     eudrCompliant: params.eudrCompliant,
   };
