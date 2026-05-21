@@ -24,9 +24,11 @@
     "infra:synth": "turbo run cdk:synth --filter=@harvverse-monorepo/infra",
     "infra:diff": "turbo run cdk:diff --filter=@harvverse-monorepo/infra",
     "infra:deploy": "turbo run cdk:deploy --filter=@harvverse-monorepo/infra",
+    "infra:deploy:all": "turbo run cdk:deploy:all --filter=@harvverse-monorepo/infra",
     "infra:bootstrap": "turbo run cdk:bootstrap --filter=@harvverse-monorepo/infra",
     "infra:destroy": "turbo run cdk:destroy --filter=@harvverse-monorepo/infra",
-    "infra:test": "turbo run test --filter=@harvverse-monorepo/infra"
+    "infra:test": "turbo run test --filter=@harvverse-monorepo/infra",
+    "docker:build:web": "docker build -t harvverse/web:local -f apps/web/Dockerfile ."
   },
   "dependencies": {
     "@harvverse-monorepo/env": "workspace:*",
