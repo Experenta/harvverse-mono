@@ -108,12 +108,13 @@ function ScoreBar({ value, max = 20, naLabel }: { value: number | null; max?: nu
     return <div className="text-xs text-gray-500 italic">{naLabel}</div>;
   }
   const pct = Math.min(100, (value / max) * 100);
+  const displayValue = Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1);
   return (
     <div className="flex items-center gap-2">
       <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
         <div className="h-full bg-primary rounded-full" style={{ width: `${pct}%` }} />
       </div>
-      <span className="text-xs text-primary font-bold w-8 text-right">{value}/{max}</span>
+      <span className="w-16 text-right text-xs font-bold text-primary">{displayValue}/{max}</span>
     </div>
   );
 }

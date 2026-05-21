@@ -48,9 +48,9 @@ export default async function RootLayout({
 			signUpForceRedirectUrl="/onboarding"
 			signUpFallbackRedirectUrl="/onboarding"
 		>
-			<html lang={locale} className={trenda.variable} suppressHydrationWarning>
+			<html lang={locale} className={`${trenda.variable} overflow-x-hidden`} suppressHydrationWarning>
 				<body
-					className="antialiased"
+					className="antialiased overflow-x-hidden"
 					style={{ background: "#001020", minHeight: "100vh" }}
 					suppressHydrationWarning
 				>
