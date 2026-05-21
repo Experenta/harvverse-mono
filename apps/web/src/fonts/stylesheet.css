@@ -1,0 +1,144 @@
+@font-face {
+    font-family: 'Trenda';
+    src: url('Trenda-Black.woff2') format('woff2'),
+        url('Trenda-Black.woff') format('woff');
+    font-weight: 900;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Trenda Black It';
+    src: url('Trenda-BlackIt.woff2') format('woff2'),
+        url('Trenda-BlackIt.woff') format('woff');
+    font-weight: 900;
+    font-style: italic;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Trenda Bold It';
+    src: url('Trenda-BoldIt.woff2') format('woff2'),
+        url('Trenda-BoldIt.woff') format('woff');
+    font-weight: bold;
+    font-style: italic;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Trenda';
+    src: url('Trenda-Bold.woff2') format('woff2'),
+        url('Trenda-Bold.woff') format('woff');
+    font-weight: bold;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Trenda ExtraLight It';
+    src: url('Trenda-ExtraLightIt.woff2') format('woff2'),
+        url('Trenda-ExtraLightIt.woff') format('woff');
+    font-weight: 200;
+    font-style: italic;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Trenda';
+    src: url('Trenda-ExtraLight.woff2') format('woff2'),
+        url('Trenda-ExtraLight.woff') format('woff');
+    font-weight: 200;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Trenda Heavy It';
+    src: url('Trenda-HeavyIt.woff2') format('woff2'),
+        url('Trenda-HeavyIt.woff') format('woff');
+    font-weight: 900;
+    font-style: italic;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Trenda';
+    src: url('Trenda-Heavy.woff2') format('woff2'),
+        url('Trenda-Heavy.woff') format('woff');
+    font-weight: 900;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Trenda Light It';
+    src: url('Trenda-LightIt.woff2') format('woff2'),
+        url('Trenda-LightIt.woff') format('woff');
+    font-weight: 300;
+    font-style: italic;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Trenda';
+    src: url('Trenda-Light.woff2') format('woff2'),
+        url('Trenda-Light.woff') format('woff');
+    font-weight: 300;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Trenda It';
+    src: url('Trenda-RegularIt.woff2') format('woff2'),
+        url('Trenda-RegularIt.woff') format('woff');
+    font-weight: normal;
+    font-style: italic;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Trenda';
+    src: url('Trenda-Regular.woff2') format('woff2'),
+        url('Trenda-Regular.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Trenda Semibold It';
+    src: url('Trenda-SemiboldIt.woff2') format('woff2'),
+        url('Trenda-SemiboldIt.woff') format('woff');
+    font-weight: 600;
+    font-style: italic;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Trenda';
+    src: url('Trenda-Semibold.woff2') format('woff2'),
+        url('Trenda-Semibold.woff') format('woff');
+    font-weight: 600;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Trenda Thin It';
+    src: url('Trenda-ThinIt.woff2') format('woff2'),
+        url('Trenda-ThinIt.woff') format('woff');
+    font-weight: 100;
+    font-style: italic;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Trenda';
+    src: url('Trenda-Thin.woff2') format('woff2'),
+        url('Trenda-Thin.woff') format('woff');
+    font-weight: 100;
+    font-style: normal;
+    font-display: swap;
+}
+

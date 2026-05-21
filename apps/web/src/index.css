@@ -1,1 +1,6 @@
+@import "./fonts/stylesheet.css";
 @import "@harvverse-monorepo/ui/globals.css";
+
+.font-trenda {
+	font-family: "Trenda", sans-serif;
+}

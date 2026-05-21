@@ -11,12 +11,14 @@
   },
   "scripts": {},
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1051.0",
+    "@aws-sdk/s3-request-presigner": "^3.1051.0",
     "@harvverse-monorepo/db": "workspace:*",
     "@harvverse-monorepo/env": "workspace:*",
-    "drizzle-orm": "^0.45.1",
     "@trpc/client": "catalog:",
     "@trpc/server": "catalog:",
     "dotenv": "catalog:",
+    "drizzle-orm": "^0.45.1",
     "next": "catalog:",
     "zod": "catalog:"
   },
