@@ -484,7 +484,7 @@ export default function LotDetailPage() {
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
             <GlassCard className="p-6 md:p-8 border-primary/20 lg:col-span-2">
-              <h2 className="section-title mb-6 uppercase text-sm tracking-widest font-black text-primary">{t("plan_terms")}</h2>
+              <h2 className="section-title mb-6 uppercase text-sm tracking-widest font-bold text-primary">{t("plan_terms")}</h2>
               {activePlan ? (
                 <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                   <div className="bg-white/5 rounded-lg p-3 border border-white/5">

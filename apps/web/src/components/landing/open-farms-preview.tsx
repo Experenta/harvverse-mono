@@ -24,7 +24,7 @@ export function LandingOpenFarmsPreview() {
       <div className="mx-auto max-w-7xl px-4 md:px-6">
         <div className="mb-16 text-center md:text-left flex flex-col md:flex-row justify-between items-end gap-8">
           <div>
-            <h2 className="text-3xl md:text-5xl font-black text-white leading-tight mb-4">
+            <h2 className="text-3xl md:text-5xl font-bold text-white leading-tight mb-4">
               {t("open_farms_headline")}
             </h2>
             <p className="text-white/60 text-lg max-w-xl">

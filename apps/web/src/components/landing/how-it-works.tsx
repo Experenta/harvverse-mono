@@ -35,7 +35,7 @@ export function LandingHowItWorks() {
           <p className="text-[11px] font-bold tracking-[3px] text-primary uppercase mb-4">
             {t("how_eyebrow")}
           </p>
-          <h2 className="text-3xl md:text-5xl font-black text-[#0F1A24] leading-tight max-w-2xl mx-auto">
+          <h2 className="text-3xl md:text-5xl font-bold text-[#0F1A24] leading-tight max-w-2xl mx-auto">
             {t("how_headline")}
           </h2>
         </div>

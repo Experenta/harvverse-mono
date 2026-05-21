@@ -50,7 +50,7 @@ export function LandingDigitalPartners() {
             <p className="text-[11px] font-bold tracking-[3px] text-primary uppercase mb-6">
               {t("partners_eyebrow")}
             </p>
-            <h2 className="text-3xl md:text-5xl font-black text-white leading-tight mb-8">
+            <h2 className="text-3xl md:text-5xl font-bold text-white leading-tight mb-8">
               {t("partners_headline")}
             </h2>
             <p className="text-lg text-white/70 mb-10 leading-relaxed">

@@ -33,7 +33,7 @@ export default function PublicFarmsPage() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="text-4xl md:text-6xl font-black text-white leading-tight mb-8"
+            className="text-4xl md:text-6xl font-bold text-white leading-tight mb-8"
           >
             Every farm. Satellite-verified.<br />
             Publicly accessible. Free.
