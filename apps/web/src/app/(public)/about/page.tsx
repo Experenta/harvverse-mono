@@ -26,7 +26,7 @@ export default function AboutPage() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="text-3xl md:text-7xl font-black text-white leading-tight mb-6 md:mb-8"
+            className="text-3xl md:text-7xl font-bold text-white leading-tight mb-6 md:mb-8"
           >
             {t("about_headline_1")}<br />
             <span className="text-white/80">{t("about_headline_2")}</span><br />
@@ -52,7 +52,7 @@ export default function AboutPage() {
               <p className="text-[10px] md:text-[11px] font-bold tracking-[3px] text-primary uppercase mb-4 md:mb-6">
                 {t("proven_eyebrow")}
               </p>
-              <h2 className="text-3xl md:text-5xl font-black leading-tight mb-4">
+              <h2 className="text-3xl md:text-5xl font-bold leading-tight mb-4">
                 {t("proven_headline")}
               </h2>
             </div>
@@ -77,7 +77,7 @@ export default function AboutPage() {
                 transition={{ delay: i * 0.1 }}
                 className="bg-[#0F1A24] p-6 md:p-8 rounded-3xl text-white flex flex-col justify-center"
               >
-                <span className="text-2xl md:text-4xl font-black text-primary mb-2">{stat.val}</span>
+                <span className="text-2xl md:text-4xl font-bold text-primary mb-2">{stat.val}</span>
                 <span className="text-[10px] md:text-xs text-white/50 font-bold uppercase tracking-wider">{stat.label}</span>
               </motion.div>
             ))}
@@ -96,7 +96,7 @@ export default function AboutPage() {
              <p className="text-[10px] md:text-[11px] font-bold tracking-[3px] text-primary uppercase mb-4 md:mb-6">
               {t("tech_eyebrow")}
             </p>
-            <h2 className="text-3xl md:text-5xl font-black text-white leading-tight">
+            <h2 className="text-3xl md:text-5xl font-bold text-white leading-tight">
               {t("tech_headline")}
             </h2>
           </div>
@@ -127,7 +127,7 @@ export default function AboutPage() {
       {/* Section 4: Recognition */}
       <section className="bg-[#1E3A2F] py-16 md:py-32">
         <div className="mx-auto max-w-7xl px-4 md:px-6 text-center">
-           <h2 className="text-3xl md:text-5xl font-black text-white leading-tight mb-10 md:mb-16">
+           <h2 className="text-3xl md:text-5xl font-bold text-white leading-tight mb-10 md:mb-16">
               {t("about_recognition_title")}
            </h2>
            
@@ -157,7 +157,7 @@ export default function AboutPage() {
       {/* Section 5: CTA Final */}
       <section className="bg-[#0F1A24] py-16 md:py-32">
         <div className="mx-auto max-w-4xl px-4 md:px-6 text-center">
-           <h2 className="text-3xl md:text-5xl font-black text-white leading-tight mb-8 md:mb-12">
+           <h2 className="text-3xl md:text-5xl font-bold text-white leading-tight mb-8 md:mb-12">
               {t("about_cta_headline")}
            </h2>
            

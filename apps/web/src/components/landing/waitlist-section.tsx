@@ -62,7 +62,7 @@ export function LandingWaitlistSection() {
     <section className="bg-[#1E3A2F] py-24 md:py-32">
       <div className="mx-auto max-w-4xl px-4 md:px-6">
         <div className="mb-16 text-center">
-          <h2 className="text-3xl md:text-5xl font-black text-white leading-tight mb-6">
+          <h2 className="text-3xl md:text-5xl font-bold text-white leading-tight mb-6">
             {t("waitlist_headline")}
           </h2>
         </div>

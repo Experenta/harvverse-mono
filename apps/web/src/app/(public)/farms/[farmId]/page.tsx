@@ -153,7 +153,7 @@ export default function PublicFarmDetailPage() {
                 <motion.h1
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="text-4xl md:text-6xl font-black text-white leading-tight mb-4"
+                  className="text-4xl md:text-6xl font-bold text-white leading-tight mb-4"
                 >
                   {farm.name}
                 </motion.h1>
@@ -246,7 +246,7 @@ export default function PublicFarmDetailPage() {
       <section className="bg-[#1E3A2F] py-12">
         <div className="mx-auto max-w-7xl px-4 md:px-6">
            <div className="flex flex-col md:flex-row items-center justify-between gap-8">
-              <p className="text-xl md:text-2xl font-black text-white text-center md:text-left">
+              <p className="text-xl md:text-2xl font-bold text-white text-center md:text-left">
                 Is this your farm? Register to claim your profile.
               </p>
               <Button

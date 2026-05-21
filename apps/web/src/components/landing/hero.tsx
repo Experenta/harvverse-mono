@@ -53,7 +53,7 @@ export function LandingHero() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.1 }}
-            className="text-4xl md:text-6xl font-black text-white leading-tight mb-8"
+            className="text-4xl md:text-6xl font-bold text-white leading-tight mb-8"
           >
             {t("hero_headline_1")}<br />
             <span className="text-white/90">{t("hero_headline_2")}</span><br />

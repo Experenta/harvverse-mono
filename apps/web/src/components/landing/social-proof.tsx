@@ -26,7 +26,7 @@ export function LandingSocialProof() {
               transition={{ duration: 0.5, delay: i * 0.1 }}
               className="px-6 py-10 md:py-12 text-center md:text-left flex flex-col justify-center"
             >
-              <span className="text-3xl md:text-4xl font-black text-primary mb-2 block">
+              <span className="text-3xl md:text-4xl font-bold text-primary mb-2 block">
                 {stat.value}
               </span>
               <span className="text-[12px] md:text-sm text-[#C8E6B0] font-medium leading-tight">
