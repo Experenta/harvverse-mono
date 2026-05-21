@@ -38,7 +38,7 @@ export const settlementsRouter = router({
       return settlement ?? null;
     }),
 
-  updateStatus: publicProcedure
+  updateStatus: protectedProcedure
     .input(
       z.object({
         id: z.number().int().positive(),

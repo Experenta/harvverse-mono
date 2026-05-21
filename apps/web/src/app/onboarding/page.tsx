@@ -67,7 +67,7 @@ export default function OnboardingPage() {
       onSuccess: async () => {
         if (!clerkUser?.id) return;
         await queryClient.invalidateQueries({
-          queryKey: trpc.users.me.queryKey({ clerkId: clerkUser.id }),
+          queryKey: trpc.users.me.queryKey(),
         });
         router.push("/dashboard/farmer" as Route);
       },
@@ -83,10 +83,8 @@ export default function OnboardingPage() {
     }
     try {
       await upsert.mutateAsync({
-        clerkId: clerkUser.id,
         email: clerkUser.primaryEmailAddress?.emailAddress,
         displayName: values.fullName,
-        role: "farmer",
         country: values.country,
         phone: values.phone,
       });

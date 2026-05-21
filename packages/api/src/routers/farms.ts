@@ -30,6 +30,21 @@ type FarmPolygon = { coordinates: number[][][] };
 const MAX_FARM_IMAGE_BYTES = 5 * 1024 * 1024;
 const MAX_FARM_IMAGES = 10;
 const ALLOWED_FARM_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+const farmWritableSchema = insertFarmSchema.pick({
+  name: true,
+  country: true,
+  region: true,
+  altitudeMasl: true,
+  totalArea: true,
+  areaManzanas: true,
+  varieties: true,
+  description: true,
+  certifications: true,
+  photoUrls: true,
+  latitude: true,
+  longitude: true,
+  polygon: true,
+});
 
 type FarmImageRecord = {
   id: number;
@@ -729,7 +744,7 @@ export const farmsRouter = router({
     }),
 
   create: protectedProcedure
-    .input(insertFarmSchema)
+    .input(farmWritableSchema)
     .mutation(async ({ ctx, input }) => {
       const requestingUser = await ctx.db.query.users.findFirst({
         where: eq(users.clerkId, ctx.clerkId),
@@ -816,7 +831,7 @@ export const farmsRouter = router({
     .input(
       z.object({
         id: z.number().int().positive(),
-        data: insertFarmSchema.partial(),
+        data: farmWritableSchema.partial(),
       }),
     )
     .mutation(async ({ ctx, input }) => {

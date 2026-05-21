@@ -8,27 +8,25 @@ import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { protectedProcedure, publicProcedure, router } from "../index";
+import { protectedProcedure, router } from "../index";
 
 const roleSchema = z.enum(userRoleEnum.enumValues);
 const statusSchema = z.enum(userStatusEnum.enumValues);
 
 export const usersRouter = router({
-  me: publicProcedure
-    .input(z.object({ clerkId: z.string().trim().min(1) }))
-    .query(async ({ ctx, input }) => {
+  me: protectedProcedure
+    .query(async ({ ctx }) => {
       const user = await ctx.db.query.users.findFirst({
-        where: eq(users.clerkId, input.clerkId),
+        where: eq(users.clerkId, ctx.clerkId),
       });
       return user ?? null;
     }),
 
-  upsert: publicProcedure
+  upsert: protectedProcedure
     .input(
       insertUserSchema
-        .pick({ displayName: true, role: true })
+        .pick({ displayName: true })
         .extend({
-          clerkId: z.string().trim().min(1),
           email: z.string().email().optional(),
           walletAddress: z.string().optional(),
           phone: z.string().optional(),
@@ -38,12 +36,11 @@ export const usersRouter = router({
     .mutation(async ({ ctx, input }) => {
       const [user] = await ctx.db
         .insert(users)
-        .values(input)
+        .values({ ...input, clerkId: ctx.clerkId, role: "farmer" })
         .onConflictDoUpdate({
           target: users.clerkId,
           set: {
             displayName: input.displayName,
-            role: input.role,
             ...(input.email !== undefined && { email: input.email }),
             ...(input.walletAddress !== undefined && {
               walletAddress: input.walletAddress,

@@ -9,7 +9,7 @@ import { trpc } from "@/utils/trpc";
 export function useCurrentUser() {
   const { user: clerkUser, isLoaded } = useUser();
   const { data: dbUser, isLoading: isLoadingDb } = useQuery({
-    ...trpc.users.me.queryOptions({ clerkId: clerkUser?.id ?? "" }),
+    ...trpc.users.me.queryOptions(),
     enabled: isLoaded && !!clerkUser?.id,
   });
 

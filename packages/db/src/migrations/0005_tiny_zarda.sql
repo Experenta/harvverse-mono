@@ -50,6 +50,7 @@ ALTER TABLE "farms" ADD COLUMN IF NOT EXISTS "ndvi_average" numeric;
 ALTER TABLE "farms" ADD COLUMN IF NOT EXISTS "annual_precip_mm" numeric;
 ALTER TABLE "farms" ADD COLUMN IF NOT EXISTS "avg_temp_c" numeric;
 ALTER TABLE "farms" ADD COLUMN IF NOT EXISTS "score_breakdown" jsonb;
+ALTER TABLE "proposals" ADD COLUMN IF NOT EXISTS "message" text;
 
 CREATE TABLE IF NOT EXISTS "farm_images" (
   "id" serial PRIMARY KEY NOT NULL,

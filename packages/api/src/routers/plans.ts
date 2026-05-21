@@ -93,7 +93,7 @@ export const plansRouter = router({
       return plan;
     }),
 
-  updateStatus: publicProcedure
+  updateStatus: protectedProcedure
     .input(
       z.object({
         id: z.number().int().positive(),

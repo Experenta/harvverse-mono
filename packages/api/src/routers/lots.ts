@@ -413,7 +413,7 @@ export const lotsRouter = router({
       return result;
     }),
 
-  previewRiskScore: publicProcedure
+  previewRiskScore: protectedProcedure
     .input(
       z.object({
         lat: z.number().min(-90).max(90),
@@ -435,7 +435,7 @@ export const lotsRouter = router({
       return result;
     }),
 
-  detectAltitude: publicProcedure
+  detectAltitude: protectedProcedure
     .input(
       z.object({
         lat: z.number().min(-90).max(90),

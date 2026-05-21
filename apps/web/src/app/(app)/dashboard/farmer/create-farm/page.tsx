@@ -272,7 +272,6 @@ export default function CreateFarmPage() {
       return;
     }
     createFarm.mutate({
-      farmerId: user.id,
       name: values.name,
       country: values.country,
       region: values.region,

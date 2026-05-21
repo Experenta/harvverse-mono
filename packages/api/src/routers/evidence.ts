@@ -56,7 +56,7 @@ export const evidenceRouter = router({
       });
     }),
 
-  attest: publicProcedure
+  attest: protectedProcedure
     .input(
       z.object({
         id: z.number().int().positive(),

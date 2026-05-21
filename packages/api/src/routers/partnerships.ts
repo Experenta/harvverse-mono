@@ -110,7 +110,7 @@ export const partnershipsRouter = router({
       return [];
     }),
 
-  updateStatus: publicProcedure
+  updateStatus: protectedProcedure
     .input(
       z.object({
         id: z.number().int().positive(),
