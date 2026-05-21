@@ -19,7 +19,14 @@
     "db:start": "turbo run db:start --filter=@harvverse-monorepo/db",
     "db:watch": "turbo run db:watch --filter=@harvverse-monorepo/db",
     "db:stop": "turbo run db:stop --filter=@harvverse-monorepo/db",
-    "db:down": "turbo run db:down --filter=@harvverse-monorepo/db"
+    "db:down": "turbo run db:down --filter=@harvverse-monorepo/db",
+    "infra:build": "turbo run build --filter=@harvverse-monorepo/infra",
+    "infra:synth": "turbo run cdk:synth --filter=@harvverse-monorepo/infra",
+    "infra:diff": "turbo run cdk:diff --filter=@harvverse-monorepo/infra",
+    "infra:deploy": "turbo run cdk:deploy --filter=@harvverse-monorepo/infra",
+    "infra:bootstrap": "turbo run cdk:bootstrap --filter=@harvverse-monorepo/infra",
+    "infra:destroy": "turbo run cdk:destroy --filter=@harvverse-monorepo/infra",
+    "infra:test": "turbo run test --filter=@harvverse-monorepo/infra"
   },
   "dependencies": {
     "@harvverse-monorepo/env": "workspace:*",

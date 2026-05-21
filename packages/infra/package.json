@@ -1,0 +1,30 @@
+{
+  "name": "@harvverse-monorepo/infra",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "check-types": "tsc --noEmit",
+    "test": "jest",
+    "cdk": "cdk --profile Harvverse",
+    "cdk:synth": "cdk --profile Harvverse synth",
+    "cdk:diff": "cdk --profile Harvverse diff",
+    "cdk:deploy": "cdk --profile Harvverse deploy",
+    "cdk:bootstrap": "cdk --profile Harvverse bootstrap",
+    "cdk:destroy": "cdk --profile Harvverse destroy"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.255.0",
+    "constructs": "^10.5.0"
+  },
+  "devDependencies": {
+    "@harvverse-monorepo/config": "workspace:*",
+    "@types/jest": "^30",
+    "@types/node": "^22.13.14",
+    "aws-cdk": "2.1124.1",
+    "jest": "^30",
+    "ts-jest": "^29",
+    "typescript": "catalog:"
+  }
+}

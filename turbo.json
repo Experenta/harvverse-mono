@@ -5,7 +5,7 @@
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": ["dist/**", ".next/**"]
+      "outputs": ["dist/**", ".next/**", "cdk.out/**"]
     },
     "lint": {
       "dependsOn": ["^lint"]
@@ -47,6 +47,27 @@
     },
     "db:down": {
       "cache": false
+    },
+    "cdk:synth": {
+      "dependsOn": ["build"],
+      "outputs": ["cdk.out/**"]
+    },
+    "cdk:diff": {
+      "dependsOn": ["build"],
+      "cache": false
+    },
+    "cdk:deploy": {
+      "dependsOn": ["build"],
+      "cache": false
+    },
+    "cdk:bootstrap": {
+      "cache": false
+    },
+    "cdk:destroy": {
+      "cache": false
+    },
+    "test": {
+      "dependsOn": ["build"]
     }
   }
 }
