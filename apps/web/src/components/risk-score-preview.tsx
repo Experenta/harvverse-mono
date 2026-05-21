@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { AlertTriangle, ChevronDown, ChevronUp, CheckCircle, HelpCircle, XCircle } from "lucide-react";
 import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
-import { eudrTone, type EudrScreening } from "@/lib/eudr-screening";
+import { eudrGrade, eudrGradeTone, type EudrScreening } from "@/lib/eudr-screening";
 
 interface ScoreBreakdown {
   ndviAvg: number | null;
@@ -142,21 +142,16 @@ export default function RiskScorePreview({
   const sentinel1 = data.breakdown?.sentinel1 ?? null;
   const jrcGfc2020 = data.breakdown?.jrcGfc2020 ?? null;
   const eudrStatus = eudrScreening?.status ?? "unknown";
-  const eudrUi = eudrTone(eudrStatus);
-  const eudrLabel =
-    eudrStatus === "low_risk"
-      ? t("eudr_prelim_passed")
-      : eudrStatus === "review_required"
-        ? t("eudr_prelim_review")
-        : eudrStatus === "high_risk"
-          ? t("eudr_prelim_failed")
-          : t("eudr_prelim_inconclusive");
+  const grade = eudrGrade(eudrScreening);
+  const eudrUi = eudrGradeTone(grade);
+  const eudrLabel = t(`eudr_grade_${grade}`);
+  const eudrSummary = t(`eudr_grade_summary_${grade}`);
   const EudrIcon =
-    eudrStatus === "low_risk"
+    grade === "excellent" || grade === "good"
       ? CheckCircle
-      : eudrStatus === "high_risk"
+      : grade === "poor"
         ? XCircle
-        : eudrStatus === "review_required"
+        : grade === "medium"
           ? AlertTriangle
           : HelpCircle;
 
@@ -190,7 +185,7 @@ export default function RiskScorePreview({
             <span className="text-sm font-semibold leading-tight">{eudrLabel}</span>
           </div>
           <p className="mt-1 max-w-56 text-xs leading-snug text-white/45">
-            {t("eudr_prelim_helper")}
+            {eudrSummary}
           </p>
         </div>
       </div>

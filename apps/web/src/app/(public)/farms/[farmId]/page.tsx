@@ -16,7 +16,7 @@ import { Badge } from "@harvverse-monorepo/ui/components/badge";
 import { Skeleton } from "@harvverse-monorepo/ui/components/skeleton";
 import RiskScorePreview, { type RiskScoreData } from "@/components/risk-score-preview";
 import { trpc } from "@/utils/trpc";
-import { eudrTone, extractEudrScreening } from "@/lib/eudr-screening";
+import { eudrGrade, eudrGradeTone, extractEudrScreening } from "@/lib/eudr-screening";
 import { motion } from "framer-motion";
 
 const PolygonDisplayMap = dynamic(() => import("@/components/polygon-display-map"), {
@@ -88,7 +88,8 @@ export default function PublicFarmDetailPage() {
 
   const riskData = riskScoreFromFarm(farm);
   const screening = extractEudrScreening(farm.scoreBreakdown);
-  const eudrUi = eudrTone(screening?.status ?? "unknown");
+  const grade = eudrGrade(screening);
+  const eudrUi = eudrGradeTone(grade);
 
   const allImages = [
     ...(farm.images?.map(farmImageSrc) ?? []),
@@ -162,7 +163,7 @@ export default function PublicFarmDetailPage() {
 
               <div className="flex flex-wrap gap-4">
                 <Badge className={`rounded-full px-4 py-1 text-xs font-black uppercase tracking-widest ${eudrUi.badge}`}>
-                   {screening?.status === "low_risk" ? "EUDR Verified ✅" : "EUDR Assessment Pending"}
+                  {tf(`eudr_grade_${grade}`)}
                 </Badge>
                 {farm.riskScore != null && (
                   <Badge className="rounded-full px-4 py-1 text-xs font-black bg-primary text-[#0F1A24] border-0">

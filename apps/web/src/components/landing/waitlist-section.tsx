@@ -4,12 +4,19 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 
 import { Button } from "@harvverse-monorepo/ui/components/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@harvverse-monorepo/ui/components/select";
 import { trpc } from "@/utils/trpc";
 
 const investmentRanges = [
@@ -117,36 +124,55 @@ export function LandingWaitlistSection() {
                   <label className="text-xs font-bold uppercase tracking-widest text-white/40 ml-1">
                     {tw("investmentRange")} *
                   </label>
-                  <select
-                    {...form.register("investmentRange")}
-                    className="harv-input w-full rounded-xl border px-4 py-3 text-base appearance-none"
-                    style={{ colorScheme: "dark" }}
-                  >
-                    {investmentRanges.map((range) => (
-                      <option key={range} value={range}>
-                        {range}
-                      </option>
-                    ))}
-                  </select>
+                  <Controller
+                    name="investmentRange"
+                    control={form.control}
+                    render={({ field }) => (
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                      >
+                        <SelectTrigger className="harv-input w-full rounded-xl border px-4 py-3 h-[50px] text-base">
+                          <SelectValue placeholder="Select an option" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {investmentRanges.map((range) => (
+                            <SelectItem key={range} value={range}>
+                              {range}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
                 </div>
               </div>
 
               <div className="space-y-2">
                 <label className="text-xs font-bold uppercase tracking-widest text-white/40 ml-1">
-                  {tw("howHeard")} (optional)
+                  {tw("howHeard")}
                 </label>
-                <select
-                  {...form.register("howHeard")}
-                  className="harv-input w-full rounded-xl border px-4 py-3 text-base appearance-none"
-                  style={{ colorScheme: "dark" }}
-                >
-                  <option value="">Select an option</option>
-                  <option value="Prototypes for Humanity">Prototypes for Humanity</option>
-                  <option value="Bloomberg">Bloomberg</option>
-                  <option value="Social media">Social media</option>
-                  <option value="Referral">Referral</option>
-                  <option value="Other">Other</option>
-                </select>
+                <Controller
+                  name="howHeard"
+                  control={form.control}
+                  render={({ field }) => (
+                    <Select
+                      value={field.value || undefined}
+                      onValueChange={field.onChange}
+                    >
+                      <SelectTrigger className="harv-input w-full rounded-xl border px-4 py-3 h-[50px] text-base">
+                        <SelectValue placeholder="Select an option" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Prototypes for Humanity">Prototypes for Humanity</SelectItem>
+                        <SelectItem value="Bloomberg">Bloomberg</SelectItem>
+                        <SelectItem value="Social media">Social media</SelectItem>
+                        <SelectItem value="Referral">Referral</SelectItem>
+                        <SelectItem value="Other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
               </div>
 
               {submit.error ? (

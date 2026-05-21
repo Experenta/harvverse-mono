@@ -40,7 +40,6 @@ const farmWritableSchema = insertFarmSchema.pick({
   varieties: true,
   description: true,
   certifications: true,
-  photoUrls: true,
   latitude: true,
   longitude: true,
   polygon: true,
@@ -660,6 +659,9 @@ export const farmsRouter = router({
         data: input.data,
         mimeType: input.mimeType,
         filename: input.filename,
+      }).catch((error) => {
+        console.error("[farms.uploadImage] S3 upload failed, falling back to database storage:", error);
+        return null;
       });
       const fallbackChecksum = storedObject
         ? null

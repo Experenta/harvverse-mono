@@ -56,7 +56,6 @@ const createFarmSchema = z.object({
   varieties: z.array(z.string()).min(1, "Select at least one variety"),
   certifications: z.array(z.string()).optional(),
   description: z.string().optional(),
-  photoUrl: z.string().url().optional().or(z.literal("")),
 });
 
 type CreateFarmInput = z.input<typeof createFarmSchema>;
@@ -246,7 +245,6 @@ export default function CreateFarmPage() {
       varieties: [],
       certifications: [],
       description: "",
-      photoUrl: "",
     },
   });
 
@@ -283,7 +281,6 @@ export default function CreateFarmPage() {
       varieties: values.varieties,
       certifications: values.certifications ?? [],
       description: values.description || undefined,
-      photoUrls: values.photoUrl ? [values.photoUrl] : undefined,
       polygon: polygon ?? undefined,
     });
   }
@@ -684,24 +681,6 @@ export default function CreateFarmPage() {
                       <Textarea
                         placeholder={t("description_placeholder")}
                         className="bg-black/20 border-white/10 text-white placeholder:text-white/35 min-h-[100px] text-sm"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="photoUrl"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-white/80">{t("photo_url")}</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder={t("photo_placeholder")}
-                        className={inputClasses}
                         {...field}
                       />
                     </FormControl>

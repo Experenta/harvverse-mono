@@ -139,12 +139,14 @@ export default function FarmerDashboardPage() {
             className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4"
           >
             <motion.div variants={item}>
-              <GlassCard className="border-primary/20 bg-white/[0.03] p-3 md:p-6 flex flex-col items-center text-center group hover:border-primary/40 transition-colors h-full">
-                <div className="w-8 h-8 md:w-12 md:h-12 bg-primary/10 rounded-lg md:rounded-xl flex items-center justify-center mb-2 md:mb-4 group-hover:scale-110 transition-transform">
-                  <Sprout className="w-4 h-4 md:w-6 md:h-6 text-primary" />
+              <GlassCard className="border-primary/20 bg-white/[0.03] p-4 md:p-6 flex items-center md:flex-col md:text-center group hover:border-primary/40 transition-colors h-full gap-4 md:gap-0">
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-primary/10 rounded-lg md:rounded-xl flex items-center justify-center md:mb-4 group-hover:scale-110 transition-transform shrink-0">
+                  <Sprout className="w-5 h-5 md:w-6 md:h-6 text-primary" />
                 </div>
-                <p className="stat-label mb-0.5 md:mb-1 text-[9px] md:text-xs">{t("my_farms")}</p>
-                <p className="stat-value text-xl md:text-3xl">{farmsToShow.length}</p>
+                <div className="flex flex-col md:items-center flex-1">
+                  <p className="stat-label mb-0.5 md:mb-1 text-[10px] md:text-xs text-left md:text-center">{t("my_farms")}</p>
+                  <p className="stat-value text-2xl md:text-3xl text-left md:text-center leading-none">{farmsToShow.length}</p>
+                </div>
               </GlassCard>
             </motion.div>
 
@@ -154,12 +156,14 @@ export default function FarmerDashboardPage() {
             */}
 
             <motion.div variants={item}>
-              <GlassCard className="border-primary/20 bg-white/[0.03] p-3 md:p-6 flex flex-col items-center text-center group hover:border-primary/40 transition-colors h-full">
-                <div className="w-8 h-8 md:w-12 md:h-12 bg-primary/10 rounded-lg md:rounded-xl flex items-center justify-center mb-2 md:mb-4 group-hover:scale-110 transition-transform">
-                  <CheckCircle2 className="w-4 h-4 md:w-6 md:h-6 text-primary" />
+              <GlassCard className="border-primary/20 bg-white/[0.03] p-4 md:p-6 flex items-center md:flex-col md:text-center group hover:border-primary/40 transition-colors h-full gap-4 md:gap-0">
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-primary/10 rounded-lg md:rounded-xl flex items-center justify-center md:mb-4 group-hover:scale-110 transition-transform shrink-0">
+                  <CheckCircle2 className="w-5 h-5 md:w-6 md:h-6 text-primary" />
                 </div>
-                <p className="stat-label mb-0.5 md:mb-1 text-[9px] md:text-xs">{tf("verified")}</p>
-                <p className="stat-value text-xl md:text-3xl">{verifiedFarmsCount}</p>
+                <div className="flex flex-col md:items-center flex-1">
+                  <p className="stat-label mb-0.5 md:mb-1 text-[10px] md:text-xs text-left md:text-center">{tf("verified")}</p>
+                  <p className="stat-value text-2xl md:text-3xl text-left md:text-center leading-none">{verifiedFarmsCount}</p>
+                </div>
               </GlassCard>
             </motion.div>
           </motion.div>

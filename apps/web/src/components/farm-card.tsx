@@ -9,7 +9,7 @@ import { useState } from "react";
 import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
 import { Button } from "@harvverse-monorepo/ui/components/button";
 import { Badge } from "@harvverse-monorepo/ui/components/badge";
-import { eudrTone, extractEudrScreening } from "@/lib/eudr-screening";
+import { eudrGrade, eudrGradeTone, extractEudrScreening } from "@/lib/eudr-screening";
 
 interface Lot {
   id: number;
@@ -89,20 +89,10 @@ export function FarmCard({ farm }: FarmCardProps) {
             : { className: "border-red-500/35 bg-red-500/15 text-red-300", label: `● ${farm.riskScore} Alto Riesgo` };
 
   const eudrScreening = extractEudrScreening(farm.scoreBreakdown);
-  const eudrStatus = eudrScreening?.status ?? null;
-  const eudrUi = eudrTone(eudrStatus);
+  const grade = eudrGrade(eudrScreening);
+  const eudrUi = eudrGradeTone(grade);
   const eudrLabel =
-    eudrStatus === "low_risk"
-      ? t("eudr_prelim_passed")
-      : eudrStatus === "review_required"
-        ? t("eudr_prelim_review")
-        : eudrStatus === "high_risk"
-          ? t("eudr_prelim_failed")
-          : eudrStatus === "unknown"
-            ? t("eudr_prelim_inconclusive")
-            : farm.riskScore != null
-              ? t("eudr_prelim_inconclusive")
-              : t("status_analyzing");
+    farm.riskScore == null ? t("status_analyzing") : t(`eudr_grade_${grade}`);
 
   const nextImage = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -122,7 +112,7 @@ export function FarmCard({ farm }: FarmCardProps) {
       transition={{ duration: 0.4, ease: "easeOut" }}
     >
       <GlassCard className="group flex flex-col overflow-hidden border-primary/20 transition-all hover:border-primary/50 hover:shadow-primary/5">
-        <div className="relative h-44 overflow-hidden bg-gradient-to-br from-primary/20 to-[#001020]">
+        <div className="relative h-48 md:h-52 overflow-hidden bg-gradient-to-br from-primary/20 to-[#001020]">
           <AnimatePresence mode="wait">
             {activeImage ? (
               <motion.img
@@ -176,43 +166,43 @@ export function FarmCard({ farm }: FarmCardProps) {
             </>
           )}
 
-          <div className="absolute top-2 right-2 flex flex-col items-end gap-1.5 pointer-events-none">
-            <Badge className={`max-w-44 rounded-full border px-2 py-0 text-[9px] font-bold backdrop-blur-md ${farm.riskScore == null ? "border-white/15 bg-white/10 text-white/55" : eudrUi.badge}`}>
+          <div className="absolute top-3 right-3 flex flex-col items-end gap-2 pointer-events-none">
+            <Badge className={`max-w-[140px] md:max-w-[180px] rounded-full border px-2.5 py-0.5 text-[10px] md:text-xs font-bold backdrop-blur-md ${farm.riskScore == null ? "border-white/15 bg-white/10 text-white/55" : eudrUi.badge}`}>
               <span className="truncate">{eudrLabel}</span>
             </Badge>
             {scoreBadge ? (
-              <Badge className={`rounded-full px-2 py-0 text-[9px] font-bold backdrop-blur-md ${scoreBadge.className}`}>
+              <Badge className={`rounded-full px-2.5 py-0.5 text-[10px] md:text-xs font-bold backdrop-blur-md ${scoreBadge.className}`}>
                 {scoreBadge.label}
               </Badge>
             ) : null}
             {farm.verified && (
-              <Badge className="gap-1 rounded-full border border-primary/30 bg-primary/20 text-[9px] font-bold text-primary backdrop-blur-md px-2 py-0">
-                <CheckCircle2 className="size-2.5" />
+              <Badge className="gap-1 rounded-full border border-primary/30 bg-primary/20 text-[10px] md:text-xs font-bold text-primary backdrop-blur-md px-2.5 py-0.5">
+                <CheckCircle2 className="size-3 md:size-3.5" />
                 {t("verified")}
               </Badge>
             )}
           </div>
         </div>
 
-        <div className="flex flex-1 flex-col p-4 card-highlight">
-          <h3 className="mb-1 truncate font-trenda text-base font-bold text-white group-hover:text-primary transition-colors">
+        <div className="flex flex-1 flex-col p-5 md:p-6 card-highlight">
+          <h3 className="mb-2 truncate font-trenda text-lg md:text-xl font-bold text-white group-hover:text-primary transition-colors">
             {farm.name}
           </h3>
 
-          <div className="mb-4 flex flex-col gap-1 text-xs text-white/60">
-            <span className="flex items-center gap-1.5">
-              <MapPin className="size-3 text-primary/60" />
+          <div className="mb-5 flex flex-col gap-1.5 text-xs md:text-sm text-white/70">
+            <span className="flex items-center gap-2">
+              <MapPin className="size-3.5 text-primary/60" />
               {farm.region}, {farm.country}
             </span>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-5">
               {farm.altitudeMasl && (
-                <span className="flex items-center gap-1.5">
-                  <Mountain className="size-3 text-primary/60" />
+                <span className="flex items-center gap-2">
+                  <Mountain className="size-3.5 text-primary/60" />
                   {farm.altitudeMasl}m
                 </span>
               )}
               {farm.areaManzanas && (
-                <span>
+                <span className="flex items-center gap-2">
                   {Number(farm.areaManzanas).toFixed(1)} mzn
                 </span>
               )}
@@ -220,11 +210,11 @@ export function FarmCard({ farm }: FarmCardProps) {
           </div>
 
           {varieties.length > 0 && (
-            <div className="mb-4 flex flex-wrap gap-1.5">
+            <div className="mb-5 flex flex-wrap gap-2">
               {varieties.slice(0, 3).map((v) => (
                 <span
                   key={v}
-                  className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary"
+                  className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-[11px] md:text-xs text-primary"
                 >
                   {v}
                 </span>
@@ -232,13 +222,13 @@ export function FarmCard({ farm }: FarmCardProps) {
             </div>
           )}
 
-          <div className="mt-auto pt-4 border-t border-white/5">
+          <div className="mt-auto pt-5 border-t border-white/5">
             <div>
               <Button
                 size="sm"
                 variant="outline"
-                className="h-8 w-full border-[#67B9C1]/40 text-xs text-[#67B9C1] hover:bg-[#67B9C1]/10"
-                onClick={() => router.push(`/dashboard/farmer/farms/${farm.id}`)}
+                className="h-9 w-full border-[#67B9C1]/40 text-xs md:text-sm font-bold text-[#67B9C1] hover:bg-[#67B9C1]/10"
+                onClick={(e) => { e.preventDefault(); router.push(`/dashboard/farmer/farms/${farm.id}`) }}
               >
                 {tn("manage")}
               </Button>

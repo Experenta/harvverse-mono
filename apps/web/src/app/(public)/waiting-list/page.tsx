@@ -4,12 +4,19 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CheckCircle2, Loader2 } from "lucide-react";
 
 import { Button } from "@harvverse-monorepo/ui/components/button";
 import { GlassCard } from "@harvverse-monorepo/ui/components/glass-card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@harvverse-monorepo/ui/components/select";
 import { trpc } from "@/utils/trpc";
 
 const investmentRanges = [
@@ -86,17 +93,24 @@ export default function WaitingListPage() {
                 </div>
                 <div>
                   <label className="mb-1 block text-sm text-white/70">{t("investmentRange")}</label>
-                  <select
-                    {...form.register("investmentRange")}
-                    className="harv-input w-full rounded-lg border px-3 py-2"
-                    style={{ colorScheme: "dark" }}
-                  >
-                    {investmentRanges.map((range) => (
-                      <option key={range} value={range}>
-                        {range}
-                      </option>
-                    ))}
-                  </select>
+                  <Controller
+                    name="investmentRange"
+                    control={form.control}
+                    render={({ field }) => (
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <SelectTrigger className="harv-input w-full rounded-lg border px-3 h-[42px]">
+                          <SelectValue placeholder="Select an option" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {investmentRanges.map((range) => (
+                            <SelectItem key={range} value={range}>
+                              {range}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
                 </div>
                 <div>
                   <label className="mb-1 block text-sm text-white/70">{t("howHeard")}</label>

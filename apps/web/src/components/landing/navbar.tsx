@@ -62,6 +62,13 @@ export function LandingNavbar() {
             <LanguageSwitcher />
             <Button
               asChild
+              variant="outline"
+              className="border-white/20 text-white hover:bg-white/10 rounded-full px-6"
+            >
+              <Link href={"/login" as Route}>Login</Link>
+            </Button>
+            <Button
+              asChild
               className="bg-primary font-bold text-[#0F1A24] hover:bg-primary/90 rounded-full px-6"
             >
               <Link href={"/sign-up" as Route}>{t("nav_register_cta")}</Link>
@@ -71,6 +78,14 @@ export function LandingNavbar() {
           {/* Mobile Menu Button */}
           <div className="flex md:hidden items-center gap-4">
             <LanguageSwitcher />
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="border-white/20 text-white hover:bg-white/10"
+            >
+              <Link href={"/login" as Route}>Login</Link>
+            </Button>
             <button
               className="text-white"
               onClick={() => setIsOpen(!isOpen)}

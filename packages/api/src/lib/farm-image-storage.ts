@@ -26,6 +26,14 @@ function trimSlashes(value: string) {
   return value.replace(/^\/+|\/+$/g, "");
 }
 
+function normalizeBucketName(value: string) {
+  const bucketArnPrefix = "arn:aws:s3:::";
+  if (value.startsWith(bucketArnPrefix)) {
+    return value.slice(bucketArnPrefix.length);
+  }
+  return value;
+}
+
 function imageExtension(mimeType: string, filename: string) {
   const fromName = filename.match(/\.[a-z0-9]+$/i)?.[0]?.toLowerCase();
   if (fromName && [".jpg", ".jpeg", ".png", ".webp"].includes(fromName)) {
@@ -37,11 +45,25 @@ function imageExtension(mimeType: string, filename: string) {
 }
 
 function getS3Config() {
-  if (!env.S3_FARM_IMAGES_BUCKET || !env.AWS_REGION) return null;
+  const bucket = env.S3_FARM_IMAGES_BUCKET;
+  const region = env.AWS_REGION;
+  const accessKeyId = env.AWS_ACCESS_KEY_ID;
+  const secretAccessKey = env.AWS_SECRET_ACCESS_KEY;
+  if (
+    !bucket ||
+    !region ||
+    !accessKeyId ||
+    !secretAccessKey
+  ) {
+    return null;
+  }
   return {
-    bucket: env.S3_FARM_IMAGES_BUCKET,
-    region: env.AWS_REGION,
+    bucket: normalizeBucketName(bucket),
+    region,
     prefix: trimSlashes(env.S3_FARM_IMAGES_PREFIX),
+    accessKeyId,
+    secretAccessKey,
+    sessionToken: env.AWS_SESSION_TOKEN,
   };
 }
 
@@ -51,14 +73,11 @@ function getS3Client() {
   if (!s3Client) {
     s3Client = new S3Client({
       region: config.region,
-      credentials:
-        env.AWS_ACCESS_KEY_ID && env.AWS_SECRET_ACCESS_KEY
-          ? {
-              accessKeyId: env.AWS_ACCESS_KEY_ID,
-              secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
-              sessionToken: env.AWS_SESSION_TOKEN,
-            }
-          : undefined,
+      credentials: {
+        accessKeyId: config.accessKeyId,
+        secretAccessKey: config.secretAccessKey,
+        sessionToken: config.sessionToken,
+      },
     });
   }
   return s3Client;

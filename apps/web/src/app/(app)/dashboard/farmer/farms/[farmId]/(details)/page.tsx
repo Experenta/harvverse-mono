@@ -14,7 +14,7 @@ import { Skeleton } from "@harvverse-monorepo/ui/components/skeleton";
 
 import { queryClient, trpc } from "@/utils/trpc";
 import RiskScorePreview, { type RiskScoreData } from "@/components/risk-score-preview";
-import { eudrTone, extractEudrScreening, type EudrRiskStatus } from "@/lib/eudr-screening";
+import { eudrGrade, eudrGradeTone, extractEudrScreening } from "@/lib/eudr-screening";
 
 const PolygonDisplayMap = dynamic(() => import("@/components/polygon-display-map"), {
   ssr: false,
@@ -53,13 +53,6 @@ function riskScoreFromFarm(farm: {
     hasSentinel: stored.hasSentinel ?? false,
     eudrScreening: extractEudrScreening(farm.scoreBreakdown),
   };
-}
-
-function eudrLabel(t: ReturnType<typeof useTranslations<"farm">>, status: EudrRiskStatus | null) {
-  if (status === "low_risk") return t("eudr_prelim_passed");
-  if (status === "review_required") return t("eudr_prelim_review");
-  if (status === "high_risk") return t("eudr_prelim_failed");
-  return t("eudr_prelim_inconclusive");
 }
 
 function farmImageSrc(image: { url?: string | null; data?: string | null; mimeType: string }) {
@@ -360,14 +353,14 @@ export default function FarmerFarmDetailPage() {
                   ) : null}
                   {(() => {
                     const screening = extractEudrScreening(farm.scoreBreakdown);
-                    const status = screening?.status ?? "unknown";
-                    const tone = eudrTone(status);
+                    const grade = eudrGrade(screening);
+                    const tone = eudrGradeTone(grade);
                     const EudrIcon =
-                      status === "low_risk"
+                      grade === "excellent" || grade === "good"
                         ? CheckCircle2
-                        : status === "high_risk"
+                        : grade === "poor"
                           ? XCircle
-                          : status === "review_required"
+                          : grade === "medium"
                             ? AlertTriangle
                             : HelpCircle;
                     return (
@@ -375,11 +368,11 @@ export default function FarmerFarmDetailPage() {
                         <div className="mb-2 flex items-center gap-2">
                           <EudrIcon className={`size-5 ${tone.text}`} />
                           <p className="font-trenda font-bold text-white">
-                            {eudrLabel(t, status)}
+                            {t(`eudr_grade_${grade}`)}
                           </p>
                         </div>
                         <p className="text-sm text-white/75">
-                          {t("eudr_prelim_helper")}
+                          {t(`eudr_grade_summary_${grade}`)}
                         </p>
                         {screening?.confidence ? (
                           <p className="mt-3 text-xs font-bold uppercase tracking-[0.12em] text-white/45">

@@ -50,7 +50,6 @@ const editFarmSchema = z.object({
   varieties: z.array(z.string()).min(1, "Select at least one variety"),
   certifications: z.array(z.string()).optional(),
   description: z.string().optional(),
-  photoUrl: z.string().url().optional().or(z.literal("")),
 });
 
 type EditFarmInput = z.input<typeof editFarmSchema>;
@@ -168,7 +167,6 @@ export default function EditFarmPage() {
       varieties: [],
       certifications: [],
       description: "",
-      photoUrl: "",
     },
   });
 
@@ -183,7 +181,6 @@ export default function EditFarmPage() {
       varieties: farm.varieties ?? [],
       certifications: farm.certifications ?? [],
       description: farm.description ?? "",
-      photoUrl: farm.photoUrls?.[0] ?? "",
     });
   }, [farm]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -199,7 +196,6 @@ export default function EditFarmPage() {
         varieties: values.varieties,
         certifications: values.certifications ?? [],
         description: values.description || undefined,
-        photoUrls: values.photoUrl ? [values.photoUrl] : [],
       },
     });
   }
@@ -390,20 +386,6 @@ export default function EditFarmPage() {
                         className="bg-black/20 border-white/10 text-white placeholder:text-white/20 min-h-[100px] text-sm"
                         {...field}
                       />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="photoUrl"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-white/80">{t("photo_url")}</FormLabel>
-                    <FormControl>
-                      <Input placeholder={t("photo_placeholder")} className={inputClasses} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
