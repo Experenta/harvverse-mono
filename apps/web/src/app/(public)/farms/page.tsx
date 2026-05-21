@@ -65,34 +65,14 @@ export default function PublicFarmsPage() {
       {/* Directory Section */}
       <section className="bg-[#001020] py-20 flex-1">
         <div className="mx-auto max-w-7xl px-4 md:px-6">
-          {/* Filters Placeholder */}
-          <div className="flex flex-wrap items-center gap-4 mb-12 pb-8 border-b border-white/10">
-             <div className="px-4 py-2 bg-white/5 rounded-lg border border-white/10 text-sm font-bold text-white/60 cursor-pointer hover:border-primary transition-colors flex items-center gap-2">
-               Country <span className="text-[10px]">▾</span>
-             </div>
-             <div className="px-4 py-2 bg-white/5 rounded-lg border border-white/10 text-sm font-bold text-white/60 cursor-pointer hover:border-primary transition-colors flex items-center gap-2">
-               Variety <span className="text-[10px]">▾</span>
-             </div>
-             <div className="px-4 py-2 bg-white/5 rounded-lg border border-white/10 text-sm font-bold text-white/60 cursor-pointer hover:border-primary transition-colors flex items-center gap-2">
-               Altitude <span className="text-[10px]">▾</span>
-             </div>
-             <div className="px-4 py-2 bg-white/5 rounded-lg border border-white/10 text-sm font-bold text-white/60 cursor-pointer hover:border-primary transition-colors flex items-center gap-2">
-               Score <span className="text-[10px]">▾</span>
-             </div>
-             <label className="flex items-center gap-2 cursor-pointer ml-auto">
-               <input type="checkbox" className="size-4 accent-primary" />
-               <span className="text-sm font-bold text-white/60">Available to invest</span>
-             </label>
-          </div>
-
           {isLoading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <Skeleton key={i} className="h-96 w-full rounded-3xl bg-white/5" />
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-8">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <Skeleton key={i} className="h-64 md:h-96 w-full rounded-2xl md:rounded-3xl bg-white/5" />
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-8">
               {farms?.map((farm) => (
                 <Link key={farm.id} href={`/farms/${farm.id}`}>
                   <FarmCard farm={farm as any} />

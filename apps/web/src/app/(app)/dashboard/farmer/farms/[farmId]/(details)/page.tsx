@@ -52,6 +52,7 @@ function riskScoreFromFarm(farm: {
     quarterlyNdvi: stored.quarterlyNdvi ?? [],
     hasSentinel: stored.hasSentinel ?? false,
     eudrScreening: extractEudrScreening(farm.scoreBreakdown),
+    dataQuality: stored.dataQuality ?? stored.breakdown?.dataQuality ?? null,
   };
 }
 
@@ -336,6 +337,32 @@ export default function FarmerFarmDetailPage() {
             {farm.riskScore != null ? (
               <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
                 <div className="space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-sm text-white/55">
+                      {runAnalysis.isPending
+                        ? t("score_refresh_running")
+                        : t("score_refresh_desc")}
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-9 border-[#67B9C1]/35 text-[#67B9C1] hover:bg-[#67B9C1]/10"
+                      onClick={retryAnalysis}
+                      disabled={runAnalysis.isPending}
+                    >
+                      {runAnalysis.isPending ? (
+                        <Loader2 className="mr-2 size-4 animate-spin" />
+                      ) : (
+                        <RotateCcw className="mr-2 size-4" />
+                      )}
+                      {t("score_refresh_btn")}
+                    </Button>
+                  </div>
+                  {analysisError ? (
+                    <p className="rounded-lg border border-yellow-300/20 bg-yellow-300/[0.06] px-3 py-2 text-xs text-yellow-100">
+                      {analysisError}
+                    </p>
+                  ) : null}
                   {riskScoreFromFarm(farm) ? (
                     <RiskScorePreview data={riskScoreFromFarm(farm)!} />
                   ) : null}

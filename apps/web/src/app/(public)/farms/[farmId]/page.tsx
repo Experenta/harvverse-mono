@@ -40,6 +40,7 @@ function riskScoreFromFarm(farm: any): RiskScoreData | null {
     quarterlyNdvi: stored.quarterlyNdvi ?? stored.breakdown?.quarterlyNdvi ?? [],
     hasSentinel: stored.hasSentinel ?? false,
     eudrScreening: extractEudrScreening(farm.scoreBreakdown),
+    dataQuality: stored.dataQuality ?? stored.breakdown?.dataQuality ?? null,
   };
 }
 

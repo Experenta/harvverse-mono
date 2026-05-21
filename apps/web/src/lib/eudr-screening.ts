@@ -92,14 +92,11 @@ export function eudrTone(status: EudrRiskStatus | null | undefined) {
 export function eudrGrade(screening: EudrScreening | null | undefined): EudrGrade {
   if (!screening || screening.status === "unknown") return "unknown";
   if (screening.status === "high_risk") return "poor";
-  const score = screening.score;
-  if (typeof score !== "number") {
-    return screening.status === "low_risk" ? "excellent" : "medium";
+  if (screening.status === "review_required") return "medium";
+  if (screening.status === "low_risk") {
+    return screening.confidence === "high" ? "excellent" : "good";
   }
-  if (score >= 80) return "excellent";
-  if (score >= 60) return "good";
-  if (score >= 40) return "medium";
-  return "poor";
+  return "unknown";
 }
 
 export function eudrGradeTone(grade: EudrGrade) {

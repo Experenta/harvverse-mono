@@ -195,7 +195,7 @@ function farmRiskPayload(result: Awaited<ReturnType<typeof computeRiskScore>>) {
     annualPrecipMm: annualPrecipMm != null ? String(annualPrecipMm) : null,
     avgTempC: avgTempC != null ? String(avgTempC) : null,
     scoreBreakdown: {
-      breakdown: result.breakdown,
+      breakdown: betaScoreBreakdown(result.breakdown),
       ndviMonths: result.ndviMonths,
       climateMonths: result.climateMonths,
       hasSentinel: result.hasSentinel,
@@ -203,8 +203,8 @@ function farmRiskPayload(result: Awaited<ReturnType<typeof computeRiskScore>>) {
       climateTrend: result.climateTrend,
       terrain: result.terrain,
       sentinel1: result.sentinel1,
-      jrcGfc2020: result.jrcGfc2020,
       eudrScreening: result.eudrScreening,
+      dataQuality: result.dataQuality,
     },
     updatedAt: new Date(),
   };
@@ -212,6 +212,13 @@ function farmRiskPayload(result: Awaited<ReturnType<typeof computeRiskScore>>) {
 
 function stableHash(value: unknown) {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
+}
+
+function betaScoreBreakdown(
+  breakdown: Awaited<ReturnType<typeof computeRiskScore>>["breakdown"],
+) {
+  const { jrcGfc2020: _hiddenForBeta, ...publicBreakdown } = breakdown;
+  return publicBreakdown;
 }
 
 function monthDate(value: string) {
@@ -244,6 +251,7 @@ async function recordCopernicusEvidence(params: {
     score: result.score,
     resultHash: result.hash,
     eudrScreening: result.eudrScreening,
+    dataQuality: result.dataQuality,
   });
 
   const [run] = await db
@@ -251,7 +259,7 @@ async function recordCopernicusEvidence(params: {
     .values({
       farmId,
       providerName,
-      providerVersion: "trustworthy-v1-stage1",
+      providerVersion: "trustworthy-v1-stage2",
       collectionId,
       timeRangeStart: start,
       timeRangeEnd: now,
@@ -259,7 +267,7 @@ async function recordCopernicusEvidence(params: {
       rawResponseHash: result.hash,
       derivedMetrics: {
         score: result.score,
-        breakdown: result.breakdown,
+        breakdown: betaScoreBreakdown(result.breakdown),
         hasSentinel: result.hasSentinel,
         ndviMonths: result.ndviMonths,
         climateMonths: result.climateMonths,
@@ -267,9 +275,9 @@ async function recordCopernicusEvidence(params: {
         climateTrend: result.climateTrend,
         terrain: result.terrain,
         sentinel1: result.sentinel1,
-        jrcGfc2020: result.jrcGfc2020,
+        dataQuality: result.dataQuality,
       },
-      confidence: result.eudrScreening.confidence,
+      confidence: result.dataQuality.overallConfidence,
       generatedReportHash,
       status: "complete",
     })
@@ -341,12 +349,12 @@ async function recordCopernicusEvidence(params: {
     {
       runId: run.id,
       farmId,
-      providerName: result.jrcGfc2020.provider,
-      collectionId: "jrc-gfc2020",
+      providerName: "harvverse_scoring_v1",
+      collectionId: "score-data-quality",
       observedAt: null,
-      metricType: "jrc_gfc2020_readiness",
-      metrics: result.jrcGfc2020,
-      confidence: result.jrcGfc2020.confidence,
+      metricType: "score_data_quality",
+      metrics: result.dataQuality,
+      confidence: result.dataQuality.overallConfidence,
     },
   ];
 

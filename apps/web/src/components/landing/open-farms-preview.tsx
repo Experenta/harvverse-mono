@@ -43,13 +43,13 @@ export function LandingOpenFarmsPreview() {
         </div>
 
         {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <Skeleton className="h-96 w-full rounded-3xl bg-white/5" />
-            <Skeleton className="h-96 w-full rounded-3xl bg-white/5" />
-            <Skeleton className="h-96 w-full rounded-3xl bg-white/5" />
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-8">
+            <Skeleton className="h-64 md:h-96 w-full rounded-2xl md:rounded-3xl bg-white/5" />
+            <Skeleton className="h-64 md:h-96 w-full rounded-2xl md:rounded-3xl bg-white/5" />
+            <Skeleton className="h-64 md:h-96 w-full rounded-2xl md:rounded-3xl bg-white/5" />
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-8 mb-12">
             {farmsToShow.map((farm) => (
               <FarmCard key={farm.id} farm={farm as any} />
             ))}

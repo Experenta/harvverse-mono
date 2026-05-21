@@ -64,6 +64,23 @@ export interface JrcGfc2020Screening {
   limitations: string[];
 }
 
+export interface ScoreDataQuality {
+  overallConfidence: EvidenceConfidence;
+  completenessPct: number;
+  usableNdviMonths: number;
+  climateMonths: number;
+  averageValidPixelCoverage: number | null;
+  providerCoverage: {
+    sentinel2: EvidenceConfidence;
+    climate: EvidenceConfidence;
+    terrain: EvidenceConfidence;
+    sentinel1: EvidenceConfidence;
+    forestBaseline: EvidenceConfidence;
+  };
+  warnings: string[];
+  limitations: string[];
+}
+
 export type EudrRiskStatus =
   | "low_risk"
   | "review_required"
@@ -103,6 +120,7 @@ export interface ScoreBreakdown {
   terrain: TerrainMetrics;
   sentinel1: Sentinel1Metrics;
   jrcGfc2020: JrcGfc2020Screening;
+  dataQuality: ScoreDataQuality;
   total: number;
 }
 
@@ -119,6 +137,7 @@ export interface RiskScoreResult {
   sentinel1: Sentinel1Metrics;
   jrcGfc2020: JrcGfc2020Screening;
   eudrScreening: EudrScreening;
+  dataQuality: ScoreDataQuality;
   // Manual/verifier compliance value only. Satellite screening must not set this.
   eudrCompliant: boolean | null;
 }
@@ -871,6 +890,12 @@ function buildSentinel1Metrics(
   const previousVh = validVh.length >= 2 ? validVh.at(-2) ?? null : null;
   const vhDelta =
     latestVh != null && previousVh != null ? latestVh - previousVh : null;
+  const trailingVh =
+    validVh.length >= 5 ? average(validVh.slice(-5, -1)) : null;
+  const belowTrailingAverage =
+    latestVh != null && trailingVh != null && trailingVh > 0
+      ? latestVh < trailingVh * 0.7
+      : false;
   const vvAverage = average(validVv);
 
   return {
@@ -878,7 +903,9 @@ function buildSentinel1Metrics(
     vvQuarterly: stats.vvQuarterly,
     vhQuarterly: stats.vhQuarterly,
     structuralChangeSignal:
-      vhDelta != null && vhDelta <= -0.03 ? "possible_change" : "none",
+      vhDelta != null && vhDelta <= -0.03 && belowTrailingAverage
+        ? "possible_change"
+        : "none",
     soilMoistureProxy:
       vvAverage == null
         ? "unknown"
@@ -890,7 +917,7 @@ function buildSentinel1Metrics(
     confidence: validVh.length >= 4 && validVv.length >= 4 ? "medium" : "low",
     limitations: [
       "Sentinel-1 backscatter is a structural/moisture proxy and not a direct ground measurement.",
-      "Interpret radar changes with farm context, terrain, and optical coverage.",
+      "Single-quarter radar movement is noisy; structural change is flagged only when the latest quarter is also materially below the recent trailing average.",
     ],
   };
 }
@@ -902,8 +929,112 @@ function buildJrcPlaceholder(): JrcGfc2020Screening {
     post2020LossSignal: "unknown",
     confidence: "none",
     limitations: [
-      "JRC Global Forest Cover 2020 intersection is not enabled yet.",
-      "Until JRC/post-2020 loss evidence is available, automatic EUDR screening remains preliminary.",
+      "Automated forest-loss evidence is not included in the beta screening.",
+      "Manual review is required before treating the EUDR signal as final.",
+    ],
+  };
+}
+
+function confidenceRank(confidence: EvidenceConfidence) {
+  return ({ none: 0, low: 1, medium: 2, high: 3 } as const)[confidence];
+}
+
+function confidenceFromRank(rank: number): EvidenceConfidence {
+  if (rank >= 3) return "high";
+  if (rank >= 2) return "medium";
+  if (rank >= 1) return "low";
+  return "none";
+}
+
+function buildScoreDataQuality(params: {
+  hasSentinel: boolean;
+  validNdvi: number[];
+  climateMonths: ClimateMonth[];
+  averageValidPixelCoverage: number | null;
+  terrain: TerrainMetrics;
+  sentinel1: Sentinel1Metrics;
+  jrcGfc2020: JrcGfc2020Screening;
+}): ScoreDataQuality {
+  const sentinel2Confidence: EvidenceConfidence =
+    !params.hasSentinel || params.validNdvi.length === 0
+      ? "none"
+      : params.validNdvi.length >= 18 &&
+          params.averageValidPixelCoverage != null &&
+          params.averageValidPixelCoverage >= 0.5
+        ? "high"
+        : (params.validNdvi.length >= 18 &&
+            params.averageValidPixelCoverage == null) ||
+            (params.validNdvi.length >= 6 &&
+              params.averageValidPixelCoverage != null &&
+              params.averageValidPixelCoverage >= 0.35)
+          ? "medium"
+          : "low";
+
+  const climateConfidence: EvidenceConfidence =
+    params.climateMonths.length >= 24
+      ? "medium"
+      : params.climateMonths.length >= 12
+        ? "low"
+        : "none";
+
+  const forestBaselineConfidence = params.jrcGfc2020.confidence;
+  const providerCoverage = {
+    sentinel2: sentinel2Confidence,
+    climate: climateConfidence,
+    terrain: params.terrain.confidence,
+    sentinel1: params.sentinel1.confidence,
+    forestBaseline: forestBaselineConfidence,
+  };
+
+  const weightedCompleteness =
+    (confidenceRank(providerCoverage.sentinel2) / 3) * 30 +
+    (confidenceRank(providerCoverage.climate) / 3) * 25 +
+    (confidenceRank(providerCoverage.terrain) / 3) * 15 +
+    (confidenceRank(providerCoverage.sentinel1) / 3) * 10 +
+    (confidenceRank(providerCoverage.forestBaseline) / 3) * 20;
+
+  const warnings: string[] = [];
+  if (sentinel2Confidence === "none") {
+    warnings.push("Sentinel-2 NDVI evidence is unavailable; vegetation scoring is omitted.");
+  } else if (sentinel2Confidence === "low") {
+    warnings.push("Sentinel-2 NDVI evidence is sparse or low coverage.");
+  } else if (params.averageValidPixelCoverage == null) {
+    warnings.push("Sentinel-2 valid pixel coverage was not reported by the provider.");
+  }
+  if (params.sentinel1.confidence === "none") {
+    warnings.push("Sentinel-1 radar evidence is unavailable.");
+  }
+  if (forestBaselineConfidence === "none") {
+    warnings.push("Forest-loss evidence requires manual review.");
+  }
+  if (climateConfidence !== "medium") {
+    warnings.push("Climate archive evidence is incomplete.");
+  }
+
+  const minProviderRank = Math.min(
+    confidenceRank(providerCoverage.sentinel2),
+    confidenceRank(providerCoverage.climate),
+    confidenceRank(providerCoverage.forestBaseline),
+  );
+  const overallConfidence = confidenceFromRank(
+    Math.min(
+      Math.floor(weightedCompleteness >= 80 ? 3 : weightedCompleteness >= 55 ? 2 : weightedCompleteness >= 30 ? 1 : 0),
+      minProviderRank === 0 ? 1 : minProviderRank,
+    ),
+  );
+
+  return {
+    overallConfidence,
+    completenessPct: Math.round(weightedCompleteness),
+    usableNdviMonths: params.validNdvi.length,
+    climateMonths: params.climateMonths.length,
+    averageValidPixelCoverage: params.averageValidPixelCoverage,
+    providerCoverage,
+    warnings,
+    limitations: [
+      "This score is a preliminary farm screening signal, not a legal compliance certificate.",
+      "EUDR confidence remains capped until manual forest-loss review is complete.",
+      "Ground-truth agronomic validation is still required for production lending or export decisions.",
     ],
   };
 }
@@ -919,7 +1050,7 @@ function buildEudrScreening(params: {
 }): EudrScreening {
   const sharedLimitations = [
     "Automatic screening is not a legal EUDR deforestation determination.",
-    "JRC Global Forest Cover 2020 and post-2020 forest-loss intersection are required for stronger EUDR evidence.",
+    "Manual forest-loss review is required for stronger EUDR evidence.",
   ];
 
   if (params.manualCompliance === true) {
@@ -1009,10 +1140,10 @@ function buildEudrScreening(params: {
     return {
       status: "review_required",
       score: 35,
-      confidence: "medium",
+      confidence: params.jrcGfc2020.confidence === "none" ? "low" : "medium",
       manualCompliance: null,
       source: "sentinel_2_screening",
-      reasons: ["Forest baseline or post-2020 change evidence requires review."],
+      reasons: ["Forest-loss evidence requires review."],
       limitations: sharedLimitations,
       cutoffDate: "2020-12-31",
       ndviAverage: params.ndviAverage,
@@ -1053,13 +1184,13 @@ function buildEudrScreening(params: {
 
   return {
     status: "review_required",
-    score: ndviAverage >= 0.5 ? 60 : 50,
-    confidence: "medium",
+    score: ndviAverage >= 0.5 ? 50 : 45,
+    confidence: "low",
     manualCompliance: null,
     source: "sentinel_2_screening",
     reasons:
       ndviAverage >= 0.5
-        ? ["Sentinel-2 NDVI shows a persistent vegetation signal, but forest baseline review is still required."]
+        ? ["Sentinel-2 NDVI shows a persistent vegetation signal, but manual review is still required."]
         : ["Sentinel-2 NDVI does not show a clear low-vegetation signal, but review is still required."],
     limitations: sharedLimitations,
     cutoffDate: "2020-12-31",
@@ -1184,6 +1315,15 @@ export async function computeRiskScore(params: {
   const climateTrend = buildClimateTrendMetrics(climateMonths);
   const sentinel1 = buildSentinel1Metrics(sentinel1Stats);
   const jrcGfc2020 = buildJrcPlaceholder();
+  const dataQuality = buildScoreDataQuality({
+    hasSentinel,
+    validNdvi,
+    climateMonths,
+    averageValidPixelCoverage,
+    terrain,
+    sentinel1,
+    jrcGfc2020,
+  });
 
   const eudrScreening = buildEudrScreening({
     manualCompliance: params.eudrCompliant,
@@ -1213,6 +1353,7 @@ export async function computeRiskScore(params: {
     terrain,
     sentinel1,
     jrcGfc2020,
+    dataQuality,
     total: 0,
   };
 
@@ -1257,6 +1398,7 @@ export async function computeRiskScore(params: {
     terrain,
     sentinel1,
     jrcGfc2020,
+    dataQuality,
     manualEudrCompliant: params.eudrCompliant,
     eudrScreening: {
       status: eudrScreening.status,
@@ -1285,6 +1427,7 @@ export async function computeRiskScore(params: {
     sentinel1,
     jrcGfc2020,
     eudrScreening,
+    dataQuality,
     eudrCompliant: params.eudrCompliant,
   };
 }
