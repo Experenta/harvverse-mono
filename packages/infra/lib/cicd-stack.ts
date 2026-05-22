@@ -107,7 +107,15 @@ export class CicdStack extends cdk.Stack {
 		this.buildProject.addToRolePolicy(
 			new iam.PolicyStatement({
 				actions: ["iam:PassRole"],
-				resources: [props.migrateExecutionRole.roleArn],
+				resources: [
+					props.migrateExecutionRole.roleArn,
+					props.migrateTaskDefinition.taskRole.roleArn,
+				],
+				conditions: {
+					StringEquals: {
+						"iam:PassedToService": "ecs-tasks.amazonaws.com",
+					},
+				},
 			}),
 		);
 
