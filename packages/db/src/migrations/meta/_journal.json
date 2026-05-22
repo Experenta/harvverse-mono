@@ -5,57 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1778607768412,
-      "tag": "0000_deep_ultimatum",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1778686381094,
-      "tag": "0001_nifty_ultimatum",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1778706138582,
-      "tag": "0002_omniscient_imperial_guard",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1778772669060,
-      "tag": "0003_mushy_vampiro",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1747267200000,
-      "tag": "0004_schema_v2",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1779225045835,
-      "tag": "0005_tiny_zarda",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1779426000000,
-      "tag": "0006_lots_cycle_notes",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "7",
-      "when": 1779424789097,
-      "tag": "0007_wet_bloodaxe",
+      "when": 1779471661805,
+      "tag": "0000_misty_black_tarantula",
       "breakpoints": true
     }
   ]

@@ -3,8 +3,8 @@ CREATE TYPE "public"."chain_key" AS ENUM('hardhat', 'celoSepolia', 'baseSepolia'
 CREATE TYPE "public"."chat_role" AS ENUM('user', 'assistant');--> statement-breakpoint
 CREATE TYPE "public"."custody_type" AS ENUM('demo_escrow', 'demo_collapsed_operator');--> statement-breakpoint
 CREATE TYPE "public"."evidence_status" AS ENUM('recorded', 'attested', 'revoked');--> statement-breakpoint
-CREATE TYPE "public"."evidence_type" AS ENUM('photo', 'sensor_snapshot', 'receipt', 'agronomist_review', 'harvest_result', 'demo_fixture');--> statement-breakpoint
-CREATE TYPE "public"."lot_status" AS ENUM('available', 'reserved', 'active', 'settled', 'coming_soon');--> statement-breakpoint
+CREATE TYPE "public"."evidence_type" AS ENUM('photo', 'sensor_snapshot', 'receipt', 'agronomist_review', 'harvest_result', 'demo_fixture', 'satellite_report', 'eudr_screening', 'ndvi_milestone_check', 'sar_milestone_check');--> statement-breakpoint
+CREATE TYPE "public"."lot_status" AS ENUM('draft', 'available', 'reserved', 'active', 'settled', 'coming_soon');--> statement-breakpoint
 CREATE TYPE "public"."partnership_status" AS ENUM('active', 'milestones_attested', 'awaiting_settlement', 'settled', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."plan_status" AS ENUM('draft', 'approved_for_demo', 'revoked');--> statement-breakpoint
 CREATE TYPE "public"."proposal_status" AS ENUM('pending', 'submitted', 'signed', 'expired', 'failed');--> statement-breakpoint
@@ -109,6 +109,49 @@ CREATE TABLE "conversations" (
 	CONSTRAINT "conversations_conversation_id_unique" UNIQUE("conversation_id")
 );
 --> statement-breakpoint
+CREATE TABLE "copernicus_alerts" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"farm_id" integer NOT NULL,
+	"run_id" integer,
+	"type" varchar(60) NOT NULL,
+	"severity" varchar(20) NOT NULL,
+	"status" varchar(20) DEFAULT 'open' NOT NULL,
+	"message" text NOT NULL,
+	"metrics" jsonb,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"resolved_at" timestamp
+);
+--> statement-breakpoint
+CREATE TABLE "copernicus_observations" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"run_id" integer NOT NULL,
+	"farm_id" integer NOT NULL,
+	"provider_name" text NOT NULL,
+	"collection_id" text,
+	"observed_at" timestamp,
+	"metric_type" varchar(60) NOT NULL,
+	"metrics" jsonb NOT NULL,
+	"confidence" varchar(20) DEFAULT 'unknown' NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "copernicus_runs" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"farm_id" integer NOT NULL,
+	"provider_name" text NOT NULL,
+	"provider_version" text,
+	"collection_id" text,
+	"time_range_start" timestamp,
+	"time_range_end" timestamp,
+	"polygon_hash" varchar(64) NOT NULL,
+	"raw_response_hash" varchar(64),
+	"derived_metrics" jsonb,
+	"confidence" varchar(20) DEFAULT 'unknown' NOT NULL,
+	"generated_report_hash" varchar(64) NOT NULL,
+	"status" varchar(30) DEFAULT 'complete' NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "custody_accounts" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"name" text NOT NULL,
@@ -119,6 +162,21 @@ CREATE TABLE "custody_accounts" (
 	"notes" text,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "eudr_assessments" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"farm_id" integer NOT NULL,
+	"run_id" integer,
+	"status" varchar(32) NOT NULL,
+	"score" integer,
+	"confidence" varchar(20) DEFAULT 'unknown' NOT NULL,
+	"source" varchar(60) DEFAULT 'unassessed' NOT NULL,
+	"cutoff_date" varchar(10) DEFAULT '2020-12-31' NOT NULL,
+	"reasons" text[],
+	"limitations" text[],
+	"assessment_hash" varchar(64) NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "evidence_records" (
@@ -138,6 +196,22 @@ CREATE TABLE "evidence_records" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "farm_images" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"farm_id" integer NOT NULL,
+	"data" text,
+	"storage_provider" varchar(20) DEFAULT 'database' NOT NULL,
+	"storage_bucket" text,
+	"storage_key" text,
+	"storage_region" varchar(40),
+	"checksum_sha256" varchar(64),
+	"mime_type" varchar(50) NOT NULL,
+	"filename" text NOT NULL,
+	"size_bytes" integer,
+	"is_primary" boolean DEFAULT false,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "farms" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"farmer_id" integer NOT NULL,
@@ -150,10 +224,18 @@ CREATE TABLE "farms" (
 	"varieties" text[],
 	"description" text,
 	"certifications" text[],
-	"photo_url" text,
+	"photo_urls" text[],
 	"latitude" numeric,
 	"longitude" numeric,
 	"polygon" jsonb,
+	"risk_score" integer,
+	"eudr_compliant" boolean,
+	"score_hash" varchar(64),
+	"score_updated_at" timestamp,
+	"ndvi_average" numeric,
+	"annual_precip_mm" numeric,
+	"avg_temp_c" numeric,
+	"score_breakdown" jsonb,
 	"coe_score" numeric,
 	"verified" boolean DEFAULT false,
 	"created_at" timestamp DEFAULT now() NOT NULL,
@@ -174,11 +256,14 @@ CREATE TABLE "lots" (
 	"area_manzanas" numeric,
 	"gps_lat" numeric,
 	"gps_lng" numeric,
+	"num_trees" integer,
+	"plant_age_years" integer,
 	"sca_score_tenths" integer,
 	"harvest_year" integer,
+	"cycle_notes" text,
 	"profile" text,
 	"summary" text,
-	"cover" text,
+	"cover_images" text[],
 	"status" "lot_status" DEFAULT 'available' NOT NULL,
 	"active_plan_code" varchar(30),
 	"risk_score" integer,
@@ -186,6 +271,7 @@ CREATE TABLE "lots" (
 	"score_hash" varchar(64),
 	"score_version" integer DEFAULT 1,
 	"score_updated_at" timestamp,
+	"polygon" jsonb,
 	"onchain_lot_id" integer,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
@@ -254,6 +340,7 @@ CREATE TABLE "proposals" (
 	"plan_id" integer NOT NULL,
 	"user_id" integer NOT NULL,
 	"wallet_address" text NOT NULL,
+	"message" text,
 	"partnership_type" varchar(20) DEFAULT 'phygital' NOT NULL,
 	"status" "proposal_status" DEFAULT 'pending' NOT NULL,
 	"revenue_cents" integer NOT NULL,
@@ -307,13 +394,29 @@ CREATE TABLE "settlements" (
 --> statement-breakpoint
 CREATE TABLE "users" (
 	"id" serial PRIMARY KEY NOT NULL,
+	"clerk_id" text,
+	"email" text,
 	"display_name" text NOT NULL,
 	"role" "user_role" NOT NULL,
-	"wallet_address" text NOT NULL,
+	"wallet_address" text,
+	"phone" text,
+	"country" text,
 	"status" "user_status" DEFAULT 'active' NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "users_clerk_id_unique" UNIQUE("clerk_id"),
 	CONSTRAINT "users_wallet_address_unique" UNIQUE("wallet_address")
+);
+--> statement-breakpoint
+CREATE TABLE "waitlist_entries" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"full_name" text NOT NULL,
+	"email" text NOT NULL,
+	"country" text NOT NULL,
+	"investment_range" text NOT NULL,
+	"how_heard" text,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "waitlist_entries_email_unique" UNIQUE("email")
 );
 --> statement-breakpoint
 CREATE TABLE "wallet_sessions" (
@@ -330,13 +433,20 @@ CREATE TABLE "wallet_sessions" (
 	CONSTRAINT "wallet_sessions_session_id_hash_unique" UNIQUE("session_id_hash")
 );
 --> statement-breakpoint
-DROP TABLE "todos" CASCADE;--> statement-breakpoint
 ALTER TABLE "agent_events" ADD CONSTRAINT "agent_events_proposal_id_proposals_id_fk" FOREIGN KEY ("proposal_id") REFERENCES "public"."proposals"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "chain_transactions" ADD CONSTRAINT "chain_transactions_related_proposal_id_proposals_id_fk" FOREIGN KEY ("related_proposal_id") REFERENCES "public"."proposals"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "chain_transactions" ADD CONSTRAINT "chain_transactions_related_partnership_id_partnerships_id_fk" FOREIGN KEY ("related_partnership_id") REFERENCES "public"."partnerships"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "chain_transactions" ADD CONSTRAINT "chain_transactions_related_settlement_id_settlements_id_fk" FOREIGN KEY ("related_settlement_id") REFERENCES "public"."settlements"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "copernicus_alerts" ADD CONSTRAINT "copernicus_alerts_farm_id_farms_id_fk" FOREIGN KEY ("farm_id") REFERENCES "public"."farms"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "copernicus_alerts" ADD CONSTRAINT "copernicus_alerts_run_id_copernicus_runs_id_fk" FOREIGN KEY ("run_id") REFERENCES "public"."copernicus_runs"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "copernicus_observations" ADD CONSTRAINT "copernicus_observations_run_id_copernicus_runs_id_fk" FOREIGN KEY ("run_id") REFERENCES "public"."copernicus_runs"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "copernicus_observations" ADD CONSTRAINT "copernicus_observations_farm_id_farms_id_fk" FOREIGN KEY ("farm_id") REFERENCES "public"."farms"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "copernicus_runs" ADD CONSTRAINT "copernicus_runs_farm_id_farms_id_fk" FOREIGN KEY ("farm_id") REFERENCES "public"."farms"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "eudr_assessments" ADD CONSTRAINT "eudr_assessments_farm_id_farms_id_fk" FOREIGN KEY ("farm_id") REFERENCES "public"."farms"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "eudr_assessments" ADD CONSTRAINT "eudr_assessments_run_id_copernicus_runs_id_fk" FOREIGN KEY ("run_id") REFERENCES "public"."copernicus_runs"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "evidence_records" ADD CONSTRAINT "evidence_records_partnership_id_partnerships_id_fk" FOREIGN KEY ("partnership_id") REFERENCES "public"."partnerships"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "evidence_records" ADD CONSTRAINT "evidence_records_attester_user_id_users_id_fk" FOREIGN KEY ("attester_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "farm_images" ADD CONSTRAINT "farm_images_farm_id_farms_id_fk" FOREIGN KEY ("farm_id") REFERENCES "public"."farms"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "farms" ADD CONSTRAINT "farms_farmer_id_users_id_fk" FOREIGN KEY ("farmer_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "lots" ADD CONSTRAINT "lots_farm_id_farms_id_fk" FOREIGN KEY ("farm_id") REFERENCES "public"."farms"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "partnerships" ADD CONSTRAINT "partnerships_proposal_id_proposals_id_fk" FOREIGN KEY ("proposal_id") REFERENCES "public"."proposals"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -363,10 +473,22 @@ CREATE INDEX "contract_deployments_chain_contract_idx" ON "contract_deployments"
 CREATE INDEX "conversations_conversation_id_idx" ON "conversations" USING btree ("conversation_id");--> statement-breakpoint
 CREATE INDEX "conversations_lot_code_idx" ON "conversations" USING btree ("lot_code");--> statement-breakpoint
 CREATE INDEX "conversations_lot_code_updated_at_idx" ON "conversations" USING btree ("lot_code","updated_at");--> statement-breakpoint
+CREATE INDEX "copernicus_alerts_farm_status_idx" ON "copernicus_alerts" USING btree ("farm_id","status");--> statement-breakpoint
+CREATE INDEX "copernicus_alerts_run_idx" ON "copernicus_alerts" USING btree ("run_id");--> statement-breakpoint
+CREATE INDEX "copernicus_observations_run_idx" ON "copernicus_observations" USING btree ("run_id");--> statement-breakpoint
+CREATE INDEX "copernicus_observations_farm_metric_idx" ON "copernicus_observations" USING btree ("farm_id","metric_type");--> statement-breakpoint
+CREATE INDEX "copernicus_runs_farm_created_idx" ON "copernicus_runs" USING btree ("farm_id","created_at");--> statement-breakpoint
+CREATE INDEX "copernicus_runs_report_hash_idx" ON "copernicus_runs" USING btree ("generated_report_hash");--> statement-breakpoint
 CREATE INDEX "custody_accounts_chain_custody_idx" ON "custody_accounts" USING btree ("chain_key","custody_type");--> statement-breakpoint
 CREATE INDEX "custody_accounts_wallet_address_idx" ON "custody_accounts" USING btree ("wallet_address");--> statement-breakpoint
+CREATE INDEX "eudr_assessments_farm_created_idx" ON "eudr_assessments" USING btree ("farm_id","created_at");--> statement-breakpoint
+CREATE INDEX "eudr_assessments_run_idx" ON "eudr_assessments" USING btree ("run_id");--> statement-breakpoint
+CREATE INDEX "eudr_assessments_hash_idx" ON "eudr_assessments" USING btree ("assessment_hash");--> statement-breakpoint
 CREATE INDEX "evidence_records_partnership_milestone_idx" ON "evidence_records" USING btree ("partnership_id","milestone_number");--> statement-breakpoint
 CREATE INDEX "evidence_records_artifact_hash_idx" ON "evidence_records" USING btree ("artifact_hash");--> statement-breakpoint
+CREATE INDEX "farm_images_farm_id_idx" ON "farm_images" USING btree ("farm_id");--> statement-breakpoint
+CREATE INDEX "farm_images_primary_idx" ON "farm_images" USING btree ("farm_id","is_primary");--> statement-breakpoint
+CREATE INDEX "farm_images_storage_key_idx" ON "farm_images" USING btree ("storage_key");--> statement-breakpoint
 CREATE INDEX "farms_farmer_id_idx" ON "farms" USING btree ("farmer_id");--> statement-breakpoint
 CREATE INDEX "lots_farm_id_idx" ON "lots" USING btree ("farm_id");--> statement-breakpoint
 CREATE INDEX "lots_code_idx" ON "lots" USING btree ("code");--> statement-breakpoint

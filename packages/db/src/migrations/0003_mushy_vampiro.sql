@@ -1,1 +1,0 @@
-ALTER TABLE "lots" ADD COLUMN "polygon" jsonb;
