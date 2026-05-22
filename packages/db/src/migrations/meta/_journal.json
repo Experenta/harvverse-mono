@@ -43,6 +43,20 @@
       "when": 1779225045835,
       "tag": "0005_tiny_zarda",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1779426000000,
+      "tag": "0006_lots_cycle_notes",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1779424789097,
+      "tag": "0007_wet_bloodaxe",
+      "breakpoints": true
     }
   ]
 }
