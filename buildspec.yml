@@ -1,0 +1,75 @@
+# CodeBuild: build/push web + migrate images, run RDS migrations, emit ECS deploy artifact.
+# Pipeline order: Source → this build → ECS deploy (imagedefinitions.json).
+version: 0.2
+
+env:
+  variables:
+    DOCKERFILE_WEB: apps/web/Dockerfile
+    DOCKERFILE_MIGRATE: packages/db/Dockerfile.migrate
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 20
+  pre_build:
+    commands:
+      - echo "Logging in to Amazon ECR..."
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
+      - export IMAGE_TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION:-latest}
+      - echo "Image tag ${IMAGE_TAG}"
+  build:
+    commands:
+      - echo "Building web image (linux/arm64)..."
+      - >
+        docker build
+        --build-arg NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+        -t $ECR_REGISTRY/$ECR_WEB_REPOSITORY:$IMAGE_TAG
+        -f $DOCKERFILE_WEB
+        .
+      - docker tag $ECR_REGISTRY/$ECR_WEB_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_WEB_REPOSITORY:latest
+      - echo "Building migrate image (linux/arm64)..."
+      - docker build -t $ECR_REGISTRY/$ECR_MIGRATE_REPOSITORY:$IMAGE_TAG -f $DOCKERFILE_MIGRATE .
+      - docker tag $ECR_REGISTRY/$ECR_MIGRATE_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_MIGRATE_REPOSITORY:latest
+  post_build:
+    commands:
+      - echo "Pushing images to ECR..."
+      - docker push $ECR_REGISTRY/$ECR_WEB_REPOSITORY:$IMAGE_TAG
+      - docker push $ECR_REGISTRY/$ECR_WEB_REPOSITORY:latest
+      - docker push $ECR_REGISTRY/$ECR_MIGRATE_REPOSITORY:$IMAGE_TAG
+      - docker push $ECR_REGISTRY/$ECR_MIGRATE_REPOSITORY:latest
+      - echo "Running database migrations via ECS task..."
+      - |
+        TASK_ARN=$(aws ecs run-task \
+          --cluster "$ECS_CLUSTER" \
+          --task-definition "$MIGRATE_TASK_FAMILY" \
+          --launch-type FARGATE \
+          --network-configuration "awsvpcConfiguration={subnets=[$MIGRATE_SUBNETS],securityGroups=[$MIGRATE_SECURITY_GROUP],assignPublicIp=DISABLED}" \
+          --query 'tasks[0].taskArn' \
+          --output text)
+        if [ -z "$TASK_ARN" ] || [ "$TASK_ARN" = "None" ]; then
+          echo "ecs run-task did not return a task ARN" >&2
+          exit 1
+        fi
+        echo "Started migration task: $TASK_ARN"
+        aws ecs wait tasks-stopped --cluster "$ECS_CLUSTER" --tasks "$TASK_ARN"
+        EXIT_CODE=$(aws ecs describe-tasks \
+          --cluster "$ECS_CLUSTER" \
+          --tasks "$TASK_ARN" \
+          --query 'tasks[0].containers[0].exitCode' \
+          --output text)
+        STOP_REASON=$(aws ecs describe-tasks \
+          --cluster "$ECS_CLUSTER" \
+          --tasks "$TASK_ARN" \
+          --query 'tasks[0].stoppedReason' \
+          --output text)
+        echo "Migration task stopped. exitCode=${EXIT_CODE} reason=${STOP_REASON}"
+        if [ "$EXIT_CODE" != "0" ]; then
+          echo "Migration failed — aborting deploy. Logs: /harvverse/migrate" >&2
+          exit 1
+        fi
+      - printf '[{"name":"%s","imageUri":"%s"}]' "$ECS_CONTAINER_NAME" "$ECR_REGISTRY/$ECR_WEB_REPOSITORY:$IMAGE_TAG" > imagedefinitions.json
+      - cat imagedefinitions.json
+
+artifacts:
+  files:
+    - imagedefinitions.json

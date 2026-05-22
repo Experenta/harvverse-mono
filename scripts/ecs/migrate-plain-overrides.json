@@ -1,0 +1,12 @@
+{
+  "containerOverrides": [
+    {
+      "name": "migrate",
+      "command": [
+        "sh",
+        "-c",
+        "cd /app/packages/db && pnpm exec drizzle-kit migrate > /tmp/migrate.log 2>&1; ec=$?; cat /tmp/migrate.log; exit $ec"
+      ]
+    }
+  ]
+}

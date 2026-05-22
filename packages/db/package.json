@@ -16,7 +16,7 @@
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
     "db:studio": "drizzle-kit studio",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "node ./scripts/migrate-prod.mjs",
     "db:seed": "tsx src/seed.ts",
     "db:start": "docker compose up -d",
     "db:watch": "docker compose up",

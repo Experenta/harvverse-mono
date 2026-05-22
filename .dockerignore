@@ -1,0 +1,41 @@
+# Dependencies and build outputs
+node_modules
+**/node_modules
+.next
+**/.next
+dist
+**/dist
+cdk.out
+**/cdk.out
+out
+.turbo
+
+# Git and docs
+.git
+.gitignore
+**/*.md
+.docs
+
+# Local env and secrets
+.env
+.env.*
+**/.env
+**/.env.*
+
+# IDE and OS
+.vscode
+.idea
+.DS_Store
+*.log
+
+# Local database
+packages/db/docker-compose.yml
+packages/db/.data
+
+# Infra synth artifacts
+packages/infra/cdk.out
+
+# Contracts / Hardhat artifacts (not needed for web image)
+packages/contracts/artifacts
+packages/contracts/cache
+packages/contracts/typechain-types
