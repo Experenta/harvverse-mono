@@ -18,7 +18,7 @@ This document is the blueprint to implement before writing infrastructure or CI 
 6. [Phase 2 — ECR registry](#6-phase-2--ecr-registry)
 7. [Phase 3 — CI/CD (CodeBuild + CodePipeline)](#7-phase-3--cicd-codebuild--codepipeline)
 8. [Phase 4 — VPC, RDS, ECS Fargate, and S3](#8-phase-4--vpc-rds-ecs-fargate-and-s3)
-9. [Phase 5 — Database migrations](#9-phase-5--database-migrations)
+9. [Phase 5 — Database migrations (codebase first)](#9-phase-5--database-migrations-codebase-first)
 10. [Secrets and environment variables](#10-secrets-and-environment-variables)
 11. [CDK stack layout](#11-cdk-stack-layout)
 12. [Repository files to add](#12-repository-files-to-add)
@@ -39,7 +39,7 @@ This document is the blueprint to implement before writing infrastructure or CI 
 | 3 | CI/CD on `main` | CodePipeline triggered by push to `main` → build image → deploy to ECS |
 | 4 | ECS Fargate + VPC + RDS | Private networking so tasks reach RDS; public ALB for HTTPS traffic |
 | 5 | S3 farm images bucket | Private bucket + IAM for farm image upload/read/delete from the Next.js app (via presigned URLs) |
-| 6 | RDS migrations | Run existing `pnpm db:migrate` / `drizzle-kit migrate` safely on deploy |
+| 6 | RDS migrations | Codebase-first: commit generated SQL; run `pnpm db:migrate` / `drizzle-kit migrate` on deploy via ECS task |
 
 ### Out of scope (for now)
 
@@ -58,6 +58,7 @@ This document is the blueprint to implement before writing infrastructure or CI 
 - [Next.js Docker standalone example](https://github.com/vercel/next.js/tree/canary/examples/with-docker)
 - Existing infra package: `packages/infra`
 - Existing DB scripts: `packages/db` (`db:migrate`, `db:generate`, etc.)
+- Drizzle migration strategy: `.docs/drizzle/migrations.md` (codebase-first, Option 3)
 
 ---
 
@@ -125,16 +126,23 @@ Infrastructure implications:
 
 ### Database and migrations
 
+Harvverse uses a **codebase-first** migration strategy. The TypeScript Drizzle schema in `packages/db/src/schema/` is the **source of truth**; SQL migration files are generated from it, version-controlled, and applied to each environment with `drizzle-kit migrate`. See [§9](#9-phase-5--database-migrations-codebase-first) and `.docs/drizzle/migrations.md` (Drizzle **Option 3**).
+
 | Item | Detail |
 |------|--------|
+| Strategy | **Codebase first** — schema in TypeScript → `db:generate` → commit SQL → `db:migrate` in CI/RDS |
 | ORM | Drizzle ORM + `drizzle-kit` |
+| Schema | `packages/db/src/schema/` (declarative `pgTable` definitions) |
+| Generate command | Root: `pnpm db:generate` → `packages/db`: `drizzle-kit generate` |
 | Migrate command | Root: `pnpm db:migrate` → `packages/db`: `drizzle-kit migrate` |
-| Migrations path | `packages/db/src/migrations/` (13 migration files today) |
+| Migrations path | `packages/db/src/migrations/` (`*.sql`, `meta/*_snapshot.json`, `meta/_journal.json`) |
 | Local DB | `packages/db/docker-compose.yml` (Postgres 5432) |
-| Config | `packages/db/drizzle.config.ts` reads `../../apps/web/.env` for `DATABASE_URL` |
+| Config | `packages/db/drizzle.config.ts` — `schema: "./src/schema"`, `out: "./src/migrations"`; loads `DATABASE_URL` from env or `../../apps/web/.env` |
 | Production URL | Documented in `apps/web/.env.example` with `?sslmode=require` |
+| Local-only shortcut | `pnpm db:push` (`drizzle-kit push`) — rapid prototyping against local Docker Postgres only |
+| Not used | `drizzle-kit pull` (database-first) — schema is never pulled from RDS as source of truth |
 
-**Important:** Migrations must run against RDS **before or during** deploy, never against local docker-compose in CI.
+**Important:** Production and CI apply **committed migration files** via `db:migrate`, never `db:push`. Migrations must run against RDS **before** the web service deploy, never against local docker-compose in CI.
 
 ### In-process tRPC API and S3 (farm images)
 
@@ -856,22 +864,50 @@ In Clerk dashboard for production:
 
 ---
 
-## 9. Phase 5 — Database migrations
+## 9. Phase 5 — Database migrations (codebase first)
 
-### 9.1 Strategy
+This repository follows Drizzle **Option 3** from `.docs/drizzle/migrations.md`:
 
-Run migrations as a **one-off ECS Fargate task** in the same VPC/subnets as the web service, **before** updating the web service to the new image.
+1. **Source of truth:** TypeScript schema in `packages/db/src/schema/`.
+2. **Generate:** `drizzle-kit generate` diffs schema against the last snapshot and writes SQL + metadata under `packages/db/src/migrations/`.
+3. **Apply:** `drizzle-kit migrate` reads those files, compares against the `__drizzle_migrations` journal in Postgres, and runs only **unapplied** migrations.
+
+We deliberately **do not** use:
+
+| Approach | Drizzle option | Why not for Harvverse |
+|----------|----------------|------------------------|
+| Pull schema from DB | Option 1 (`drizzle-kit pull`) | Database-first; schema would drift from version control |
+| Push schema directly | Option 2 (`drizzle-kit push`) | No reviewable SQL files; unsafe for shared RDS |
+| Runtime migrate in web app | Option 4 (`migrate()` in app boot) | Race conditions with multiple ECS tasks; couples deploy to app startup |
+| External migration tools only | Options 5–6 | Unnecessary; `drizzle-kit migrate` is already the apply step |
+
+**Local vs production:**
+
+| Environment | Change schema | Apply to database |
+|-------------|---------------|-------------------|
+| **Local** (Docker Postgres) | Edit `packages/db/src/schema/*` | **`pnpm db:push`** while iterating; switch to generate/migrate before opening a PR |
+| **PR / review** | Same | **`pnpm db:generate`** → commit `*.sql` + `meta/*` → **`pnpm db:migrate`** locally to verify |
+| **Production RDS** | Same commits only | Pipeline runs **`pnpm db:migrate`** via one-off ECS task — **never `db:push`** |
+
+### 9.1 Deploy-time strategy
+
+Run migrations as a **one-off ECS Fargate task** in the same VPC/subnets as the web service, **before** updating the web service to the new image. The task runs `drizzle-kit migrate`, which applies any new SQL files bundled in the migrate image that RDS has not yet recorded in `__drizzle_migrations`.
 
 ```mermaid
 sequenceDiagram
+  participant Dev as Developer
+  participant Git as Git (main)
   participant PL as CodePipeline
   participant CB as CodeBuild
   participant ECS as ECS RunTask
   participant RDS as RDS
 
-  PL->>CB: Build + push image
+  Dev->>Dev: Edit schema → pnpm db:generate → commit SQL
+  Dev->>Git: Push migration files + app code
+  Git->>PL: Trigger pipeline
+  PL->>CB: Build + push web + migrate images
   CB->>ECS: RunTask (migrate)
-  ECS->>RDS: drizzle-kit migrate
+  ECS->>RDS: drizzle-kit migrate (unapplied SQL only)
   ECS-->>CB: Exit 0
   CB->>PL: Success
   PL->>ECS: Update web service
@@ -882,8 +918,69 @@ sequenceDiagram
 - Race conditions with multiple tasks starting simultaneously.
 - Failed migrations would block app boot with unclear recovery.
 - Separate task gives clear logs and pipeline fail-fast behavior.
+- Matches Option 3 (kit migrate at deploy time), not Option 4 (runtime migrator in app code).
 
-### 9.2 Migration Docker image
+### 9.2 Codebase-first developer workflow
+
+End-to-end flow for a schema change:
+
+```
+packages/db/src/schema/*.ts     ← edit tables, columns, indexes, enums
+        │
+        ▼
+pnpm db:generate                ← drizzle-kit generate (from repo root)
+        │
+        ▼
+packages/db/src/migrations/
+  ├── NNNN_name.sql             ← reviewable SQL (commit this)
+  └── meta/
+      ├── NNNN_snapshot.json    ← schema snapshot (commit this)
+      └── _journal.json         ← migration order (commit this)
+        │
+        ▼
+pnpm db:migrate                 ← verify locally against Docker Postgres
+        │
+        ▼
+git commit + push to main       ← pipeline applies same files to RDS
+```
+
+**Commands (repo root):**
+
+```bash
+# 1. Start local Postgres (if not already running)
+pnpm db:start
+
+# 2. After editing packages/db/src/schema/*
+pnpm db:generate
+
+# 3. Review generated SQL under packages/db/src/migrations/
+# 4. Apply locally to confirm
+pnpm db:migrate
+
+# 5. Commit schema + migration SQL + meta snapshots together
+```
+
+**What `drizzle-kit migrate` does on RDS** (same as local):
+
+1. Read all `*.sql` files in `packages/db/src/migrations/` (per `drizzle.config.ts` `out` path).
+2. Fetch applied migration IDs from `__drizzle_migrations` in Postgres.
+3. Run only migrations not yet recorded.
+4. Exit non-zero if any statement fails (pipeline must stop).
+
+**What gets committed:**
+
+- Always: schema changes, new/changed `*.sql`, updated `meta/*_snapshot.json`, updated `meta/_journal.json`.
+- Never: hand-edited RDS state without a matching migration file — production schema must always be reproducible from Git.
+
+**PR checklist for schema changes:**
+
+- [ ] Schema change is in `packages/db/src/schema/`, not ad-hoc SQL on RDS
+- [ ] `pnpm db:generate` was run and outputs are included in the PR
+- [ ] `pnpm db:migrate` succeeds against local Docker Postgres
+- [ ] Destructive changes (drops, renames) were reviewed; renames use `drizzle-kit generate` prompts when applicable
+- [ ] App code in the same PR is compatible with the new schema (deploy order: migrate task **then** web service)
+
+### 9.3 Migration Docker image
 
 **Option A (recommended):** Separate lightweight image `harvverse/migrate`.
 
@@ -897,7 +994,9 @@ sequenceDiagram
 
 **Option B:** Reuse web image with overridden command — heavier image, faster to implement initially.
 
-### 9.3 Drizzle config adjustment
+The migrate image must include the **full** `packages/db/src/migrations/` tree (SQL + `meta/`) at build time so `drizzle-kit migrate` sees the same files as developers committed. The existing `Dockerfile.migrate` uses `turbo prune @harvverse-monorepo/db` from repo root to copy the pruned `packages/db` workspace.
+
+### 9.4 Drizzle config adjustment
 
 Today `packages/db/drizzle.config.ts` loads env from `../../apps/web/.env`. For containers/CI:
 
@@ -909,7 +1008,18 @@ dotenv.config({
 
 In the migration task, set `DATABASE_URL` from Secrets Manager (no `.env` file needed). Drizzle Kit reads `process.env.DATABASE_URL` directly from `dbCredentials.url`.
 
-### 9.4 Migration task definition (CDK)
+Relevant `drizzle.config.ts` fields for this workflow:
+
+```ts
+export default defineConfig({
+  schema: "./src/schema",      // codebase-first source of truth
+  out: "./src/migrations",     // generated SQL + meta (bundled in migrate image)
+  dialect: "postgresql",
+  dbCredentials: { url: process.env.DATABASE_URL || "" },
+});
+```
+
+### 9.5 Migration task definition (CDK)
 
 | Field | Value |
 |-------|-------|
@@ -923,7 +1033,9 @@ In the migration task, set `DATABASE_URL` from Secrets Manager (no `.env` file n
 
 No ALB attachment. Task runs to completion (`desiredCount = 0` service not needed).
 
-### 9.5 Running migrations from CodeBuild
+Rebuild and push the **migrate** image on **every** pipeline run (same commit SHA tag as the web image) so the task always bundles the migration files from that commit.
+
+### 9.6 Running migrations from CodeBuild
 
 After pushing images, CodeBuild `post_build`:
 
@@ -945,18 +1057,25 @@ if [ "$EXIT_CODE" != "0" ]; then exit 1; fi
 
 Pipeline **must fail** if exit code ≠ 0 (prevents deploying app code against incompatible schema).
 
-### 9.6 Migration workflow for developers
+If a deploy includes **no** new migration files, `drizzle-kit migrate` is a no-op (exit 0) — safe to run on every deploy.
 
-| Scenario | Command |
-|----------|---------|
-| Create migration locally | `pnpm db:generate` (after schema change) |
-| Commit | Migration SQL + meta in `packages/db/src/migrations/` |
-| Deploy | Pipeline runs `db:migrate` automatically |
-| Manual run (break-glass) | `aws ecs run-task ...` with migrate task definition |
+### 9.7 Command reference by environment
 
-**Never** use `pnpm db:push` against production RDS — it is for local dev only.
+| Scenario | Command | Target database |
+|----------|---------|-----------------|
+| Rapid local iteration | `pnpm db:push` | Local Docker Postgres only |
+| Create migration from schema diff | `pnpm db:generate` | Writes files only (no DB) |
+| Apply migrations locally | `pnpm db:migrate` | Local Docker Postgres |
+| Commit | Schema + `src/migrations/*.sql` + `meta/*` | Git |
+| Deploy to RDS | Pipeline → ECS migrate task → `pnpm db:migrate` | RDS (via Secrets Manager `DATABASE_URL`) |
+| Manual run (break-glass) | `aws ecs run-task ...` with migrate task definition | RDS |
+| Inspect DB (dev) | `pnpm db:studio` | Local only |
 
-### 9.7 Future: seed data
+**Never** use `pnpm db:push` against production RDS — it bypasses versioned SQL and is for local prototyping only (Drizzle Option 2).
+
+**Never** use `drizzle-kit pull` to drive production schema — that inverts the source of truth (Drizzle Option 1).
+
+### 9.8 Future: seed data
 
 `pnpm db:seed` is **not** part of the default pipeline. Run manually via one-off task if needed for initial data.
 
@@ -1220,7 +1339,8 @@ Fixed cost drivers at MVP scale:
 - [ ] Add `apps/web/Dockerfile` with turbo prune + pnpm
 - [ ] Add `packages/db/Dockerfile.migrate`
 - [ ] Add `.dockerignore`
-- [ ] Adjust `drizzle.config.ts` for container env
+- [ ] Adjust `drizzle.config.ts` for container env (already supports `DATABASE_URL` / `DOTENV_PATH`)
+- [ ] Document codebase-first workflow: local `db:push` → PR `db:generate` + commit SQL → prod `db:migrate` via ECS
 - [ ] Update `farm-image-storage.ts` to support ECS task IAM role (no static keys)
 - [ ] Validate local `docker build` + `docker run`
 - [ ] Add `buildspec.yml`
@@ -1270,7 +1390,7 @@ Harvverse is a **Next.js 16 monorepo** that requires a **Node server** (Clerk + 
 1. **Containerize** with standalone output and turbo prune.
 2. **Provision AWS** with CDK (MVP sizing): VPC → RDS (**`db.t4g.micro`**, 20 GB, single-AZ) → S3 → ECR → **1× ECS Fargate task** behind ALB.
 3. **Wire IAM** on the web ECS task so in-process API code can use S3.
-4. **Automate** with CodePipeline on `main`: build → push ECR → migrate → deploy.
+4. **Automate** with CodePipeline on `main`: build → push ECR → **apply committed Drizzle migrations** (`db:migrate`) → deploy.
 5. **Operate** with Secrets Manager and CloudWatch logs; **scale up** using [§14.3](#143-scale-up-path-post-mvp) when needed.
 
-This plan keeps database and object storage in protected stacks, runs migrations as gated one-off tasks, and uses a **single Fargate task** to minimize MVP cost and complexity.
+This plan keeps database and object storage in protected stacks, uses a **codebase-first** Drizzle workflow (schema → generate → commit SQL → migrate on deploy), runs migrations as gated one-off tasks, and uses a **single Fargate task** to minimize MVP cost and complexity.

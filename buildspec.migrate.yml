@@ -1,0 +1,30 @@
+# CodeBuild spec: build and push the Drizzle migration runner image.
+# Used standalone or as a pre-step before scripts/ecs/run-db-migrate.sh (Phase 6/7 pipeline).
+version: 0.2
+
+env:
+  variables:
+    AWS_DEFAULT_REGION: us-east-2
+    ECR_REPOSITORY: harvverse/migrate
+    DOCKERFILE: packages/db/Dockerfile.migrate
+
+phases:
+  pre_build:
+    commands:
+      - echo "Logging in to Amazon ECR..."
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
+      - export IMAGE_TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION:-latest}
+      - echo "Image tag $IMAGE_TAG"
+  build:
+    commands:
+      - docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -f $DOCKERFILE .
+      - docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+  post_build:
+    commands:
+      - docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+      - docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+      - printf '{"imageUri":"%s"}' $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG > migrate-imagedefinitions.json
+
+artifacts:
+  files:
+    - migrate-imagedefinitions.json

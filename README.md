@@ -64,6 +64,8 @@ pnpm db:generate
 pnpm db:migrate
 ```
 
+Production RDS uses the same committed SQL via a one-off ECS task (`pnpm ecs:run-migrate`). See `.docs/drizzle/harvverse-workflow.md` and `packages/infra/README.md` (Phase 5).
+
 ## Architecture
 
 This is a Turborepo workspace. Applications live in `apps/*`; reusable code lives in `packages/*`. Keep product behavior close to the package that owns it instead of importing across package internals.

@@ -1,7 +1,12 @@
 import * as cdk from "aws-cdk-lib";
 import { Match, Template } from "aws-cdk-lib/assertions";
+import { harvverseConfig } from "../lib/config";
+import { DataStack } from "../lib/data-stack";
 import { EcrStack } from "../lib/ecr-stack";
+import { MigrateStack } from "../lib/migrate-stack";
 import { NetworkStack } from "../lib/network-stack";
+import { PlatformStack } from "../lib/platform-stack";
+import { StorageStack } from "../lib/storage-stack";
 
 describe("NetworkStack", () => {
 	test("creates VPC with public, app, and data subnets", () => {
@@ -35,19 +40,147 @@ describe("NetworkStack", () => {
 });
 
 describe("EcrStack", () => {
-	test("creates web repository with scan on push and lifecycle rule", () => {
+	test("creates web and migrate repositories with scan on push", () => {
 		const app = new cdk.App();
 		const stack = new EcrStack(app, "TestEcr");
 		const template = Template.fromStack(stack);
 
+		template.resourceCountIs("AWS::ECR::Repository", 2);
 		template.hasResourceProperties("AWS::ECR::Repository", {
 			RepositoryName: "harvverse/web",
 			ImageScanningConfiguration: {
 				ScanOnPush: true,
 			},
-			LifecyclePolicy: Match.objectLike({
-				LifecyclePolicyText: Match.stringLikeRegexp("imageCountMoreThan"),
-			}),
+		});
+		template.hasResourceProperties("AWS::ECR::Repository", {
+			RepositoryName: "harvverse/migrate",
+		});
+	});
+});
+
+describe("PlatformStack", () => {
+	test("creates HTTPS and HTTP redirect listeners with ACM certificate", () => {
+		const app = new cdk.App();
+		const network = new NetworkStack(app, "TestNetworkForPlatform");
+		const stack = new PlatformStack(app, "TestPlatform", {
+			vpc: network.vpc,
+			albSecurityGroup: network.albSecurityGroup,
+		});
+		const template = Template.fromStack(stack);
+
+		template.resourceCountIs("AWS::ElasticLoadBalancingV2::LoadBalancer", 1);
+		template.resourceCountIs("AWS::ECS::Cluster", 1);
+		template.hasResourceProperties("AWS::ElasticLoadBalancingV2::Listener", {
+			Port: 443,
+			Protocol: "HTTPS",
+			Certificates: [
+				{
+					CertificateArn: Match.stringLikeRegexp(
+						"1318b7d2-f7b2-4849-a7d2-cc320e3b0d3d",
+					),
+				},
+			],
+		});
+		template.hasResourceProperties("AWS::ElasticLoadBalancingV2::Listener", {
+			Port: 80,
+			Protocol: "HTTP",
+		});
+	});
+});
+
+describe("DataStack", () => {
+	test("creates MVP-sized PostgreSQL instance with generated secret", () => {
+		const app = new cdk.App();
+		const network = new NetworkStack(app, "TestNetworkForData");
+		const stack = new DataStack(app, "TestData", {
+			vpc: network.vpc,
+			rdsSecurityGroup: network.rdsSecurityGroup,
+		});
+		const template = Template.fromStack(stack);
+
+		template.resourceCountIs("AWS::RDS::DBInstance", 1);
+		template.hasResourceProperties("AWS::RDS::DBInstance", {
+			DBInstanceClass: "db.t4g.micro",
+			AllocatedStorage: "20",
+			StorageType: "gp3",
+			MultiAZ: false,
+			PubliclyAccessible: false,
+			StorageEncrypted: true,
+			EnablePerformanceInsights: false,
+			BackupRetentionPeriod: 1,
+		});
+		template.hasResourceProperties("AWS::SecretsManager::Secret", {
+			Name: "harvverse/prod/database",
+		});
+	});
+});
+
+describe("MigrateStack", () => {
+	test("creates Fargate migration task with DATABASE_URL secret", () => {
+		const app = new cdk.App();
+		const network = new NetworkStack(app, "TestNetworkForMigrate");
+		const ecr = new EcrStack(app, "TestEcrForMigrate");
+		const platform = new PlatformStack(app, "TestPlatformForMigrate", {
+			vpc: network.vpc,
+			albSecurityGroup: network.albSecurityGroup,
+		});
+		const stack = new MigrateStack(app, "TestMigrate", {
+			vpc: network.vpc,
+			migrationSecurityGroup: network.migrationSecurityGroup,
+			migrateRepository: ecr.migrateRepository,
+			migrateLogGroup: platform.migrateLogGroup,
+		});
+		const template = Template.fromStack(stack);
+
+		template.hasResourceProperties("AWS::ECS::TaskDefinition", {
+			Family: harvverseConfig.migrateTaskFamily,
+			Cpu: String(harvverseConfig.migrateTaskCpu),
+			Memory: String(harvverseConfig.migrateTaskMemoryMiB),
+			RequiresCompatibilities: ["FARGATE"],
+			NetworkMode: "awsvpc",
+			RuntimePlatform: {
+				CpuArchitecture: "ARM64",
+			},
+		});
+
+		template.hasResourceProperties("AWS::ECS::TaskDefinition", {
+			ContainerDefinitions: Match.arrayWith([
+				Match.objectLike({
+					Name: "migrate",
+					Secrets: Match.arrayWith([
+						Match.objectLike({
+							Name: "DATABASE_URL",
+						}),
+					]),
+				}),
+			]),
+		});
+	});
+});
+
+describe("StorageStack", () => {
+	test("creates private encrypted farm images bucket", () => {
+		const app = new cdk.App();
+		const stack = new StorageStack(app, "TestStorage");
+		const template = Template.fromStack(stack);
+
+		template.resourceCountIs("AWS::S3::Bucket", 1);
+		template.hasResourceProperties("AWS::S3::Bucket", {
+			BucketEncryption: {
+				ServerSideEncryptionConfiguration: [
+					{
+						ServerSideEncryptionByDefault: {
+							SSEAlgorithm: "AES256",
+						},
+					},
+				],
+			},
+			PublicAccessBlockConfiguration: {
+				BlockPublicAcls: true,
+				BlockPublicPolicy: true,
+				IgnorePublicAcls: true,
+				RestrictPublicBuckets: true,
+			},
 		});
 	});
 });

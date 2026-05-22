@@ -47,23 +47,22 @@ function imageExtension(mimeType: string, filename: string) {
 function getS3Config() {
   const bucket = env.S3_FARM_IMAGES_BUCKET;
   const region = env.AWS_REGION;
+  if (!bucket || !region) return null;
+
   const accessKeyId = env.AWS_ACCESS_KEY_ID;
   const secretAccessKey = env.AWS_SECRET_ACCESS_KEY;
-  if (
-    !bucket ||
-    !region ||
-    !accessKeyId ||
-    !secretAccessKey
-  ) {
-    return null;
-  }
+
   return {
     bucket: normalizeBucketName(bucket),
     region,
     prefix: trimSlashes(env.S3_FARM_IMAGES_PREFIX),
-    accessKeyId,
-    secretAccessKey,
-    sessionToken: env.AWS_SESSION_TOKEN,
+    ...(accessKeyId && secretAccessKey
+      ? {
+          accessKeyId,
+          secretAccessKey,
+          sessionToken: env.AWS_SESSION_TOKEN,
+        }
+      : {}),
   };
 }
 
@@ -73,11 +72,15 @@ function getS3Client() {
   if (!s3Client) {
     s3Client = new S3Client({
       region: config.region,
-      credentials: {
-        accessKeyId: config.accessKeyId,
-        secretAccessKey: config.secretAccessKey,
-        sessionToken: config.sessionToken,
-      },
+      ...(config.accessKeyId && config.secretAccessKey
+        ? {
+            credentials: {
+              accessKeyId: config.accessKeyId,
+              secretAccessKey: config.secretAccessKey,
+              sessionToken: config.sessionToken,
+            },
+          }
+        : {}),
     });
   }
   return s3Client;
