@@ -34,6 +34,15 @@ export const harvverseConfig = {
 	migrateTaskCpu: 256,
 	migrateTaskMemoryMiB: 512,
 	migrateTaskFamily: "harvverse-migrate",
+	/** GitHub repo for CodePipeline source (CodeStar Connections). */
+	githubOwner: "Experenta",
+	githubRepo: "harvverse-mono",
+	githubBranch: "main",
+	codeBuildProjectName: "harvverse-web",
+	codePipelineName: "harvverse-prod",
+	/** SSM Parameter Store path for NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY (CodeBuild build-time). */
+	clerkPublishableKeySsmParameter:
+		"/harvverse/prod/NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
 } as const;
 
 /** CDK stack ID, e.g. `Harvversev2Network`. */

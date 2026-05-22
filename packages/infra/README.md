@@ -24,10 +24,11 @@ pnpm infra:bootstrap
 | `Harvversev2Platform` | ECS cluster, internet ALB, HTTPS (`defi.harvverse.farm` ACM cert), HTTP→HTTPS redirect | 4 |
 | `Harvversev2Web` | Fargate **ARM64** web service (1 task), target group `/api/health`, Secrets Manager + S3 IAM | 4 |
 | `Harvversev2Migrate` | One-off **ARM64** migration task definition (`harvverse-migrate`) | 5 |
-
-Later phases add `Harvversev2Cicd` (CodeBuild/CodePipeline) — see `.docs/aws-deployment-plan.md`.
+| `Harvversev2Cicd` | CodePipeline (`main` → build/migrate → ECS deploy), CodeBuild (ARM) | 6–7 |
 
 Production URL: **`https://defi.harvverse.farm`** (`CORS_ORIGIN` and ALB host-header rule). ACM certificate ARN is in `lib/config.ts`.
+
+**Manual migrate/deploy** (`pnpm ecs:run-migrate`, local Docker push) remains the break-glass path after CI/CD is live.
 
 ## Commands
 
@@ -213,6 +214,49 @@ pnpm db:migrate
 ```
 
 Never run `pnpm db:push` against production RDS.
+
+### Phase 6–7 — CI/CD (CodePipeline)
+
+**Prerequisites (one-time, AWS Console + CLI)**
+
+1. **CodeStar Connections** — Developer Tools → Connections → create GitHub connection for `Experenta/harvverse-mono`, authorize, note the connection ARN (status **Available**).
+2. **SSM parameter** for the Clerk publishable key (CodeBuild build-time):
+
+```bash
+aws ssm put-parameter \
+  --name /harvverse/prod/NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY \
+  --type String \
+  --value 'pk_live_...' \
+  --profile Harvverse \
+  --region us-east-2
+```
+
+3. Commit and push `buildspec.yml` at the repo root (pipeline uses it from source).
+
+**Deploy the CI/CD stack** (pass the connection ARN via CDK context):
+
+```bash
+pnpm infra:build
+pnpm infra:diff -- -c githubConnectionArn=arn:aws:codestar-connections:us-east-2:500501923704:connection/XXXXXXXX
+pnpm infra:deploy -- Harvversev2Cicd -c githubConnectionArn=arn:aws:codestar-connections:us-east-2:500501923704:connection/XXXXXXXX
+```
+
+Or from `packages/infra`:
+
+```bash
+pnpm cdk:deploy:cicd -c githubConnectionArn=arn:aws:codestar-connections:us-east-2:500501923704:connection/XXXXXXXX
+```
+
+**Pipeline flow:** GitHub `main` → CodeBuild (ARM, privileged Docker) builds/pushes `harvverse/web` + `harvverse/migrate`, runs one-off `harvverse-migrate` ECS task, emits `imagedefinitions.json` → ECS rolling deploy of the web service.
+
+**Validate after first pipeline run:**
+
+- CodeBuild log shows migration exit 0
+- `https://defi.harvverse.farm/api/health` → 200
+- Clerk sign-in works
+- Farm image upload → S3 (`storage_provider = 's3'`)
+
+**Optional:** Test CodeBuild alone before the full pipeline — create a one-off build in the console using project `harvverse-web` and source from GitHub.
 
 ### Manual image push (debugging)
 

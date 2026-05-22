@@ -1,12 +1,14 @@
 import * as cdk from "aws-cdk-lib";
 import { Match, Template } from "aws-cdk-lib/assertions";
 import { harvverseConfig } from "../lib/config";
+import { CicdStack } from "../lib/cicd-stack";
 import { DataStack } from "../lib/data-stack";
 import { EcrStack } from "../lib/ecr-stack";
 import { MigrateStack } from "../lib/migrate-stack";
 import { NetworkStack } from "../lib/network-stack";
 import { PlatformStack } from "../lib/platform-stack";
 import { StorageStack } from "../lib/storage-stack";
+import { WebStack } from "../lib/web-stack";
 
 describe("NetworkStack", () => {
 	test("creates VPC with public, app, and data subnets", () => {
@@ -180,6 +182,60 @@ describe("StorageStack", () => {
 				BlockPublicPolicy: true,
 				IgnorePublicAcls: true,
 				RestrictPublicBuckets: true,
+			},
+		});
+	});
+});
+
+describe("CicdStack", () => {
+	test("creates CodePipeline with build and ECS deploy stages", () => {
+		const app = new cdk.App();
+		const network = new NetworkStack(app, "TestNetworkForCicd");
+		const ecrStack = new EcrStack(app, "TestEcrForCicd");
+		const platform = new PlatformStack(app, "TestPlatformForCicd", {
+			vpc: network.vpc,
+			albSecurityGroup: network.albSecurityGroup,
+		});
+		const storage = new StorageStack(app, "TestStorageForCicd");
+		const web = new WebStack(app, "TestWebForCicd", {
+			vpc: network.vpc,
+			cluster: platform.cluster,
+			webTargetGroup: platform.webTargetGroup,
+			ecsSecurityGroup: network.ecsSecurityGroup,
+			webRepository: ecrStack.webRepository,
+			farmImagesBucket: storage.farmImagesBucket,
+			webLogGroup: platform.webLogGroup,
+		});
+		const migrate = new MigrateStack(app, "TestMigrateForCicd", {
+			vpc: network.vpc,
+			migrationSecurityGroup: network.migrationSecurityGroup,
+			migrateRepository: ecrStack.migrateRepository,
+			migrateLogGroup: platform.migrateLogGroup,
+		});
+
+		const stack = new CicdStack(app, "TestCicd", {
+			githubConnectionArn:
+				"arn:aws:codestar-connections:us-east-2:500501923704:connection/test",
+			webRepository: ecrStack.webRepository,
+			migrateRepository: ecrStack.migrateRepository,
+			cluster: platform.cluster,
+			webService: web.service,
+			migrateTaskDefinition: migrate.taskDefinition,
+			migrateExecutionRole: migrate.executionRole,
+			migrateSubnetIds: network.vpc.selectSubnets({
+				subnetGroupName: "PrivateApp",
+			}).subnetIds,
+			migrateSecurityGroup: network.migrationSecurityGroup,
+		});
+		const template = Template.fromStack(stack);
+
+		template.resourceCountIs("AWS::CodePipeline::Pipeline", 1);
+		template.resourceCountIs("AWS::CodeBuild::Project", 1);
+		template.hasResourceProperties("AWS::CodeBuild::Project", {
+			Name: harvverseConfig.codeBuildProjectName,
+			Environment: {
+				PrivilegedMode: true,
+				Type: "ARM_CONTAINER",
 			},
 		});
 	});

@@ -25,6 +25,7 @@ export interface MigrateStackProps extends cdk.StackProps {
 
 export class MigrateStack extends cdk.Stack {
 	public readonly taskDefinition: ecs.FargateTaskDefinition;
+	public readonly executionRole: iam.Role;
 
 	constructor(scope: Construct, id: string, props: MigrateStackProps) {
 		super(scope, id, props);
@@ -35,7 +36,7 @@ export class MigrateStack extends cdk.Stack {
 			harvverseConfig.databaseSecretName,
 		);
 
-		const executionRole = new iam.Role(this, "ExecutionRole", {
+		this.executionRole = new iam.Role(this, "ExecutionRole", {
 			assumedBy: new iam.ServicePrincipal("ecs-tasks.amazonaws.com"),
 			managedPolicies: [
 				iam.ManagedPolicy.fromAwsManagedPolicyName(
@@ -43,14 +44,14 @@ export class MigrateStack extends cdk.Stack {
 				),
 			],
 		});
-		databaseSecret.grantRead(executionRole);
+		databaseSecret.grantRead(this.executionRole);
 
 		this.taskDefinition = new ecs.FargateTaskDefinition(this, "MigrateTask", {
 			family: harvverseConfig.migrateTaskFamily,
 			cpu: harvverseConfig.migrateTaskCpu,
 			memoryLimitMiB: harvverseConfig.migrateTaskMemoryMiB,
 			runtimePlatform: fargateRuntimePlatform,
-			executionRole,
+			executionRole: this.executionRole,
 		});
 
 		this.taskDefinition.addContainer("migrate", {

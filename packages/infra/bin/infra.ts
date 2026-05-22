@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import * as cdk from "aws-cdk-lib";
 import { harvverseConfig, stackId } from "../lib/config";
+import { CicdStack } from "../lib/cicd-stack";
 import { DataStack } from "../lib/data-stack";
 import { EcrStack } from "../lib/ecr-stack";
 import { MigrateStack } from "../lib/migrate-stack";
@@ -83,6 +84,36 @@ const migrate = new MigrateStack(app, stackId("Migrate"), {
 migrate.addDependency(platform);
 migrate.addDependency(ecr);
 migrate.addDependency(data);
+
+const githubConnectionArn = app.node.tryGetContext("githubConnectionArn") as
+	| string
+	| undefined;
+
+if (githubConnectionArn) {
+	const cicd = new CicdStack(app, stackId("Cicd"), {
+		env,
+		description:
+			"Harvverse CodePipeline: GitHub main → build/migrate → ECS deploy",
+		githubConnectionArn,
+		webRepository: ecr.webRepository,
+		migrateRepository: ecr.migrateRepository,
+		cluster: platform.cluster,
+		webService: web.service,
+		migrateTaskDefinition: migrate.taskDefinition,
+		migrateExecutionRole: migrate.executionRole,
+		migrateSubnetIds: network.vpc.selectSubnets({
+			subnetGroupName: "PrivateApp",
+		}).subnetIds,
+		migrateSecurityGroup: network.migrationSecurityGroup,
+	});
+	cicd.addDependency(web);
+	cicd.addDependency(migrate);
+} else {
+	cdk.Annotations.of(app).addWarningV2(
+		"Harvversev2CicdSkipped",
+		"Harvversev2Cicd not synthesized — pass -c githubConnectionArn=<CodeConnections ARN> to deploy CI/CD",
+	);
+}
 
 cdk.Tags.of(app).add("Project", "Harvverse");
 cdk.Tags.of(app).add("ManagedBy", "CDK");
