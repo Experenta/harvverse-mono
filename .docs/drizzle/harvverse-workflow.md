@@ -1,6 +1,6 @@
 # Harvverse database migrations (codebase-first)
 
-Harvverse uses Drizzle **Option 3** ([migrations fundamentals](./migrations.md)): TypeScript schema is the source of truth, SQL files are generated and committed, and `drizzle-kit migrate` applies them per environment.
+Harvverse uses Drizzle **Option 3** ([migrations fundamentals](./migrations.md)): TypeScript schema is the source of truth, SQL files are generated with `drizzle-kit generate` and applied with `pnpm db:migrate` (`packages/db/scripts/migrate-prod.mjs`).
 
 ## Source of truth
 
@@ -66,6 +66,9 @@ pnpm docker:build:migrate
 
 - `drizzle-kit pull` (database-first)
 - `drizzle-kit push` on RDS
+- `drizzle-kit migrate` in the ECS migrate image (use `migrate-prod.mjs`)
 - `migrate()` in the Next.js app boot (Option 4)
+
+**RDS `DATABASE_URL`:** URL-encode the password; omit `?sslmode=require` from the secret — see `.docs/aws-deployment-plan.md` §10.4.
 
 See `.docs/aws-deployment-plan.md` §9 for ECS/CDK and pipeline details.

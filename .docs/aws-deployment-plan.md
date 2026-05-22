@@ -2,7 +2,9 @@
 
 Analysis and implementation design for self-hosting the **Next.js web app** (including its in-process tRPC API) on **ECS Fargate**, with **ECR**, **RDS PostgreSQL**, **S3** (farm image storage), **CodeBuild/CodePipeline**, and **Drizzle migrations**.
 
-This document is the blueprint to implement before writing infrastructure or CI code. It reflects the current monorepo as of the initial CDK scaffold in `packages/infra`.
+This document is the deployment blueprint for Harvverse on AWS. It reflects the monorepo as implemented in `packages/infra` (CDK stacks through **Harvversev2Migrate** deployed; **Harvversev2Cicd** not yet). Operational notes from production bring-up (RDS `DATABASE_URL`, TLS, migrate runner) are in [§9](#9-phase-5--database-migrations-codebase-first) and [§10.4](#104-database_url-and-rds-tls).
+
+**Handoff (what’s done / what’s next for CI/CD):** [aws-deployment-handoff.md](./aws-deployment-handoff.md)
 
 > **MVP posture:** Use the **smallest viable** configuration everywhere. Scale up (more tasks, larger instances, Multi-AZ, auto-scaling, alarms) only when traffic or reliability requirements demand it. Defaults below are **MVP-minimum**, not long-term production targets.
 
@@ -19,7 +21,7 @@ This document is the blueprint to implement before writing infrastructure or CI 
 7. [Phase 3 — CI/CD (CodeBuild + CodePipeline)](#7-phase-3--cicd-codebuild--codepipeline)
 8. [Phase 4 — VPC, RDS, ECS Fargate, and S3](#8-phase-4--vpc-rds-ecs-fargate-and-s3)
 9. [Phase 5 — Database migrations (codebase first)](#9-phase-5--database-migrations-codebase-first)
-10. [Secrets and environment variables](#10-secrets-and-environment-variables)
+10. [Secrets and environment variables](#10-secrets-and-environment-variables) (incl. [§10.4 `DATABASE_URL` / RDS TLS](#104-database_url-and-rds-tls))
 11. [CDK stack layout](#11-cdk-stack-layout)
 12. [Repository files to add](#12-repository-files-to-add)
 13. [Operational runbook](#13-operational-runbook)
@@ -39,7 +41,7 @@ This document is the blueprint to implement before writing infrastructure or CI 
 | 3 | CI/CD on `main` | CodePipeline triggered by push to `main` → build image → deploy to ECS |
 | 4 | ECS Fargate + VPC + RDS | Private networking so tasks reach RDS; public ALB for HTTPS traffic |
 | 5 | S3 farm images bucket | Private bucket + IAM for farm image upload/read/delete from the Next.js app (via presigned URLs) |
-| 6 | RDS migrations | Codebase-first: commit generated SQL; run `pnpm db:migrate` / `drizzle-kit migrate` on deploy via ECS task |
+| 6 | RDS migrations | Codebase-first: commit generated SQL; apply via `pnpm db:migrate` (`migrate-prod.mjs`) on a one-off ECS task |
 
 ### Out of scope (for now)
 
@@ -58,7 +60,7 @@ This document is the blueprint to implement before writing infrastructure or CI 
 - [Next.js Docker standalone example](https://github.com/vercel/next.js/tree/canary/examples/with-docker)
 - Existing infra package: `packages/infra`
 - Existing DB scripts: `packages/db` (`db:migrate`, `db:generate`, etc.)
-- Drizzle migration strategy: `.docs/drizzle/migrations.md` (codebase-first, Option 3)
+- Drizzle migration strategy: `.docs/drizzle/migrations.md` (Option 3 reference); Harvverse workflow: `.docs/drizzle/harvverse-workflow.md`
 
 ---
 
@@ -73,7 +75,7 @@ harvverse-monorepo/
 │   ├── api/               # Shared library: tRPC routers, context, S3 helpers (not a separate service)
 │   ├── db/                # Drizzle ORM, migrations, local Postgres via docker-compose
 │   ├── env/               # @t3-oss/env validation (server + web)
-│   └── infra/             # AWS CDK (minimal placeholder stack today)
+│   └── infra/             # AWS CDK (Harvversev2* stacks — see §11)
 ├── turbo.json             # build / db:* / cdk:* tasks
 └── pnpm-workspace.yaml
 ```
@@ -106,7 +108,7 @@ Infrastructure implications:
 - **One ECR repository** for the web app (`harvverse/web`), not a separate API image.
 - **One ECS service** behind the ALB; no internal service-to-service HTTP between “web” and “api”.
 - **S3 and RDS** are backing stores accessed by the Next.js process (via library code in `packages/api` and `packages/db`).
-- The **migration task** is a separate one-off ECS task (runs `drizzle-kit migrate`), not a tRPC/API service — only DB schema changes.
+- The **migration task** is a separate one-off ECS task (runs `packages/db/scripts/migrate-prod.mjs`), not a tRPC/API service — only DB schema changes.
 
 ### Web application characteristics
 
@@ -126,21 +128,21 @@ Infrastructure implications:
 
 ### Database and migrations
 
-Harvverse uses a **codebase-first** migration strategy. The TypeScript Drizzle schema in `packages/db/src/schema/` is the **source of truth**; SQL migration files are generated from it, version-controlled, and applied to each environment with `drizzle-kit migrate`. See [§9](#9-phase-5--database-migrations-codebase-first) and `.docs/drizzle/migrations.md` (Drizzle **Option 3**).
+Harvverse uses a **codebase-first** migration strategy (Drizzle **Option 3**). The TypeScript schema in `packages/db/src/schema/` is the **source of truth**; SQL is **generated** with `drizzle-kit` and **applied** with `pnpm db:migrate` (drizzle-orm migrator via `migrate-prod.mjs`). See [§9](#9-phase-5--database-migrations-codebase-first) and `.docs/drizzle/harvverse-workflow.md`.
 
 | Item | Detail |
 |------|--------|
-| Strategy | **Codebase first** — schema in TypeScript → `db:generate` → commit SQL → `db:migrate` in CI/RDS |
-| ORM | Drizzle ORM + `drizzle-kit` |
+| Strategy | **Codebase first** — schema in TypeScript → `db:generate` → commit SQL → `db:migrate` locally or on RDS via ECS |
+| ORM | Drizzle ORM + `drizzle-kit` (generate/studio/push only for local) |
 | Schema | `packages/db/src/schema/` (declarative `pgTable` definitions) |
-| Generate command | Root: `pnpm db:generate` → `packages/db`: `drizzle-kit generate` |
-| Migrate command | Root: `pnpm db:migrate` → `packages/db`: `drizzle-kit migrate` |
-| Migrations path | `packages/db/src/migrations/` (`*.sql`, `meta/*_snapshot.json`, `meta/_journal.json`) |
+| Generate command | Root: `pnpm db:generate` → `drizzle-kit generate` |
+| Apply command | Root: `pnpm db:migrate` → `node packages/db/scripts/migrate-prod.mjs` |
+| Migrations path | `packages/db/src/migrations/` — only files listed in `meta/_journal.json` are applied |
 | Local DB | `packages/db/docker-compose.yml` (Postgres 5432) |
-| Config | `packages/db/drizzle.config.ts` — `schema: "./src/schema"`, `out: "./src/migrations"`; loads `DATABASE_URL` from env or `../../apps/web/.env` |
-| Production URL | Documented in `apps/web/.env.example` with `?sslmode=require` |
-| Local-only shortcut | `pnpm db:push` (`drizzle-kit push`) — rapid prototyping against local Docker Postgres only |
-| Not used | `drizzle-kit pull` (database-first) — schema is never pulled from RDS as source of truth |
+| Config | `packages/db/drizzle.config.ts` — `DATABASE_URL` from env; RDS hosts get `ssl: { rejectUnauthorized: false }` |
+| Production `DATABASE_URL` | Secrets Manager `harvverse/prod/database` — **URL-encoded password**, **no** `?sslmode=require` in the URL (see [§10.4](#104-database_url-and-rds-tls)) |
+| Local-only shortcut | `pnpm db:push` — rapid prototyping against local Docker Postgres only |
+| Not used | `drizzle-kit pull`; `drizzle-kit migrate` in production containers (poor CloudWatch errors + RDS TLS issues) |
 
 **Important:** Production and CI apply **committed migration files** via `db:migrate`, never `db:push`. Migrations must run against RDS **before** the web service deploy, never against local docker-compose in CI.
 
@@ -352,13 +354,15 @@ Phase 1  Docker + Next.js standalone config     (app repo changes)
 Phase 2  ECR + base CDK networking stack        (infra, deploy once)
 Phase 3  RDS + Secrets Manager + S3 (StorageStack)   (infra, deploy once)
 Phase 4  ECS cluster + ALB + web service              (infra, deploy once)
-Phase 5  CodeBuild project + buildspec            (infra + repo)
+Phase 5  CodeBuild project + buildspec            (infra + repo)     ← §7
 Phase 6  CodePipeline (main branch)               (infra, connect source)
-Phase 7  Migration task + pipeline integration    (infra + repo)
-Phase 8  Hardening (HTTPS cert)                   (infra — alarms/Multi-AZ deferred)
+Phase 7  Migration + web deploy in pipeline       (infra + repo)     ← wire §9.6
+Phase 8  Hardening (HTTPS cert, alarms)           (infra — Multi-AZ deferred)
 ```
 
-Phases 1–4 can be validated manually (build locally, push to ECR, run task by hand). Phases 5–7 automate on every push to `main`.
+> **Naming note:** [§9](#9-phase-5--database-migrations-codebase-first) is titled **“Phase 5 — Database migrations”** (migrations codebase + ECS task). That work is **complete for manual deploys** (`pnpm ecs:run-migrate`). The **§4 Phase 5–7** rows above are **CI/CD automation** — not started (`Harvversev2Cicd`, root `buildspec.yml`).
+
+Phases 1–4 and §9 migrations can be validated manually (build locally, push to ECR, `pnpm ecs:run-migrate`). §4 phases 5–7 automate on every push to `main`.
 
 ---
 
@@ -678,11 +682,13 @@ Pass references between stacks (VPC, cluster, repository, secrets, **farm images
 
    **Do not** use `db.t4g.small`, `db.t3.small`, or larger for MVP. Bump instance class only via the [scale-up path](#143-scale-up-path-post-mvp).
 
-3. Store application connection string in Secrets Manager:
+3. Store credentials in Secrets Manager and set **`DATABASE_URL`** (see [§10.4](#104-database_url-and-rds-tls)):
 
    ```
-   postgresql://<user>:<password>@<rds-endpoint>:5432/harvverse?sslmode=require
+   postgresql://<user>:<url-encoded-password>@<rds-endpoint>:5432/harvverse
    ```
+
+   Do **not** paste the raw RDS password into the URL without [percent-encoding](https://developer.mozilla.org/en-US/docs/Glossary/Percent-encoding) (`:`, `@`, `]`, etc. break Node `pg`). After deploy, run `./scripts/aws/fix-database-url-secret.sh` (profile **`Harvverse`**, account `500501923704`).
 
 4. Output RDS endpoint (for debugging only; app reads secret).
 
@@ -866,11 +872,13 @@ In Clerk dashboard for production:
 
 ## 9. Phase 5 — Database migrations (codebase first)
 
-This repository follows Drizzle **Option 3** from `.docs/drizzle/migrations.md`:
+**Status (manual path):** Implemented and verified on RDS — `Harvversev2Migrate` deployed, `harvverse/migrate` image pushed, `pnpm ecs:run-migrate` exits **0**. Pipeline automation remains [§4 Phase 7](#4-implementation-phases) / [§9.6](#96-running-migrations-from-codebuild).
+
+This repository follows Drizzle **Option 3** from `.docs/drizzle/migrations.md` (Harvverse details: `.docs/drizzle/harvverse-workflow.md`):
 
 1. **Source of truth:** TypeScript schema in `packages/db/src/schema/`.
-2. **Generate:** `drizzle-kit generate` diffs schema against the last snapshot and writes SQL + metadata under `packages/db/src/migrations/`.
-3. **Apply:** `drizzle-kit migrate` reads those files, compares against the `__drizzle_migrations` journal in Postgres, and runs only **unapplied** migrations.
+2. **Generate:** `drizzle-kit generate` writes SQL + metadata under `packages/db/src/migrations/`.
+3. **Apply:** `pnpm db:migrate` runs `packages/db/scripts/migrate-prod.mjs` (drizzle-orm `migrate()`), which reads committed SQL, compares `drizzle.__drizzle_migrations` on Postgres, and runs only **unapplied** migrations.
 
 We deliberately **do not** use:
 
@@ -879,7 +887,8 @@ We deliberately **do not** use:
 | Pull schema from DB | Option 1 (`drizzle-kit pull`) | Database-first; schema would drift from version control |
 | Push schema directly | Option 2 (`drizzle-kit push`) | No reviewable SQL files; unsafe for shared RDS |
 | Runtime migrate in web app | Option 4 (`migrate()` in app boot) | Race conditions with multiple ECS tasks; couples deploy to app startup |
-| External migration tools only | Options 5–6 | Unnecessary; `drizzle-kit migrate` is already the apply step |
+| `drizzle-kit migrate` in ECS migrate image | Kit CLI in production | Spinner hides errors in CloudWatch; RDS TLS needs explicit `pg` SSL config — use `migrate-prod.mjs` instead |
+| External migration tools only | Options 5–6 | Unnecessary; drizzle-orm migrator is the apply step |
 
 **Local vs production:**
 
@@ -891,7 +900,7 @@ We deliberately **do not** use:
 
 ### 9.1 Deploy-time strategy
 
-Run migrations as a **one-off ECS Fargate task** in the same VPC/subnets as the web service, **before** updating the web service to the new image. The task runs `drizzle-kit migrate`, which applies any new SQL files bundled in the migrate image that RDS has not yet recorded in `__drizzle_migrations`.
+Run migrations as a **one-off ECS Fargate task** in the same VPC/subnets as the web service, **before** updating the web service to the new image. The task runs **`migrate-prod.mjs`**, which applies any new SQL files bundled in the migrate image that RDS has not yet recorded in `drizzle.__drizzle_migrations`.
 
 ```mermaid
 sequenceDiagram
@@ -907,7 +916,7 @@ sequenceDiagram
   Git->>PL: Trigger pipeline
   PL->>CB: Build + push web + migrate images
   CB->>ECS: RunTask (migrate)
-  ECS->>RDS: drizzle-kit migrate (unapplied SQL only)
+  ECS->>RDS: migrate-prod.mjs (unapplied SQL only)
   ECS-->>CB: Exit 0
   CB->>PL: Success
   PL->>ECS: Update web service
@@ -960,12 +969,12 @@ pnpm db:migrate
 # 5. Commit schema + migration SQL + meta snapshots together
 ```
 
-**What `drizzle-kit migrate` does on RDS** (same as local):
+**What `pnpm db:migrate` / `migrate-prod.mjs` does on RDS** (same as local):
 
-1. Read all `*.sql` files in `packages/db/src/migrations/` (per `drizzle.config.ts` `out` path).
-2. Fetch applied migration IDs from `__drizzle_migrations` in Postgres.
+1. Read migration files under `packages/db/src/migrations/` per `meta/_journal.json` (orphan `*.sql` files not in the journal are ignored).
+2. Fetch applied migration hashes from `drizzle.__drizzle_migrations` in Postgres.
 3. Run only migrations not yet recorded.
-4. Exit non-zero if any statement fails (pipeline must stop).
+4. Exit non-zero if any statement fails (pipeline or `pnpm ecs:run-migrate` must stop).
 
 **What gets committed:**
 
@@ -982,42 +991,44 @@ pnpm db:migrate
 
 ### 9.3 Migration Docker image
 
-**Option A (recommended):** Separate lightweight image `harvverse/migrate`.
+**Implemented:** Separate lightweight image `harvverse/migrate` (ECR repo in `Harvversev2Ecr`).
 
 **File:** `packages/db/Dockerfile.migrate`
 
 - Base: `node:20-bookworm-slim`
-- Copy: `packages/db`, `packages/env`, root lockfile/workspace config
-- Install: pnpm + production deps for db package
-- Copy migration SQL: `packages/db/src/migrations`
-- **CMD:** `pnpm db:migrate` (or `drizzle-kit migrate` directly)
+- Build: `turbo prune @harvverse-monorepo/db --docker` from repo root
+- Includes: `packages/db/src/migrations/` (SQL + `meta/`), `scripts/migrate-prod.mjs`
+- **CMD:** `node ./scripts/migrate-prod.mjs` (working directory `/app/packages/db`)
 
-**Option B:** Reuse web image with overridden command — heavier image, faster to implement initially.
+**Option B (not used):** Reuse web image with overridden command — heavier, harder to debug.
 
-The migrate image must include the **full** `packages/db/src/migrations/` tree (SQL + `meta/`) at build time so `drizzle-kit migrate` sees the same files as developers committed. The existing `Dockerfile.migrate` uses `turbo prune @harvverse-monorepo/db` from repo root to copy the pruned `packages/db` workspace.
+Rebuild and push the migrate image whenever migration **files** change, then run the ECS task (or let the future pipeline do both):
 
-### 9.4 Drizzle config adjustment
-
-Today `packages/db/drizzle.config.ts` loads env from `../../apps/web/.env`. For containers/CI:
-
-```ts
-dotenv.config({
-  path: process.env.DOTENV_PATH ?? "../../apps/web/.env",
-});
+```bash
+pnpm docker:build:migrate
+docker tag harvverse/migrate:local 500501923704.dkr.ecr.us-east-2.amazonaws.com/harvverse/migrate:latest
+docker push 500501923704.dkr.ecr.us-east-2.amazonaws.com/harvverse/migrate:latest
+pnpm ecs:run-migrate
 ```
 
-In the migration task, set `DATABASE_URL` from Secrets Manager (no `.env` file needed). Drizzle Kit reads `process.env.DATABASE_URL` directly from `dbCredentials.url`.
+A new `latest` digest is enough for the next `run-task`; no CDK redeploy unless the task definition itself changes.
 
-Relevant `drizzle.config.ts` fields for this workflow:
+### 9.4 Drizzle config and DB client
+
+`packages/db/drizzle.config.ts` loads `../../apps/web/.env` only when `DATABASE_URL` is unset (local dev). ECS injects `DATABASE_URL` from Secrets Manager — no `.env` in the container.
+
+For **`drizzle-kit generate` / `db:studio`**, config includes RDS SSL when the host is `*.rds.amazonaws.com`:
 
 ```ts
-export default defineConfig({
-  schema: "./src/schema",      // codebase-first source of truth
-  out: "./src/migrations",     // generated SQL + meta (bundled in migrate image)
-  dialect: "postgresql",
-  dbCredentials: { url: process.env.DATABASE_URL || "" },
-});
+dbCredentials: {
+  url: databaseUrl,
+  ...(useRdsSsl ? { ssl: { rejectUnauthorized: false } } : {}),
+},
 ```
+
+`packages/db/src/index.ts` uses the same SSL pattern for the web app’s runtime pool against RDS.
+
+**Apply path** does not use `drizzle-kit migrate`; `migrate-prod.mjs` creates its own `pg` pool with the same RDS SSL rule.
 
 ### 9.5 Migration task definition (CDK)
 
@@ -1028,16 +1039,20 @@ export default defineConfig({
 | Network | Same private subnets as web tasks |
 | Security group | `migration-sg` → outbound 5432 to RDS |
 | Secrets | `DATABASE_URL` from Secrets Manager |
-| Command | `["pnpm", "db:migrate"]` |
+| Command | Image default: `node ./scripts/migrate-prod.mjs` |
 | Log group | `/harvverse/migrate` |
 
-No ALB attachment. Task runs to completion (`desiredCount = 0` service not needed).
+No ALB attachment. Task runs to completion (no long-running migrate **service**).
 
-Rebuild and push the **migrate** image on **every** pipeline run (same commit SHA tag as the web image) so the task always bundles the migration files from that commit.
+**Manual run (current):** `pnpm ecs:run-migrate` — uses AWS profile **`Harvverse`** (not the shell default if it points at another account). Scripts: `scripts/ecs/run-db-migrate.sh`, `scripts/ecs/wait-ecs-task.sh`.
+
+Rebuild and push the **migrate** image on every schema deploy; prefer immutable `{git_sha}` tags when CI exists (same commit as web).
 
 ### 9.6 Running migrations from CodeBuild
 
-After pushing images, CodeBuild `post_build`:
+**Not wired yet.** Until `Harvversev2Cicd` exists, use [§9.3](#93-migration-docker-image) manual push + `pnpm ecs:run-migrate`.
+
+Planned: after pushing images, CodeBuild `post_build`:
 
 ```bash
 TASK_ARN=$(aws ecs run-task \
@@ -1057,7 +1072,7 @@ if [ "$EXIT_CODE" != "0" ]; then exit 1; fi
 
 Pipeline **must fail** if exit code ≠ 0 (prevents deploying app code against incompatible schema).
 
-If a deploy includes **no** new migration files, `drizzle-kit migrate` is a no-op (exit 0) — safe to run on every deploy.
+If a deploy includes **no** new migration files, `migrate-prod.mjs` is a no-op (exit 0) — safe to run on every deploy.
 
 ### 9.7 Command reference by environment
 
@@ -1119,9 +1134,29 @@ environment: {
 ### 10.3 Initial secret bootstrap (one-time manual)
 
 1. Deploy RDS stack → note endpoint.
-2. Construct `DATABASE_URL` with master credentials.
-3. Create secrets in Secrets Manager (CLI or console).
-4. Deploy ECS with secret references.
+2. Add `username`, `password`, `host`, `port`, `dbname` to `harvverse/prod/database` (CDK/RDS may populate some fields).
+3. Set **`DATABASE_URL`** using [§10.4](#104-database_url-and-rds-tls) (encoded password, no `sslmode` query param).
+4. Run `./scripts/aws/fix-database-url-secret.sh` if the password contains `:`, `@`, `]`, etc.
+5. Deploy ECS web + migrate stacks; push images; run `pnpm ecs:run-migrate`.
+
+### 10.4 `DATABASE_URL` and RDS TLS
+
+Production lessons from the first RDS migration run:
+
+| Topic | Harvverse approach |
+|-------|-------------------|
+| **Password in URL** | Must be [URL-encoded](https://developer.mozilla.org/en-US/docs/Glossary/Percent-encoding). Raw RDS passwords often include `:` and `]` → `Invalid URL` in Node `pg`. Use `scripts/aws/fix-database-url-secret.sh`. |
+| **`sslmode=require` in URL** | **Do not** put this in Secrets Manager for Harvverse. Node `pg` / `pg-connection-string` treat it like strict verification → `SELF_SIGNED_CERT_IN_CHAIN` against RDS. |
+| **TLS to RDS** | Omit `sslmode` from `DATABASE_URL`. Code enables TLS when host matches `*.rds.amazonaws.com`: `ssl: { rejectUnauthorized: false }` in `migrate-prod.mjs`, `packages/db/src/index.ts`, and `drizzle.config.ts` (for kit commands). |
+| **AWS CLI profile** | Infra and migration scripts use profile **`Harvverse`** (account `500501923704`). A different default profile (e.g. `Nimbus`) will not see `Harvversev2*` stacks. |
+
+Example **shape** of `DATABASE_URL` in the secret (password percent-encoded):
+
+```
+postgresql://harvverse:<encoded-password>@<rds-host>:5432/harvverse
+```
+
+Local Docker Postgres in `apps/web/.env` may still use a simple URL without RDS SSL options.
 
 ---
 
@@ -1215,42 +1250,60 @@ Deploy order is handled by CDK dependencies (`web.addDependency(data)`, etc.).
 
 ---
 
-## 12. Repository files to add
+## 12. Repository files
 
-| File | Purpose |
-|------|---------|
-| `apps/web/Dockerfile` | Production web image (standalone) |
-| `packages/db/Dockerfile.migrate` | Migration runner image |
-| `.dockerignore` | Slim build context |
-| `buildspec.yml` | CodeBuild specification |
-| `buildspec.migrate.yml` | Optional separate buildspec for migrate image |
-| `apps/web/src/app/api/health/route.ts` | Health checks |
-| `apps/web/next.config.ts` | Add `output: 'standalone'`, streaming headers (`deploymentId` deferred until 2+ tasks) |
-| `packages/infra/lib/storage-stack.ts` | S3 farm images bucket + outputs |
-| `packages/infra/lib/*-stack.ts` | Remaining AWS stacks (network, data, ecr, platform, web, migrate, cicd) |
-| `imagedefinitions.json` | Generated by CodeBuild (artifact) |
+| File | Purpose | Status |
+|------|---------|--------|
+| `apps/web/Dockerfile` | Production web image (standalone) | Done |
+| `packages/db/Dockerfile.migrate` | Migration runner image | Done |
+| `packages/db/scripts/migrate-prod.mjs` | Apply migrations (local + ECS); clear errors, RDS SSL | Done |
+| `scripts/aws/fix-database-url-secret.sh` | Rebuild URL-encoded `DATABASE_URL` in Secrets Manager | Done |
+| `scripts/ecs/run-db-migrate.sh`, `wait-ecs-task.sh` | Manual ECS migrate + wait for exit 0 | Done |
+| `.dockerignore` | Slim build context | Done |
+| `buildspec.migrate.yml` | CodeBuild: build/push `harvverse/migrate` only | Done |
+| `buildspec.yml` | CodeBuild: web image + pipeline hooks | **TODO** (§7) |
+| `apps/web/src/app/api/health/route.ts` | Health checks | Done |
+| `apps/web/next.config.ts` | `output: 'standalone'`, streaming headers | Done |
+| `packages/infra/lib/*-stack.ts` | CDK stacks (incl. `migrate-stack.ts`; `cicd-stack.ts` TODO) | Partial |
+| `.docs/drizzle/harvverse-workflow.md` | Codebase-first migration workflow | Done |
+| `imagedefinitions.json` | Generated by CodeBuild (artifact) | TODO |
 
-### Turbo / root scripts (optional convenience)
+### Root scripts (`package.json`)
 
 ```json
-// root package.json
-"docker:build:web": "docker build -t harvverse/web:local -f apps/web/Dockerfile .",
-"docker:build:migrate": "docker build -t harvverse/migrate:local -f packages/db/Dockerfile.migrate ."
+"docker:build:web": "docker build ... -f apps/web/Dockerfile .",
+"docker:build:migrate": "docker build ... -f packages/db/Dockerfile.migrate .",
+"ecs:run-migrate": "bash scripts/ecs/run-db-migrate.sh"
 ```
 
 ---
 
 ## 13. Operational runbook
 
+See also `packages/infra/README.md` for stack deploy order and copy-paste commands.
+
 ### First-time production setup
 
-1. `pnpm infra:bootstrap` (profile `Harvverse`)
-2. Deploy stacks: `pnpm infra:deploy:all` (or deploy individually, e.g. `pnpm infra:deploy -- Harvversev2Network Harvversev2Ecr`)
-3. Populate Secrets Manager values
-4. Connect GitHub in CodeConnections; finish pipeline setup
-5. Push to `main` → verify pipeline green
-6. Hit `https://<alb-domain>/api/health`
-7. Upload a farm image and verify it lands in S3 (see [§8.4.6](#846-verification))
+1. `pnpm infra:bootstrap` (profile **`Harvverse`**)
+2. Deploy stacks through `Harvversev2Migrate` (see `packages/infra/README.md`)
+3. Populate Secrets Manager — especially `DATABASE_URL` ([§10.4](#104-database_url-and-rds-tls))
+4. Push `harvverse/web` and `harvverse/migrate` to ECR; run **`pnpm ecs:run-migrate`** (exit 0)
+5. Confirm web service healthy: `https://defi.harvverse.farm/api/health`
+6. *(Later)* Connect GitHub in CodeConnections; deploy `Harvversev2Cicd`; verify pipeline on `main`
+7. Upload a farm image and verify S3 (see [§8.4.6](#846-verification))
+
+### Apply schema changes to RDS (manual, current)
+
+```bash
+pnpm db:generate                    # after editing packages/db/src/schema/*
+# commit SQL + meta/_journal.json
+pnpm docker:build:migrate
+docker tag harvverse/migrate:local 500501923704.dkr.ecr.us-east-2.amazonaws.com/harvverse/migrate:latest
+docker push 500501923704.dkr.ecr.us-east-2.amazonaws.com/harvverse/migrate:latest
+pnpm ecs:run-migrate                # must exit 0 before updating web service
+```
+
+Logs: CloudWatch `/harvverse/migrate`. On failure, check `DATABASE_URL` encoding and TLS ([§10.4](#104-database_url-and-rds-tls)).
 
 ### Rollback
 
@@ -1312,10 +1365,13 @@ When requirements outgrow MVP defaults, apply in roughly this order:
 |------|------------|
 | `next build` requires server env at build time | Provide dummy secrets in CodeBuild or refactor env imports |
 | Migration failure mid-pipeline | Fail pipeline; do not deploy new web tasks |
+| Invalid `DATABASE_URL` (special chars in password) | URL-encode password; run `fix-database-url-secret.sh` |
+| RDS TLS / `SELF_SIGNED_CERT_IN_CHAIN` | No `sslmode=require` in secret; use code SSL config in [§10.4](#104-database_url-and-rds-tls) |
+| Wrong AWS profile / account | Use **`Harvverse`** (`500501923704`) for ECS/CFN/ECR scripts |
 | Clerk / external API egress blocked | NAT gateway in VPC |
 | Version skew during deploy | Low risk with **1 task**; add `deploymentId` when scaling to 2+ |
 | RDS connection exhaustion | Use RDS Proxy if connection count grows |
-| S3 credentials in ECS | `farm-image-storage.ts` requires static keys today | Update SDK client to use task IAM role when keys absent ([§8.4.5](#845-application-code-change-prerequisite)) |
+| S3 credentials in ECS | Resolved — task IAM role when static keys absent ([§8.4.5](#845-application-code-change-prerequisite)) |
 | Farm images in RDS | S3 misconfiguration silently falls back to DB storage | Monitor `storage_provider`; alert if production uploads use `database` |
 
 ### Cost awareness (MVP rough order)
@@ -1334,51 +1390,51 @@ Fixed cost drivers at MVP scale:
 
 ### Application repo
 
-- [ ] Add `output: "standalone"` to `apps/web/next.config.ts`
-- [ ] Add health check route `/api/health`
-- [ ] Add `apps/web/Dockerfile` with turbo prune + pnpm
-- [ ] Add `packages/db/Dockerfile.migrate`
-- [ ] Add `.dockerignore`
-- [ ] Adjust `drizzle.config.ts` for container env (already supports `DATABASE_URL` / `DOTENV_PATH`)
-- [ ] Document codebase-first workflow: local `db:push` → PR `db:generate` + commit SQL → prod `db:migrate` via ECS
-- [ ] Update `farm-image-storage.ts` to support ECS task IAM role (no static keys)
-- [ ] Validate local `docker build` + `docker run`
-- [ ] Add `buildspec.yml`
+- [x] Add `output: "standalone"` to `apps/web/next.config.ts`
+- [x] Add health check route `/api/health`
+- [x] Add `apps/web/Dockerfile` with turbo prune + pnpm
+- [x] Add `packages/db/Dockerfile.migrate` + `scripts/migrate-prod.mjs`
+- [x] Add `.dockerignore`
+- [x] Adjust `drizzle.config.ts` for container env + RDS SSL
+- [x] Document codebase-first workflow (`.docs/drizzle/harvverse-workflow.md`, `packages/infra/README.md`)
+- [x] Update `farm-image-storage.ts` to support ECS task IAM role (no static keys)
+- [ ] Validate local `docker build` + `docker run` (web) — ongoing as needed
+- [ ] Add `buildspec.yml` (web + pipeline)
 
 ### AWS infrastructure (CDK)
 
-- [ ] `Harvversev2Network` (`NetworkStack`) — VPC, subnets, NAT, SGs
-- [ ] `Harvversev2Data` (`DataStack`) — RDS PostgreSQL **`db.t4g.micro`**, **20 GB gp3**, single-AZ, no autoscaling + `DATABASE_URL` secret
-- [ ] `Harvversev2Storage` (`StorageStack`) — S3 farm images bucket (private, encrypted, lifecycle rules)
-- [ ] `Harvversev2Web` (`WebStack`) — grant ECS task role `s3:GetObject`/`PutObject`/`DeleteObject` on `farm-images/*`
-- [ ] `Harvversev2Ecr` (`EcrStack`) — `harvverse/web`, `harvverse/migrate`
-- [ ] `Harvversev2Platform` (`PlatformStack`) — ECS cluster, ALB, ACM, CloudWatch log groups
-- [ ] `Harvversev2Web` (`WebStack`) — task definition, service (**desiredCount: 1**), target group, IAM roles, **no auto-scaling**
-- [ ] `Harvversev2Migrate` (`MigrateStack`) — migration task definition
-- [ ] `Harvversev2Cicd` (`CicdStack`) — CodeBuild, CodePipeline, IAM, GitHub connection
-- [ ] Unit tests for critical resources (RDS encryption, SG rules, task secrets)
-- [ ] Deploy with `pnpm infra:deploy` (profile `Harvverse`)
+- [x] `Harvversev2Network` (`NetworkStack`)
+- [x] `Harvversev2Data` (`DataStack`) — RDS + `harvverse/prod/database` secret
+- [x] `Harvversev2Storage` (`StorageStack`)
+- [x] `Harvversev2Ecr` (`EcrStack`) — `harvverse/web`, `harvverse/migrate`
+- [x] `Harvversev2Platform` (`PlatformStack`) — cluster, ALB, ACM, logs
+- [x] `Harvversev2Web` (`WebStack`) — Fargate service, S3 IAM, **desiredCount: 1**
+- [x] `Harvversev2Migrate` (`MigrateStack`) — migration task definition
+- [ ] `Harvversev2Cicd` (`CicdStack`) — CodeBuild, CodePipeline, GitHub connection
+- [x] Unit tests for critical resources (partial — see `packages/infra/test`)
+- [x] Deploy with `pnpm infra:deploy` (profile `Harvverse`)
 
 ### Secrets and config
 
-- [ ] Create Secrets Manager entries for prod
-- [ ] Create Parameter Store entries for `NEXT_PUBLIC_*` and `CORS_ORIGIN`
-- [ ] Configure Clerk production instance
+- [x] Create Secrets Manager entries for prod (`database`, `clerk`)
+- [ ] Create Parameter Store entries for `NEXT_PUBLIC_*` and `CORS_ORIGIN` (if not inlined in build)
+- [x] Configure Clerk production instance (domain in use)
+- [x] `DATABASE_URL` URL-encoded, RDS TLS pattern ([§10.4](#104-database_url-and-rds-tls))
 
 ### CI/CD validation
 
 - [ ] Push to `main` triggers pipeline
 - [ ] CodeBuild pushes image to ECR with commit SHA tag
-- [ ] Migration task runs and exits 0
-- [ ] ECS service updates; `/api/health` returns 200
+- [x] Migration task runs and exits 0 (**manual** — `pnpm ecs:run-migrate`)
+- [ ] ECS service updates via pipeline; `/api/health` returns 200 on deploy
 - [ ] Sign-in flow works end-to-end
 - [ ] tRPC farm image upload returns presigned URL; object visible in S3
 - [ ] `farm_images.storage_provider = 's3'` for new uploads (not `database`)
 
 ### Documentation follow-ups (post-implementation)
 
-- [ ] Update `packages/infra/README.md` with stack list and deploy order
-- [ ] Document break-glass migration and rollback procedures
+- [x] Update `packages/infra/README.md` with stack list and deploy order
+- [x] Document break-glass migration (`pnpm ecs:run-migrate`, §13)
 - [ ] Add CloudWatch alarms (5xx rate, CPU, RDS storage) — **post-MVP**
 
 ---
@@ -1390,7 +1446,9 @@ Harvverse is a **Next.js 16 monorepo** that requires a **Node server** (Clerk + 
 1. **Containerize** with standalone output and turbo prune.
 2. **Provision AWS** with CDK (MVP sizing): VPC → RDS (**`db.t4g.micro`**, 20 GB, single-AZ) → S3 → ECR → **1× ECS Fargate task** behind ALB.
 3. **Wire IAM** on the web ECS task so in-process API code can use S3.
-4. **Automate** with CodePipeline on `main`: build → push ECR → **apply committed Drizzle migrations** (`db:migrate`) → deploy.
-5. **Operate** with Secrets Manager and CloudWatch logs; **scale up** using [§14.3](#143-scale-up-path-post-mvp) when needed.
+4. **Automate** with CodePipeline on `main`: build → push ECR → **apply migrations** (`migrate-prod.mjs` via ECS task) → deploy web service.
+5. **Operate** with Secrets Manager (encoded `DATABASE_URL`, RDS TLS in code), `pnpm ecs:run-migrate`, and CloudWatch logs; **scale up** using [§14.3](#143-scale-up-path-post-mvp) when needed.
 
-This plan keeps database and object storage in protected stacks, uses a **codebase-first** Drizzle workflow (schema → generate → commit SQL → migrate on deploy), runs migrations as gated one-off tasks, and uses a **single Fargate task** to minimize MVP cost and complexity.
+**§9 migrations (manual path)** are live on RDS. **CI/CD (§4 phases 5–7)** remains the next automation step.
+
+This plan keeps database and object storage in protected stacks, uses a **codebase-first** Drizzle workflow (schema → `db:generate` → commit SQL → `db:migrate` / `migrate-prod.mjs`), runs migrations as gated one-off ECS tasks before web deploys, and uses a **single Fargate task** to minimize MVP cost and complexity.
