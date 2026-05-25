@@ -14,7 +14,7 @@ export function LandingFooter() {
           {/* Logo & Info */}
           <div className="space-y-4">
             <Link href="/" className="flex items-center gap-2 mb-6">
-              <img src="/figma/logo-full.png" alt="Harvverse" className="h-8 w-auto opacity-80" />
+              <img src="/figma/logo-full.png" alt={t("alt_logo")} className="h-8 w-auto opacity-80" />
             </Link>
             <p className="text-sm">harvverse.farm</p>
             <div className="text-sm space-y-1">
@@ -67,8 +67,8 @@ export function LandingFooter() {
             <p>{t("footer_built_on")}</p>
           </div>
           <div className="flex gap-6">
-            <Link href="https://harvverse.com/privacy" target="_blank" className="hover:text-white transition-colors">Privacy Policy</Link>
-            <Link href="https://harvverse.com/terms" target="_blank" className="hover:text-white transition-colors">Terms of Service</Link>
+            <Link href="https://harvverse.com/privacy" target="_blank" className="hover:text-white transition-colors">{t("footer_privacy")}</Link>
+            <Link href="https://harvverse.com/terms" target="_blank" className="hover:text-white transition-colors">{t("footer_terms")}</Link>
           </div>
         </div>
       </div>

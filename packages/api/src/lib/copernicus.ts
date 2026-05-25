@@ -1357,7 +1357,8 @@ export async function computeRiskScore(params: {
     total: 0,
   };
 
-  // Weighted total — re-normalises automatically if NDVI is absent
+  // Weighted total — re-normalises automatically if NDVI is absent, then caps
+  // low-evidence fallback runs so climate-only results do not look definitive.
   const components: Array<{ score: number; weight: number }> = [
     { score: breakdown.annualPrecip, weight: BASE_WEIGHTS.annualPrecip },
     { score: breakdown.rainDistrib, weight: BASE_WEIGHTS.rainDistrib },
@@ -1371,9 +1372,12 @@ export async function computeRiskScore(params: {
     );
   }
   const totalWeight = components.reduce((s, c) => s + c.weight, 0);
-  breakdown.total = Math.round(
+  const rawTotal = Math.round(
     components.reduce((s, c) => s + c.score * c.weight, 0) / totalWeight,
   );
+  const evidenceCap =
+    !hasSentinel || dataQuality.overallConfidence === "none" ? 59 : 100;
+  breakdown.total = Math.min(rawTotal, evidenceCap);
 
   // ── Score hash (verifiable fingerprint of inputs) ──────────────────────────
   const hashInput = JSON.stringify({

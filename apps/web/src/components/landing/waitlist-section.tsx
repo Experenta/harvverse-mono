@@ -20,6 +20,7 @@ import {
 import { trpc } from "@/utils/trpc";
 
 const investmentRanges = [
+  "$1,595 – $3,000",
   "$3,000 – $5,000",
   "$5,000 – $15,000",
   "$15,000 – $50,000",
@@ -32,6 +33,9 @@ const schema = z.object({
   country: z.string().trim().min(1),
   investmentRange: z.enum(investmentRanges),
   howHeard: z.string().trim().optional(),
+  telegram: z.string().trim().optional(),
+  xAccount: z.string().trim().optional(),
+  socials: z.string().trim().optional(),
 });
 
 type WaitlistValues = z.input<typeof schema>;
@@ -47,27 +51,71 @@ export function LandingWaitlistSection() {
       fullName: "",
       email: "",
       country: "Honduras",
-      investmentRange: "$3,000 – $5,000",
+      investmentRange: "$1,595 – $3,000",
       howHeard: "",
+      telegram: "",
+      xAccount: "",
+      socials: "",
     },
   });
 
-  const submit = useMutation(
-    trpc.waitlist.submit.mutationOptions({
-      onSuccess: () => setSubmitted(true),
-    }),
+  const { data: farms } = useQuery(
+    trpc.farms.listPublic.queryOptions(),
   );
+
+  const producersToShow = farms?.slice(0, 6) ?? [];
 
   return (
     <section className="bg-[#1E3A2F] py-24 md:py-32">
       <div className="mx-auto max-w-4xl px-4 md:px-6">
-        <div className="mb-16 text-center">
-          <h2 className="text-3xl md:text-5xl font-bold text-white leading-tight mb-6">
+        <div className="mb-12 text-center">
+          <motion.h2
+            initial={{ opacity: 0, y: 10 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-3xl md:text-5xl font-bold text-white leading-tight mb-8"
+          >
             {t("waitlist_headline")}
-          </h2>
+          </motion.h2>
+
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            {harvestStats.map((stat, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, scale: 0.9 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1 }}
+                className="bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur-sm"
+              >
+                <p className="text-2xl font-black text-primary mb-1">{stat.val}</p>
+                <p className="text-xs font-bold uppercase tracking-widest text-white/40">{stat.label}</p>
+              </motion.div>
+            ))}
+          </div>
+
+          <motion.p
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            className="text-[#C8E6B0] font-bold text-sm md:text-base mb-4"
+          >
+            {t("waitlist_trust_line")}
+          </motion.p>
+          
+          <motion.p
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.2 }}
+            className="text-white/70 text-lg"
+          >
+            {t("waitlist_subheadline")}
+          </motion.p>
         </div>
 
-        <div className="bg-[#0F1A24]/40 backdrop-blur-xl border border-white/10 rounded-3xl p-8 md:p-12 shadow-2xl">
+        <div className="bg-[#0F1A24]/40 backdrop-blur-xl border border-white/10 rounded-3xl p-8 md:p-12 shadow-2xl mb-16">
           {submitted ? (
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
@@ -93,7 +141,7 @@ export function LandingWaitlistSection() {
                   <input
                     {...form.register("fullName")}
                     className="harv-input w-full rounded-xl border px-4 py-3 text-base"
-                    placeholder="Jane Doe"
+                    placeholder={tw("fullName_placeholder")}
                   />
                 </div>
                 <div className="space-y-2">
@@ -104,7 +152,7 @@ export function LandingWaitlistSection() {
                     {...form.register("email")}
                     type="email"
                     className="harv-input w-full rounded-xl border px-4 py-3 text-base"
-                    placeholder="jane@example.com"
+                    placeholder={tw("email_placeholder")}
                   />
                 </div>
               </div>
@@ -117,7 +165,7 @@ export function LandingWaitlistSection() {
                   <input
                     {...form.register("country")}
                     className="harv-input w-full rounded-xl border px-4 py-3 text-base"
-                    placeholder="Honduras"
+                    placeholder={tw("country_placeholder")}
                   />
                 </div>
                 <div className="space-y-2">
@@ -133,7 +181,7 @@ export function LandingWaitlistSection() {
                         onValueChange={field.onChange}
                       >
                         <SelectTrigger className="harv-input w-full rounded-xl border px-4 py-3 h-[50px] text-base">
-                          <SelectValue placeholder="Select an option" />
+                          <SelectValue placeholder={tw("select_option")} />
                         </SelectTrigger>
                         <SelectContent>
                           {investmentRanges.map((range) => (
@@ -146,6 +194,40 @@ export function LandingWaitlistSection() {
                     )}
                   />
                 </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-white/40 ml-1">
+                    {tw("telegram")}
+                  </label>
+                  <input
+                    {...form.register("telegram")}
+                    className="harv-input w-full rounded-xl border px-4 py-3 text-base"
+                    placeholder={tw("telegram_placeholder")}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-white/40 ml-1">
+                    {tw("xAccount")}
+                  </label>
+                  <input
+                    {...form.register("xAccount")}
+                    className="harv-input w-full rounded-xl border px-4 py-3 text-base"
+                    placeholder={tw("xAccount_placeholder")}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold uppercase tracking-widest text-white/40 ml-1">
+                  {tw("socials")}
+                </label>
+                <input
+                  {...form.register("socials")}
+                  className="harv-input w-full rounded-xl border px-4 py-3 text-base"
+                  placeholder={tw("socials_placeholder")}
+                />
               </div>
 
               <div className="space-y-2">
@@ -161,14 +243,14 @@ export function LandingWaitlistSection() {
                       onValueChange={field.onChange}
                     >
                       <SelectTrigger className="harv-input w-full rounded-xl border px-4 py-3 h-[50px] text-base">
-                        <SelectValue placeholder="Select an option" />
+                        <SelectValue placeholder={tw("select_option")} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Prototypes for Humanity">Prototypes for Humanity</SelectItem>
-                        <SelectItem value="Bloomberg">Bloomberg</SelectItem>
-                        <SelectItem value="Social media">Social media</SelectItem>
-                        <SelectItem value="Referral">Referral</SelectItem>
-                        <SelectItem value="Other">Other</SelectItem>
+                        <SelectItem value="Prototypes for Humanity">{tw("opt_prototypes")}</SelectItem>
+                        <SelectItem value="Bloomberg">{tw("opt_bloomberg")}</SelectItem>
+                        <SelectItem value="Social media">{tw("opt_social")}</SelectItem>
+                        <SelectItem value="Referral">{tw("opt_referral")}</SelectItem>
+                        <SelectItem value="Other">{tw("opt_other")}</SelectItem>
                       </SelectContent>
                     </Select>
                   )}
@@ -187,7 +269,7 @@ export function LandingWaitlistSection() {
                   disabled={submit.isPending}
                 >
                   {submit.isPending ? <Loader2 className="mr-2 size-5 animate-spin" /> : null}
-                  Join the Waiting List
+                  {tw("submit")}
                 </Button>
                 <p className="mt-4 text-center text-[11px] text-[#8A9BAC] font-medium leading-relaxed max-w-sm mx-auto">
                   {t("waitlist_microcopy")}
@@ -195,6 +277,46 @@ export function LandingWaitlistSection() {
               </div>
             </form>
           )}
+        </div>
+
+        {/* Post-form Sections */}
+        <div className="space-y-20">
+          {/* How It Works Mini */}
+          <div className="text-center">
+            <h4 className="text-xs font-black uppercase tracking-[0.3em] text-primary mb-8">{t("waitlist_how_title")}</h4>
+            <div className="flex flex-wrap justify-center items-center gap-4 md:gap-8">
+              {steps.map((step, i) => (
+                <div key={i} className="flex items-center gap-4 md:gap-8">
+                  <span className="text-white font-bold text-sm md:text-base">{step}</span>
+                  {i < steps.length - 1 && (
+                    <div className="w-4 h-px bg-white/20" />
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Real Farms */}
+          {producersToShow.length > 0 && (
+            <div className="text-center">
+              <h4 className="text-xs font-black uppercase tracking-[0.3em] text-primary mb-8">{t("waitlist_real_farms_title")}</h4>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+                {producersToShow.map((farm, i) => (
+                  <div key={i} className="text-left bg-white/5 border border-white/5 p-4 rounded-xl">
+                    <p className="text-white font-bold text-sm mb-1">{farm.name}</p>
+                    <p className="text-white/40 text-xs">{(farm as any).region}, {(farm as any).country}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Disclaimer */}
+          <div className="max-w-3xl mx-auto">
+            <p className="text-[10px] text-white/30 leading-relaxed text-center italic">
+              {t("waitlist_disclaimer")}
+            </p>
+          </div>
         </div>
       </div>
     </section>

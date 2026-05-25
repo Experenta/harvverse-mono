@@ -80,7 +80,7 @@ export default function PublicFarmDetailPage() {
         <GlassCard className="p-12 text-center border-primary/20">
           <p className="text-white/60">{tf("not_found")}</p>
           <Button asChild variant="link" className="mt-4 text-primary">
-            <Link href="/farms">Back to directory</Link>
+            <Link href="/farms">{t("back_to_directory")}</Link>
           </Button>
         </GlassCard>
       </div>
@@ -176,33 +176,33 @@ export default function PublicFarmDetailPage() {
               <div className="grid grid-cols-2 gap-y-8 gap-x-12 py-8 border-y border-white/5">
                 <div className="space-y-1">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-white/30 flex items-center gap-2">
-                    <MapPin className="size-3 text-primary" /> Location
+                    <MapPin className="size-3 text-primary" /> {t("label_location")}
                   </p>
                   <p className="text-lg font-bold text-white/80">{farm.region}, {farm.country}</p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-white/30 flex items-center gap-2">
-                    <Mountain className="size-3 text-primary" /> Altitude
+                    <Mountain className="size-3 text-primary" /> {t("label_altitude")}
                   </p>
-                  <p className="text-lg font-bold text-white/80">{farm.altitudeMasl ?? "—"} masl</p>
+                  <p className="text-lg font-bold text-white/80">{farm.altitudeMasl ?? "—"} {t("label_masl")}</p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-white/30 flex items-center gap-2">
-                    <Sprout className="size-3 text-primary" /> Variety
+                    <Sprout className="size-3 text-primary" /> {t("label_variety")}
                   </p>
-                  <p className="text-lg font-bold text-white/80">{(farm.varieties ?? [])[0] ?? "Specialty Blend"}</p>
+                  <p className="text-lg font-bold text-white/80">{(farm.varieties ?? [])[0] ?? t("specialty_blend")}</p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-white/30 flex items-center gap-2">
-                    <Layers className="size-3 text-primary" /> Area
+                    <Layers className="size-3 text-primary" /> {t("label_area")}
                   </p>
-                  <p className="text-lg font-bold text-white/80">{farm.areaManzanas ? `${Number(farm.areaManzanas).toFixed(1)} hectares` : "—"}</p>
+                  <p className="text-lg font-bold text-white/80">{farm.areaManzanas ? `${Number(farm.areaManzanas).toFixed(1)} ${t("label_hectares")}` : "—"}</p>
                 </div>
               </div>
 
               {riskData && (
                 <div className="space-y-6">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/30">Risk Score Breakdown</p>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/30">{t("risk_breakdown")}</p>
                   <div className="space-y-4">
                     <div className="w-full h-4 bg-white/5 rounded-full overflow-hidden border border-white/10">
                       <motion.div
@@ -224,7 +224,7 @@ export default function PublicFarmDetailPage() {
                 <div className="bg-[#1E3A2F]/40 p-8 rounded-3xl border border-primary/20 space-y-6">
                   <div className="flex items-center gap-2 text-primary font-bold">
                     <div className="size-2 bg-primary rounded-full animate-pulse" />
-                    Available for co-investment
+                    {t("available_co_investment")}
                   </div>
                   <Button
                     asChild
@@ -232,7 +232,7 @@ export default function PublicFarmDetailPage() {
                     className="w-full h-16 bg-primary text-[#0F1A24] font-black text-lg rounded-2xl shadow-xl shadow-primary/20 hover:scale-[1.02] transition-transform"
                   >
                     <Link href="/waiting-list">
-                      Join the Waiting List
+                      {useTranslations("waitlist")("submit")}
                     </Link>
                   </Button>
                 </div>
@@ -247,7 +247,7 @@ export default function PublicFarmDetailPage() {
         <div className="mx-auto max-w-7xl px-4 md:px-6">
            <div className="flex flex-col md:flex-row items-center justify-between gap-8">
               <p className="text-xl md:text-2xl font-bold text-white text-center md:text-left">
-                Is this your farm? Register to claim your profile.
+                {t("is_this_your_farm")} {t("claim_profile")}
               </p>
               <Button
                 asChild

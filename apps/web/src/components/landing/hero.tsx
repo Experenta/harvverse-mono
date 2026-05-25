@@ -17,7 +17,7 @@ export function LandingHero() {
         <div className="relative h-1/2 md:h-full md:w-[60%] overflow-hidden">
           <img
             src="/figma/landing-hero-farm.png"
-            alt="Coffee Farm"
+            alt={t("alt_farm")}
             className="h-full w-full object-cover"
           />
           <div className="absolute inset-0 bg-[#0F1A24]/70 md:bg-gradient-to-r md:from-[#0F1A24] md:to-transparent" />
@@ -27,7 +27,7 @@ export function LandingHero() {
         <div className="relative h-1/2 md:h-full md:w-[40%] overflow-hidden">
           <img
             src="/figma/landing-hero-farm.png" // Replace with actual platform screenshot if available, using farm photo as placeholder
-            alt="Harvverse Platform"
+            alt={t("alt_platform")}
             className="h-full w-full object-cover opacity-50 grayscale contrast-125"
           />
           <div className="absolute inset-0 bg-[#0F1A24]/30" />

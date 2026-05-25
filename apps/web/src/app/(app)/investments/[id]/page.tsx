@@ -168,9 +168,6 @@ export default function InvestmentDetailPage() {
       evidenceType: values.evidenceType,
       notes: values.notes || undefined,
       artifactHash,
-      attesterUserId: user.id,
-      attesterRole: user.role,
-      demoOnly: false,
     });
   }
 

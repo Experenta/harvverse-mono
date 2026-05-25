@@ -6,11 +6,11 @@ export function LandingRecognitions() {
   const t = useTranslations("landing");
 
   const recognitions = [
-    "Fintech Americas 2025 · Gold Award DeFi",
-    "Prototypes for Humanity · Dubai · 3,300+ applicants",
-    "Endeavor × IICA AgTech Accelerator 2026",
-    "Bloomberg Línea · April 2026",
-    "AgriTech Innovation Awards · Málaga 2024",
+    t("recognition_1"),
+    t("recognition_2"),
+    t("recognition_3"),
+    t("recognition_4"),
+    t("recognition_5"),
   ];
 
   return (

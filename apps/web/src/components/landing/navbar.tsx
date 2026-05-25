@@ -12,6 +12,7 @@ import { LanguageSwitcher } from "@/components/language-switcher";
 
 export function LandingNavbar() {
   const t = useTranslations("landing");
+  const tn = useTranslations("nav");
   const [isOpen, setIsOpen] = useState(false);
 
   const navLinks: Array<
@@ -29,7 +30,7 @@ export function LandingNavbar() {
       <nav className="fixed top-0 left-0 right-0 z-50 border-b border-white/10 bg-[#0F1A24]/80 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 h-16 md:px-6">
           <Link href="/" className="flex items-center gap-2">
-            <img src="/figma/logo-full.png" alt="Harvverse" className="h-8 w-auto" />
+            <img src="/figma/logo-full.png" alt={t("alt_logo")} className="h-8 w-auto" />
           </Link>
 
           {/* Desktop Links */}
@@ -65,7 +66,7 @@ export function LandingNavbar() {
               variant="outline"
               className="border-white/20 text-white hover:bg-white/10 rounded-full px-6"
             >
-              <Link href={"/login" as Route}>Login</Link>
+              <Link href={"/login" as Route}>{tn("login")}</Link>
             </Button>
             <Button
               asChild
@@ -84,7 +85,7 @@ export function LandingNavbar() {
               size="sm"
               className="border-white/20 text-white hover:bg-white/10"
             >
-              <Link href={"/login" as Route}>Login</Link>
+              <Link href={"/login" as Route}>{tn("login")}</Link>
             </Button>
             <button
               className="text-white"

@@ -133,11 +133,11 @@ export default function AboutPage() {
            
            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
               {[
-                { title: "🏆 Fintech Americas 2025", desc: "Gold Award — Most Innovative DeFi" },
-                { title: "🌍 Prototypes for Humanity — Dubai", desc: "Selected from 3,300+ global applicants" },
-                { title: "🚀 Endeavor × IICA AgTech Accelerator 2026", desc: "20 spots · 150 applications · 34 countries" },
-                { title: "📰 Bloomberg Línea — April 2026", desc: "Featured in-depth analysis on AgriFintech" },
-                { title: "🏅 AgriTech Innovation Awards Málaga 2024", desc: "Finalist — Best AgriTech Startup" },
+                { title: t("about_rec_1_title"), desc: t("about_rec_1_desc") },
+                { title: t("about_rec_2_title"), desc: t("about_rec_2_desc") },
+                { title: t("about_rec_3_title"), desc: t("about_rec_3_desc") },
+                { title: t("about_rec_4_title"), desc: t("about_rec_4_desc") },
+                { title: t("about_rec_5_title"), desc: t("about_rec_5_desc") },
               ].map((item, i) => (
                 <motion.div
                   key={item.title}

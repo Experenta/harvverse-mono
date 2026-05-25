@@ -81,12 +81,12 @@ export function FarmCard({ farm }: FarmCardProps) {
     farm.riskScore == null
       ? null
       : farm.riskScore >= 80
-        ? { className: "border-green-500/30 bg-green-500/15 text-green-300", label: `● ${farm.riskScore} Excelente` }
+        ? { className: "border-green-500/30 bg-green-500/15 text-green-300", label: `● ${farm.riskScore} ${t("risk_excellent")}` }
         : farm.riskScore >= 60
-          ? { className: "border-[#67B9C1]/35 bg-[#67B9C1]/15 text-[#67B9C1]", label: `● ${farm.riskScore} Bueno` }
+          ? { className: "border-[#67B9C1]/35 bg-[#67B9C1]/15 text-[#67B9C1]", label: `● ${farm.riskScore} ${t("risk_good")}` }
           : farm.riskScore >= 40
-            ? { className: "border-yellow-500/35 bg-yellow-500/15 text-yellow-300", label: `● ${farm.riskScore} Moderado` }
-            : { className: "border-red-500/35 bg-red-500/15 text-red-300", label: `● ${farm.riskScore} Alto Riesgo` };
+            ? { className: "border-yellow-500/35 bg-yellow-500/15 text-yellow-300", label: `● ${farm.riskScore} ${t("risk_moderate")}` }
+            : { className: "border-red-500/35 bg-red-500/15 text-red-300", label: `● ${farm.riskScore} ${t("risk_high")}` };
 
   const eudrScreening = extractEudrScreening(farm.scoreBreakdown);
   const grade = eudrGrade(eudrScreening);
@@ -203,7 +203,7 @@ export function FarmCard({ farm }: FarmCardProps) {
               )}
               {farm.areaManzanas && (
                 <span className="flex items-center gap-1 md:gap-2 truncate">
-                  {Number(farm.areaManzanas).toFixed(1)} mzn
+                  {Number(farm.areaManzanas).toFixed(1)} {t("unit_mzn")}
                 </span>
               )}
             </div>

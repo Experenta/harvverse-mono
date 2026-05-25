@@ -28,7 +28,7 @@ export function LandingOpenFarmsPreview() {
               {t("open_farms_headline")}
             </h2>
             <p className="text-white/60 text-lg max-w-xl">
-              Real-time directory of verified producers. Browse by region, variety, or compliance score.
+              {t("open_farms_subheadline")}
             </p>
           </div>
           <Button

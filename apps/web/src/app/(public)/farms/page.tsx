@@ -27,7 +27,7 @@ export default function PublicFarmsPage() {
             animate={{ opacity: 1, y: 0 }}
             className="text-[11px] font-bold tracking-[3px] text-primary uppercase mb-6"
           >
-            OPEN FARMS DIRECTORY
+            {t("directory_eyebrow")}
           </motion.p>
           <motion.h1
             initial={{ opacity: 0, y: 10 }}
@@ -35,8 +35,7 @@ export default function PublicFarmsPage() {
             transition={{ delay: 0.1 }}
             className="text-4xl md:text-6xl font-bold text-white leading-tight mb-8"
           >
-            Every farm. Satellite-verified.<br />
-            Publicly accessible. Free.
+            {t("directory_headline")}
           </motion.h1>
           <motion.p
             initial={{ opacity: 0, y: 10 }}
@@ -44,7 +43,7 @@ export default function PublicFarmsPage() {
             transition={{ delay: 0.2 }}
             className="text-lg md:text-xl text-white/60 max-w-2xl mb-10 leading-relaxed"
           >
-            The global EUDR compliance directory for coffee farmers. Powered by ESA Copernicus satellite data.
+            {t("directory_subheadline")}
           </motion.p>
           <motion.div
             initial={{ opacity: 0, y: 10 }}

@@ -248,13 +248,13 @@ export default function RiskScorePreview({
             <div>
               <p className="text-xs text-white/70">{t("precipitation_label")}</p>
               <p className="text-lg font-semibold text-white">
-                {annualPrecipMm !== null ? `${annualPrecipMm.toFixed(0)} mm/yr` : "—"}
+                {annualPrecipMm !== null ? `${annualPrecipMm.toFixed(0)} ${t("unit_mm_yr")}` : "—"}
               </p>
             </div>
             <div>
               <p className="text-xs text-white/70">{t("temp_label")}</p>
               <p className="text-lg font-semibold text-white">
-                {avgTempC !== null ? `${avgTempC.toFixed(1)} °C` : "—"}
+                {avgTempC !== null ? `${avgTempC.toFixed(1)} ${t("unit_celsius")}` : "—"}
               </p>
             </div>
           </div>
@@ -330,7 +330,7 @@ export default function RiskScorePreview({
               <p className="mt-1 text-xs text-white/55">
                 {t("rainfall_trend")}:{" "}
                 {climateTrend?.precipitationTrendMmPerYear != null
-                  ? `${climateTrend.precipitationTrendMmPerYear.toFixed(0)} mm/yr`
+                  ? `${climateTrend.precipitationTrendMmPerYear.toFixed(0)} ${t("unit_mm_yr")}`
                   : "—"}
                 {" · "}
                 {t("extreme_rain_days")}: {climateTrend?.daysOver100Mm ?? "—"}
@@ -342,7 +342,7 @@ export default function RiskScorePreview({
                 {t("terrain")}
               </p>
               <p className="mt-1 text-sm font-bold text-white">
-                {terrain?.elevationMasl != null ? `${terrain.elevationMasl} m` : "—"}
+                {terrain?.elevationMasl != null ? `${terrain.elevationMasl} ${t("unit_meters")}` : "—"}
               </p>
               <p className="mt-1 text-xs text-white/55">
                 {t("terrain_risk")}: {t(`risk_${terrain?.terrainRisk ?? "unknown"}`)}
@@ -374,7 +374,7 @@ export default function RiskScorePreview({
       )}
       {!hasBreakdown && data.hash ? (
         <p className="mt-3 truncate border-t border-white/10 pt-3 font-mono text-xs text-white/45">
-          Hash: {data.hash}
+          {t("label_hash")}: {data.hash}
         </p>
       ) : null}
     </GlassCard>

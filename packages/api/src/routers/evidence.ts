@@ -10,9 +10,18 @@ import { z } from "zod";
 
 import { protectedProcedure, router } from "../index";
 
+const createEvidenceInputSchema = insertEvidenceRecordSchema.omit({
+  attesterUserId: true,
+  attesterRole: true,
+  demoOnly: true,
+  easUid: true,
+  registryTxHash: true,
+  status: true,
+});
+
 export const evidenceRouter = router({
   create: protectedProcedure
-    .input(insertEvidenceRecordSchema)
+    .input(createEvidenceInputSchema)
     .mutation(async ({ ctx, input }) => {
       const requestingUser = await ctx.db.query.users.findFirst({
         where: eq(users.clerkId, ctx.clerkId),
@@ -33,7 +42,13 @@ export const evidenceRouter = router({
 
       const [record] = await ctx.db
         .insert(evidenceRecords)
-        .values(input)
+        .values({
+          ...input,
+          attesterUserId: requestingUser.id,
+          attesterRole: requestingUser.role,
+          demoOnly: false,
+          status: "recorded",
+        })
         .returning();
       if (!record) {
         throw new TRPCError({

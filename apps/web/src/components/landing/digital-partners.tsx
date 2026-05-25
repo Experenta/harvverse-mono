@@ -31,7 +31,7 @@ export function LandingDigitalPartners() {
             <div className="relative rounded-2xl overflow-hidden border border-white/10 shadow-2xl shadow-primary/10 bg-white/5 p-2">
               <img
                 src="/figma/landing-hero-farm.png" // Placeholder for partner dashboard screenshot
-                alt="Digital Partner Dashboard"
+                alt={t("alt_dashboard")}
                 className="rounded-xl w-full h-auto object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-tr from-[#0F1A24]/60 to-transparent pointer-events-none" />
