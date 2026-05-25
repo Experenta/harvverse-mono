@@ -93,14 +93,14 @@ export default function WaitingListPage() {
           </h1>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          <div className="grid grid-cols-3 gap-2 md:gap-4 mb-8">
             {harvestStats.map((stat, i) => (
               <div
                 key={i}
-                className="bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur-sm"
+                className="bg-white/5 border border-white/10 rounded-xl md:rounded-2xl p-3 md:p-6 backdrop-blur-sm flex flex-col justify-center"
               >
-                <p className="text-2xl font-black text-primary mb-1">{stat.val}</p>
-                <p className="text-xs font-bold uppercase tracking-widest text-white/40">{stat.label}</p>
+                <p className="text-sm md:text-2xl font-black text-primary mb-0.5 md:mb-1">{stat.val}</p>
+                <p className="text-[8px] md:text-xs font-bold uppercase tracking-widest text-white/40 leading-tight">{stat.label}</p>
               </div>
             ))}
           </div>

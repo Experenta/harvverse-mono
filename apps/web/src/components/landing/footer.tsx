@@ -10,9 +10,9 @@ export function LandingFooter() {
   return (
     <footer className="bg-[#0A1218] pt-16 pb-24 md:pb-12 text-white/60">
       <div className="mx-auto max-w-7xl px-4 md:px-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-12 mb-12">
-          {/* Logo & Info */}
-          <div className="space-y-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-12 mb-12">
+          {/* Logo & Info - Spans 2 columns on mobile */}
+          <div className="col-span-2 md:col-span-1 space-y-4">
             <Link href="/" className="flex items-center gap-2 mb-6">
               <img src="/figma/logo-full.png" alt={t("alt_logo")} className="h-8 w-auto opacity-80" />
             </Link>
@@ -60,13 +60,13 @@ export function LandingFooter() {
           </div>
         </div>
 
-        <div className="pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-4 text-xs">
-          <div className="flex flex-col md:flex-row gap-4 items-center">
+        <div className="pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-6 text-center md:text-left text-xs">
+          <div className="flex flex-col md:flex-row gap-2 md:gap-4 items-center">
             <p>{t("footer_copyright")}</p>
             <p className="text-white/30 hidden md:block">|</p>
             <p>{t("footer_built_on")}</p>
           </div>
-          <div className="flex gap-6">
+          <div className="flex gap-8">
             <Link href="https://harvverse.com/privacy" target="_blank" className="hover:text-white transition-colors">{t("footer_privacy")}</Link>
             <Link href="https://harvverse.com/terms" target="_blank" className="hover:text-white transition-colors">{t("footer_terms")}</Link>
           </div>

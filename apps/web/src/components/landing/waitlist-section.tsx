@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
@@ -59,11 +59,28 @@ export function LandingWaitlistSection() {
     },
   });
 
+  const submit = useMutation(
+    trpc.waitlist.submit.mutationOptions({
+      onSuccess: () => setSubmitted(true),
+    }),
+  );
+
   const { data: farms } = useQuery(
     trpc.farms.listPublic.queryOptions(),
   );
 
   const producersToShow = farms?.slice(0, 6) ?? [];
+  const harvestStats = [
+    { val: t("waitlist_stat1_val"), label: t("waitlist_stat1_label") },
+    { val: t("waitlist_stat2_val"), label: t("waitlist_stat2_label") },
+    { val: t("waitlist_stat3_val"), label: t("waitlist_stat3_label") },
+  ];
+  const steps = [
+    t("waitlist_step1"),
+    t("waitlist_step2"),
+    t("waitlist_step3"),
+    t("waitlist_step4"),
+  ];
 
   return (
     <section className="bg-[#1E3A2F] py-24 md:py-32">
@@ -79,7 +96,7 @@ export function LandingWaitlistSection() {
           </motion.h2>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          <div className="grid grid-cols-3 gap-2 md:gap-4 mb-8">
             {harvestStats.map((stat, i) => (
               <motion.div
                 key={i}
@@ -87,10 +104,10 @@ export function LandingWaitlistSection() {
                 whileInView={{ opacity: 1, scale: 1 }}
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.1 }}
-                className="bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur-sm"
+                className="bg-white/5 border border-white/10 rounded-xl md:rounded-2xl p-3 md:p-6 backdrop-blur-sm flex flex-col justify-center"
               >
-                <p className="text-2xl font-black text-primary mb-1">{stat.val}</p>
-                <p className="text-xs font-bold uppercase tracking-widest text-white/40">{stat.label}</p>
+                <p className="text-sm md:text-2xl font-black text-primary mb-0.5 md:mb-1">{stat.val}</p>
+                <p className="text-[8px] md:text-xs font-bold uppercase tracking-widest text-white/40 leading-tight">{stat.label}</p>
               </motion.div>
             ))}
           </div>
@@ -304,7 +321,7 @@ export function LandingWaitlistSection() {
                 {producersToShow.map((farm, i) => (
                   <div key={i} className="text-left bg-white/5 border border-white/5 p-4 rounded-xl">
                     <p className="text-white font-bold text-sm mb-1">{farm.name}</p>
-                    <p className="text-white/40 text-xs">{(farm as any).region}, {(farm as any).country}</p>
+                    <p className="text-white/40 text-xs">{farm.region}, {farm.country}</p>
                   </div>
                 ))}
               </div>

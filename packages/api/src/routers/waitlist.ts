@@ -4,6 +4,7 @@ import { z } from "zod";
 import { publicProcedure, router } from "../index";
 
 const investmentRangeSchema = z.enum([
+  "$1,595 – $3,000",
   "$3,000 – $5,000",
   "$5,000 – $15,000",
   "$15,000 – $50,000",
